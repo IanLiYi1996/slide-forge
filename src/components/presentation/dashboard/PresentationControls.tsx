@@ -6,7 +6,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePresentationState } from "@/states/presentation-state";
-import { Layout } from "lucide-react";
 import { ModelPicker } from "./ModelPicker";
 
 export function PresentationControls({
@@ -19,12 +18,10 @@ export function PresentationControls({
     setNumSlides,
     language,
     setLanguage,
-    pageStyle,
-    setPageStyle,
   } = usePresentationState();
 
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-3 gap-4">
       {/* Model Name */}
       <ModelPicker shouldShowLabel={shouldShowLabel} />
 
@@ -76,40 +73,6 @@ export function PresentationControls({
             <SelectItem value="ru">Russian</SelectItem>
             <SelectItem value="hi">Hindi</SelectItem>
             <SelectItem value="ar">Arabic</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Page Style */}
-      <div>
-        {shouldShowLabel && (
-          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Page style
-          </label>
-        )}
-        <Select value={pageStyle} onValueChange={setPageStyle}>
-          <SelectTrigger>
-            <div className="flex items-center gap-2">
-              <Layout className="h-4 w-4" />
-              <SelectValue placeholder="Select page style" />
-            </div>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="default">
-              <div className="flex items-center gap-3">
-                <span>Default</span>
-              </div>
-            </SelectItem>
-            <SelectItem value="traditional">
-              <div className="flex items-center gap-3">
-                <span>Traditional</span>
-              </div>
-            </SelectItem>
-            <SelectItem value="tall">
-              <div className="flex items-center gap-3">
-                <span>Tall</span>
-              </div>
-            </SelectItem>
           </SelectContent>
         </Select>
       </div>

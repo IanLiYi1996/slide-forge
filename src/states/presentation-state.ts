@@ -20,7 +20,6 @@ interface PresentationState {
   theme: Themes | string;
   customThemeData: ThemeProperties | null;
   language: string;
-  pageStyle: string;
   showTemplates: boolean;
   selectedTemplate: string; // Template ID for presentation style
   customThemePrompt: string; // Custom theme style description
@@ -113,7 +112,6 @@ interface PresentationState {
   thumbnailUrl?: string;
   setThumbnailUrl: (url: string | undefined) => void;
   setLanguage: (lang: string) => void;
-  setPageStyle: (style: string) => void;
   setShowTemplates: (show: boolean) => void;
   setSelectedTemplate: (templateId: string) => void;
   setCustomThemePrompt: (prompt: string) => void;
@@ -173,7 +171,6 @@ export const usePresentationState = create<PresentationState>((set) => ({
   setThumbnailUrl: (url) => set({ thumbnailUrl: url }),
   numSlides: 5,
   language: "en-US",
-  pageStyle: "default",
   showTemplates: false,
   selectedTemplate: "corporate", // Default template
   customThemePrompt: "", // Custom theme style
@@ -311,7 +308,6 @@ export const usePresentationState = create<PresentationState>((set) => ({
       theme: theme,
       customThemeData: customData,
     }),
-  setPageStyle: (style) => set({ pageStyle: style }),
   setShowTemplates: (show) => set({ showTemplates: show }),
   setSelectedTemplate: (templateId) => set({ selectedTemplate: templateId }),
   setCustomThemePrompt: (prompt) => set({ customThemePrompt: prompt }),

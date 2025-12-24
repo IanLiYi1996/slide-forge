@@ -154,7 +154,7 @@ export const EXAMPLE_PROMPTS = [
 
 export function PresentationExamples() {
   const [examples, setExamples] = useState(EXAMPLE_PROMPTS.slice(0, 6));
-  const { setNumSlides, setLanguage, setPageStyle, setPresentationInput } =
+  const { setNumSlides, setLanguage, setPresentationInput } =
     usePresentationState();
 
   // Use useQuery to subscribe to the same data as RecentPresentations
@@ -179,7 +179,6 @@ export function PresentationExamples() {
     setPresentationInput(example.title);
     setNumSlides(example.slides);
     setLanguage(example.lang);
-    setPageStyle(example.style);
   };
 
   const handleShuffle = () => {
