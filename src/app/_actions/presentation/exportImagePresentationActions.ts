@@ -83,7 +83,7 @@ export async function exportAsPPTX(presentationId: string, fileName: string = "p
             align: "center",
           });
 
-          slide.addText("🚧 Placeholder Image", {
+          slide.addText("[Placeholder Image]", {
             x: 1,
             y: 4.5,
             w: 8,
@@ -228,7 +228,7 @@ export async function exportAsPDF(presentationId: string, fileName: string = "pr
             size: 48,
           });
 
-          page.drawText("🚧 Placeholder Image", {
+          page.drawText("[Placeholder Image]", {
             x: pageWidth / 2 - 150,
             y: pageHeight / 2,
             size: 32,
