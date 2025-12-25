@@ -6,6 +6,7 @@ import { usePresentationState } from "@/states/presentation-state";
 import { FileText, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { ImageConfigDialog } from "./ImageConfigDialog";
 import { WebSearchToggle } from "./WebSearchToggle";
 
 export function PresentationInput({
@@ -101,14 +102,17 @@ export function PresentationInput({
             Describe your topic and let AI generate stunning slides
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => setShowTemplates(true)}
-          className="gap-2 shrink-0"
-        >
-          <Sparkles className="h-4 w-4" />
-          主题风格
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <ImageConfigDialog />
+          <Button
+            variant="outline"
+            onClick={() => setShowTemplates(true)}
+            className="gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            主题风格
+          </Button>
+        </div>
       </div>
 
       {/* File upload section */}
