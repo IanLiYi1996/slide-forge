@@ -184,7 +184,7 @@ Apply this style consistently across all visual elements, colors, typography, an
     }
 
     // 🚧 SWITCH: Set to true to use real yunwu API, false for placeholder
-    const USE_REAL_API = false;
+    const USE_REAL_API = true;
 
     if (!USE_REAL_API) {
       // 🎨 MOCK MODE: Use local image file as mock data
