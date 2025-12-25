@@ -24,7 +24,7 @@ export function SlideBySlideGenerator({
   onComplete,
 }: SlideBySlideGeneratorProps) {
   const router = useRouter();
-  const { customThemePrompt } = usePresentationState();
+  const { customThemePrompt, imageModel } = usePresentationState();
   const [slides, setSlides] = useState<SlideImage[]>(() =>
     outline.map((content, index) => ({
       id: `slide-${index}`,
@@ -55,7 +55,7 @@ export function SlideBySlideGenerator({
       const result = await generateSlideImageAction(
         currentSlide.outlineContent,
         templateId,
-        { aspectRatio: "16:9", imageSize: "2K" },
+        imageModel, // Use user-configured image settings from state
         currentSlide.conversationHistory,
         isModification ? modificationPrompt : undefined,
         customThemePrompt, // Pass custom theme prompt
