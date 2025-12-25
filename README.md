@@ -1,16 +1,18 @@
-# 🎨 Presentation AI
+# 🎨 Slide Forge
 
 An intelligent presentation creation platform powered by AI. Generate stunning, professional presentations from text input or file uploads in minutes.
 
 ## ✨ Features
 
 ### 🤖 AI-Powered Generation
+
 - **Smart Outline Generation**: Automatically create structured presentation outlines from topics or content
 - **AI Image Generation**: Generate high-quality slide visuals using yunwu API (Gemini 3 Pro Image)
 - **Multi-turn Editing**: Refine and modify generated slides with natural language instructions
 - **Web Search Integration**: Enhance outlines with real-time web search data
 
 ### 📄 Flexible Input Methods
+
 - **Text Input**: Describe your topic directly in the input field
 - **File Upload**: Upload documents and automatically extract content
   - Supported formats: `.txt`, `.md`, `.docx`, `.pdf`
@@ -19,6 +21,7 @@ An intelligent presentation creation platform powered by AI. Generate stunning, 
   - Automatic text extraction and parsing
 
 ### 🎨 Customization Options
+
 - **10+ Built-in Themes**: Professional, creative, minimal, bold, and more
 - **Custom Theme Creator**: Design your own themes with custom colors and fonts
 - **Template Styles**: Multiple presentation templates (corporate, creative, minimal, etc.)
@@ -29,11 +32,13 @@ An intelligent presentation creation platform powered by AI. Generate stunning, 
 - **Flexible Slide Count**: Generate 1-50 slides as needed
 
 ### 📤 Export Options
+
 - **PDF Export**: Generate PDF documents with all slides
 - **PPTX Export**: Export to PowerPoint format
 - **Image Export**: Download individual slides as images
 
 ### 💾 Smart Features
+
 - **Auto-save**: Automatic saving of work in progress
 - **Conversation History**: Maintains context for multi-turn slide modifications
 - **Persistent Storage**: All generated images stored permanently via UploadThing
@@ -52,7 +57,6 @@ Before you begin, ensure you have the following installed:
   - yunwu API key (for AI image generation with Gemini 3 Pro Image)
   - AWS Cognito credentials (for authentication)
   - UploadThing token (for file storage)
-  - Unsplash API key (optional, for stock images)
   - Tavily API key (optional, for web search)
 
 ### Installation
@@ -100,7 +104,6 @@ Before you begin, ensure you have the following installed:
    UPLOADTHING_TOKEN=""  # For storing generated images and uploads
 
    # Optional Services
-   UNSPLASH_ACCESS_KEY=""  # For stock image search (optional)
    TAVILY_API_KEY=""       # For web search in outline generation (optional)
    ```
 
@@ -124,7 +127,7 @@ Before you begin, ensure you have the following installed:
    pnpm dev
    ```
 
-4. **Open the application**
+1. **Open the application**
 
    Navigate to [http://localhost:8080](http://localhost:8080) in your browser.
 
@@ -174,6 +177,7 @@ Before you begin, ensure you have the following installed:
 Configure image generation parameters via the **"图片设置"** dialog:
 
 **Aspect Ratios:**
+
 - `16:9` - Widescreen (Recommended for most presentations)
 - `4:3` - Standard/Classic
 - `1:1` - Square
@@ -182,6 +186,7 @@ Configure image generation parameters via the **"图片设置"** dialog:
 - And more...
 
 **Resolutions:**
+
 - `1K` - Fast generation, suitable for drafts
 - `2K` - Balanced quality and speed (Recommended)
 - `4K` - Highest quality, slower generation
@@ -199,30 +204,36 @@ Configure image generation parameters via the **"图片设置"** dialog:
 ## 🛠️ Tech Stack
 
 ### Core Framework
+
 - **Next.js 15** - React framework with App Router
 - **React 19** - UI library
 - **TypeScript** - Type safety
 - **Tailwind CSS** - Styling
 
 ### AI & APIs
+
 - **OpenAI API** - Text generation (outline, content)
 - **yunwu API** - Image generation (Gemini 3 Pro Image)
 - **Tavily API** - Web search integration
 
 ### Database & Storage
+
 - **PostgreSQL** - Primary database
 - **Prisma** - ORM
 - **UploadThing** - File upload and storage
 
 ### Authentication
+
 - **NextAuth.js** - Authentication framework
 - **AWS Cognito** - Identity provider
 
 ### Document Processing
+
 - **mammoth** - DOCX text extraction
 - **unpdf** - PDF text extraction
 
 ### UI Components
+
 - **Radix UI** - Accessible component primitives
 - **Plate** - Rich text editor
 - **Lucide Icons** - Icon library
