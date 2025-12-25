@@ -20,14 +20,10 @@ export default function SignIn() {
 
   const handleSignIn = async (provider: string) => {
     try {
-      const result = await signIn(provider, {
+      await signIn(provider, {
         callbackUrl,
         redirect: true
       });
-
-      if (result?.error) {
-        console.error("Sign in error:", result.error);
-      }
     } catch (error) {
       console.error("Sign in failed:", error);
     }

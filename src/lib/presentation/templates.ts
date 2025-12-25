@@ -262,7 +262,10 @@ export function getTemplatesByCategory() {
   };
 
   templates.forEach((template) => {
-    grouped[template.category].push(template);
+    const category = template.category;
+    if (grouped[category]) {
+      grouped[category]!.push(template);
+    }
   });
 
   return grouped;
