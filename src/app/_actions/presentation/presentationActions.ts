@@ -95,6 +95,7 @@ export async function updatePresentation({
   language,
   thumbnailUrl,
   slides,
+  slideImages,
 }: {
   id: string;
   content?: {
@@ -111,6 +112,7 @@ export async function updatePresentation({
   language?: string;
   thumbnailUrl?: string;
   slides?: string[]; // New: array of image URLs for pure-image mode
+  slideImages?: Record<string, unknown>; // New: slide image generation history
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -147,6 +149,7 @@ export async function updatePresentation({
             language: effectiveLanguage,
             outline,
             searchResults: searchResults as unknown as InputJsonValue,
+            slideImages: slideImages as unknown as InputJsonValue,
           },
         },
       },
@@ -156,7 +159,24 @@ export async function updatePresentation({
     });
 
     console.log("Presentation updated successfully");
-    console.log("Saved content:", finalContent);
+
+    // Log what was actually saved
+    const savedFields: string[] = [];
+    if (title) savedFields.push("title");
+    if (finalContent) savedFields.push("content");
+    if (outline) savedFields.push("outline");
+    if (searchResults) savedFields.push("searchResults");
+    if (effectiveTheme) savedFields.push("theme");
+    if (thumbnailUrl) savedFields.push("thumbnailUrl");
+    if (slideImages) savedFields.push("slideImages");
+
+    console.log(`Saved fields: ${savedFields.join(", ")}`);
+    if (finalContent) {
+      console.log("Saved content:", finalContent);
+    }
+    if (slideImages) {
+      console.log("Saved slideImages count:", Object.keys(slideImages).length);
+    }
 
     return {
       success: true,

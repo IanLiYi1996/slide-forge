@@ -12,43 +12,71 @@ interface OutlineRequest {
   modelName?: string;
 }
 
-const outlineTemplate = `Given the following presentation topic and requirements, generate a structured outline with {numberOfCards} main topics in markdown format.
-The outline should be in {language} language and it very important.
+const outlineTemplate = `Given the following presentation topic and requirements, generate a structured outline with {numberOfCards} slides in a detailed format optimized for AI image generation.
+The outline should be in {language} language.
 
 Current Date: {currentDate}
 Topic: {prompt}
 
-First, generate an appropriate title for the presentation, then create exactly {numberOfCards} main topics that would make for an engaging and well-structured presentation.
+Generate exactly {numberOfCards} slides with a complete structured format for each slide that includes narrative purpose, content structure, visual descriptions, and layout guidance.
 
-Format the response starting with the title in XML tags, followed by markdown content with each topic as a heading and 2-3 bullet points.
+Each slide MUST follow this exact structure:
 
-Example format:
+Slide N: [Slide Title]
+
+// NARRATIVE GOAL (叙事目标)
+[A brief 1-2 sentence description of the emotional/strategic purpose of this slide - what feeling or message should it convey to the audience]
+
+// KEY CONTENT (关键内容)
+[Main text elements in structured format:
+- For title/cover slides: List the main title and subtitle
+- For content slides: List 2-3 key points or main sections
+Keep it concise - each item should be one clear statement]
+
+// VISUAL (视觉画面)
+[Detailed 2-3 sentence description of visual elements to include:
+- Central illustration, diagram, or image concept
+- Visual metaphors or symbolic elements
+- Suggested colors, icons, or graphical elements
+- Overall visual style (hand-drawn, modern, technical, etc.)
+Be specific but concise - focus on key visual elements]
+
+// LAYOUT (布局结构)
+[Brief 1-2 sentence description of spatial arrangement:
+- Layout style (poster, grid, triptych, centered, split-screen, etc.)
+- Text positioning (centered, left-aligned, top, bottom)
+- Visual element placement (center, sides, background, foreground)
+- Balance between text and imagery]
+
+Example slide format:
+
+Slide 1: Introduction - The Challenge We Face
+
+// NARRATIVE GOAL (叙事目标)
+Open with an engaging, problem-focused tone that immediately captures attention by identifying a key pain point the audience experiences. Set an approachable, solution-oriented atmosphere.
+
+// KEY CONTENT (关键内容)
+Title: Solving the Modern Workplace Challenge
+Subtitle: A New Approach to Remote Collaboration
+Context: Why traditional methods are failing
+
+// VISUAL (视觉画面)
+A dynamic illustration showing a broken chain being reconnected with a glowing digital link. Surrounding the main image are floating icons representing common workplace tools (laptop, calendar, chat bubble). Use warm, optimistic colors - soft blues and energizing oranges. Style should be modern and clean with subtle hand-drawn elements.
+
+// LAYOUT (布局结构)
+Centered poster layout with the title prominently displayed at top in large, bold typography. Main illustration occupies the central 60% of the slide with ample breathing room. Subtitle sits just below the title in a lighter weight. Icons are tastefully scattered around the edges.
+
+Now generate {numberOfCards} slides following this exact format.
+First, provide the presentation title in XML tags:
 <TITLE>Your Generated Presentation Title Here</TITLE>
 
-# First Main Topic
-- Key point about this topic
-- Another important aspect
-- Brief conclusion or impact
-
-# Second Main Topic
-- Main insight for this section
-- Supporting detail or example
-- Practical application or takeaway
-
-# Third Main Topic 
-- Primary concept to understand
-- Evidence or data point
-- Conclusion or future direction
-
-Make sure the topics:
-1. Flow logically from one to another
-2. Cover the key aspects of the main topic
-3. Are clear and concise
-4. Are engaging for the audience
-5. ALWAYS use bullet points (not paragraphs) and format each point as "- point text"
-6. Do not use bold, italic or underline
-7. Keep each bullet point brief - just one sentence per point
-8. Include exactly 2-3 bullet points per topic (not more, not less)`;
+Then provide each slide with the complete structure above. Ensure each slide:
+1. Has a clear narrative purpose that flows logically to the next slide
+2. Contains specific, actionable content (not vague descriptions)
+3. Includes detailed visual descriptions that an AI image generator can interpret
+4. Specifies clear layout guidance for professional presentation design
+5. Uses concise language - avoid unnecessary words
+6. Maintains consistency in tone and style across all slides`;
 
 export async function POST(req: Request) {
   try {

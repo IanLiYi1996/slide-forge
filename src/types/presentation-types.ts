@@ -16,9 +16,10 @@ export interface SlideImage {
     role: "user" | "assistant";
     parts: Array<{
       text?: string;
-      inline_data?: {
-        mime_type: string;
-        data: string; // base64
+      inlineData?: {
+        mimeType: string;
+        data?: string; // base64 (optional, for API requests)
+        url?: string;  // permanent URL (for storage and display)
       };
     }>;
   }>;

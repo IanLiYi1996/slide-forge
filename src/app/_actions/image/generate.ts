@@ -32,8 +32,8 @@ interface YunwuApiResponse {
     content: {
       parts: Array<{
         text?: string;
-        inline_data?: {
-          mime_type: string;
+        inlineData?: {
+          mimeType: string;
           data: string; // base64 encoded image
         };
       }>;
@@ -127,9 +127,9 @@ export async function generateImageAction(
           imageText = part.text;
           console.log("Generated text:", part.text);
         }
-        if (part.inline_data?.data) {
-          imageBase64 = part.inline_data.data;
-          console.log("Image data found, mime_type:", part.inline_data.mime_type);
+        if (part.inlineData?.data) {
+          imageBase64 = part.inlineData.data;
+          console.log("Image data found, mimeType:", part.inlineData.mimeType);
         }
       }
     }

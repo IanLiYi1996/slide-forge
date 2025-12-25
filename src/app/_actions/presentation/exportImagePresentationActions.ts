@@ -184,9 +184,13 @@ export async function exportAsPDF(presentationId: string, fileName: string = "pr
     // Create PDF document
     const pdfDoc = await PDFDocument.create();
 
-    // Standard presentation size (16:9 ratio)
-    const pageWidth = 1920;
-    const pageHeight = 1080;
+    // Standard presentation size (16:9 ratio) in PDF points
+    // Using standard PowerPoint slide dimensions converted to PDF points
+    // PowerPoint 16:9 slide: 10 inches × 5.625 inches
+    // At 72 points per inch: 720 × 405 points
+    // Using slightly larger for better quality: 960 × 540 points
+    const pageWidth = 960;  // 13.33 inches at 72 DPI
+    const pageHeight = 540; // 7.5 inches at 72 DPI (maintains 16:9 ratio)
 
     // Add each slide image
     for (let i = 0; i < slideUrls.length; i++) {
@@ -202,7 +206,8 @@ export async function exportAsPDF(presentationId: string, fileName: string = "pr
           if (!base64Data) {
             throw new Error("Invalid data URL");
           }
-          imageBytes = Buffer.from(base64Data, "base64");
+          const buffer = Buffer.from(base64Data, "base64");
+          imageBytes = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
         } else {
           // Fetch regular URLs
           const imageResponse = await fetch(imageUrl);
@@ -243,21 +248,48 @@ export async function exportAsPDF(presentationId: string, fileName: string = "pr
           continue;
         }
 
-        // Handle PNG/JPG images
-        let image;
-        const mimeType = imageUrl.includes("png") ? "png" : "jpg";
+        // Handle PNG/JPG images - detect format by magic bytes
+        let image: Awaited<ReturnType<typeof pdfDoc.embedPng>> | Awaited<ReturnType<typeof pdfDoc.embedJpg>>;
 
-        if (mimeType === "png") {
-          image = await pdfDoc.embedPng(imageBytes);
-        } else {
-          image = await pdfDoc.embedJpg(imageBytes);
+        // Check magic bytes to determine actual image format
+        // PNG: starts with 89 50 4E 47 (‰PNG)
+        // JPEG: starts with FF D8 FF
+        const isPng =
+          imageBytes[0] === 0x89 &&
+          imageBytes[1] === 0x50 &&
+          imageBytes[2] === 0x4e &&
+          imageBytes[3] === 0x47;
+
+        const isJpeg = imageBytes[0] === 0xff && imageBytes[1] === 0xd8;
+
+        try {
+          if (isPng) {
+            image = await pdfDoc.embedPng(imageBytes);
+          } else if (isJpeg) {
+            image = await pdfDoc.embedJpg(imageBytes);
+          } else {
+            // Try PNG first, then JPEG as fallback
+            try {
+              image = await pdfDoc.embedPng(imageBytes);
+            } catch {
+              image = await pdfDoc.embedJpg(imageBytes);
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to embed image for slide ${i + 1}:`, error);
+          throw new Error(`Failed to add slide ${i + 1} to PDF: Invalid image format`);
         }
 
         // Add page and image
         const page = pdfDoc.addPage([pageWidth, pageHeight]);
 
+        // Get image dimensions
         const imageDims = image.scale(1);
-        const scale = Math.min(
+
+        // Calculate scale to fill the entire page while maintaining aspect ratio
+        // Use Math.max to ensure the image fills the page (may crop edges)
+        // Use Math.min to ensure the entire image fits (may have margins)
+        const scale = Math.max(
           pageWidth / imageDims.width,
           pageHeight / imageDims.height,
         );
@@ -265,6 +297,7 @@ export async function exportAsPDF(presentationId: string, fileName: string = "pr
         const scaledWidth = imageDims.width * scale;
         const scaledHeight = imageDims.height * scale;
 
+        // Center the image
         const x = (pageWidth - scaledWidth) / 2;
         const y = (pageHeight - scaledHeight) / 2;
 

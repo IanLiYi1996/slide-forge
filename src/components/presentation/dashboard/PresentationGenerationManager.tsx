@@ -255,11 +255,29 @@ export function PresentationGenerationManager() {
         cleanContent = cleanContent.replace(/<TITLE>.*?<\/TITLE>/i, "").trim();
       }
 
-      // Parse the outline into sections
-      const sections = cleanContent.split(/^# /gm).filter(Boolean);
+      // Parse the outline into sections (support both old and new formats)
+      let sections: string[];
+
+      // Check if it's the new structured format (Slide N: ...)
+      if (cleanContent.includes("Slide ") && cleanContent.includes("// NARRATIVE GOAL")) {
+        // New structured format: split by "Slide N:"
+        // Use lookahead to keep "Slide N:" in each section
+        sections = cleanContent.split(/(?=^Slide \d+:)/gm).filter(Boolean);
+      } else {
+        // Old format: split by "# "
+        sections = cleanContent.split(/^# /gm).filter(Boolean);
+      }
+
       const outlineItems: string[] =
         sections.length > 0
-          ? sections.map((section) => `# ${section}`.trim())
+          ? sections.map((section) => {
+              // For new format, use as-is; for old format, add "# " prefix
+              if (section.trim().startsWith("Slide ")) {
+                return section.trim();
+              } else {
+                return `# ${section}`.trim();
+              }
+            })
           : [];
 
       if (outlineItems.length > 0) {

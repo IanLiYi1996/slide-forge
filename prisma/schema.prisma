@@ -105,6 +105,7 @@ model Presentation {
     language          String?      @default("en-US") // The language of the presentation
     outline           String[] // Store the presentation outline
     searchResults     Json? // Store the search results
+    slideImages       Json? // Store slide image generation history with URLs (slideId -> {imageUrl, conversationHistory})
     base              BaseDocument @relation(fields: [id], references: [id], onDelete: Cascade)
     templateId        String?
     customThemeId     String? // Reference to custom theme if used

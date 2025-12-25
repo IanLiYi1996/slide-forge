@@ -1,6 +1,7 @@
 "use client";
 
 import { generateSlideImageAction } from "@/app/_actions/image/generate-slide-image";
+import { updatePresentation, getPresentation } from "@/app/_actions/presentation/presentationActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,7 @@ export function SlideBySlideGenerator({
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [modificationPrompt, setModificationPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isRestored, setIsRestored] = useState(false); // Track if slides were restored from database
 
   const currentSlide = slides[currentSlideIndex];
   const isLastSlide = currentSlideIndex === slides.length - 1;
@@ -124,15 +126,114 @@ export function SlideBySlideGenerator({
     }
   };
 
-  // Auto-generate first slide on mount
+  // Load saved slide images from database on mount
   useEffect(() => {
+    const loadSavedImages = async () => {
+      const { currentPresentationId } = usePresentationState.getState();
+      if (!currentPresentationId) {
+        setIsRestored(true); // Mark as restored even if no data
+        return;
+      }
+
+      try {
+        const result = await getPresentation(currentPresentationId);
+
+        if (result.success && result.presentation?.presentation) {
+          const presentation = result.presentation.presentation as any;
+          const savedSlideImages = presentation.slideImages as Record<string, any>;
+
+          if (!savedSlideImages) {
+            setIsRestored(true); // No saved data, mark as restored
+            return;
+          }
+
+          console.log("Loading saved slide images from database:", Object.keys(savedSlideImages).length);
+
+          // Restore saved images to slides state
+          setSlides((prev) =>
+            prev.map((slide) => {
+              const savedData = savedSlideImages[slide.id];
+              if (savedData) {
+                return {
+                  ...slide,
+                  imageUrl: savedData.imageUrl,
+                  status: "ready" as const,
+                  conversationHistory: savedData.conversationHistory || [],
+                  modificationCount: savedData.modificationCount || 0,
+                };
+              }
+              return slide;
+            })
+          );
+
+          toast.success("Previous images restored");
+        }
+      } catch (error) {
+        console.error("Failed to load saved images:", error);
+      } finally {
+        // Always mark as restored, even if there was an error
+        setIsRestored(true);
+      }
+    };
+
+    void loadSavedImages();
+  }, []); // Only run once on mount
+
+  // Auto-generate first slide on mount (only if not restored or if first slide is still pending)
+  useEffect(() => {
+    // Wait for restoration to complete
+    if (!isRestored) return;
+
+    // Only auto-generate if the first slide is still pending
     if (currentSlideIndex === 0 && currentSlide?.status === "pending") {
       const timer = setTimeout(() => {
         generateCurrentSlide();
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, []); // Only run once on mount
+  }, [isRestored, currentSlide?.status]); // Depend on isRestored and slide status
+
+  // Save to database when slides change (debounced)
+  useEffect(() => {
+    const { currentPresentationId } = usePresentationState.getState();
+    if (!currentPresentationId) return;
+
+    // Check if any slides have images to save
+    const hasImagesToSave = slides.some(
+      (slide) => slide.imageUrl && slide.conversationHistory.length > 0
+    );
+
+    if (!hasImagesToSave) return;
+
+    // Debounce save to avoid too frequent saves
+    const timer = setTimeout(() => {
+      // Build slideImages data
+      const slideImagesData: Record<string, any> = {};
+      slides.forEach((slide) => {
+        if (slide.imageUrl && slide.conversationHistory.length > 0) {
+          slideImagesData[slide.id] = {
+            imageUrl: slide.imageUrl,
+            conversationHistory: slide.conversationHistory,
+            modificationCount: slide.modificationCount,
+          };
+        }
+      });
+
+      // Save to database in background
+      void updatePresentation({
+        id: currentPresentationId,
+        slideImages: slideImagesData,
+      })
+        .then(() => {
+          console.log("Slide images auto-saved to database");
+        })
+        .catch((err) => {
+          console.error("Failed to auto-save slide images:", err);
+        });
+    }, 1000); // 1 second debounce
+
+    return () => clearTimeout(timer);
+  }, [slides]); // Save when slides change
 
   if (!currentSlide) {
     return (
@@ -298,7 +399,7 @@ export function SlideBySlideGenerator({
 
               {/* Image Display */}
               {currentSlide.status === "generating" || isGenerating ? (
-                <div className="aspect-video w-full rounded-lg bg-muted flex items-center justify-center">
+                <div className="aspect-video w-full max-h-[60vh] rounded-lg bg-muted flex items-center justify-center">
                   <div className="text-center space-y-3">
                     <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
                     <p className="text-sm font-medium">Generating slide...</p>
@@ -306,7 +407,7 @@ export function SlideBySlideGenerator({
                   </div>
                 </div>
               ) : currentSlide.status === "ready" && currentSlide.imageUrl ? (
-                <div className="aspect-video w-full rounded-lg border overflow-hidden bg-white shadow-lg">
+                <div className="aspect-video w-full max-h-[60vh] rounded-lg border overflow-hidden bg-white shadow-lg">
                   <img
                     src={currentSlide.imageUrl}
                     alt={`Slide ${currentSlideIndex + 1}`}

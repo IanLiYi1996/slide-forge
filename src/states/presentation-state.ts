@@ -74,7 +74,7 @@ interface PresentationState {
         role: "user" | "assistant";
         parts: Array<{
           text?: string;
-          inline_data?: { mime_type: string; data: string };
+          inlineData?: { mimeType: string; data?: string; url?: string };
         }>;
       }>;
     }
@@ -274,7 +274,7 @@ export const usePresentationState = create<PresentationState>((set) => ({
             role: "user" | "assistant";
             parts: Array<{
               text?: string;
-              inline_data?: { mime_type: string; data: string };
+              inlineData?: { mimeType: string; data: string };
             }>;
           }>,
         },
