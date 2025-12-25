@@ -5,6 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { usePresentationState } from "@/states/presentation-state";
 import { ModelPicker } from "./ModelPicker";
 
@@ -32,21 +33,32 @@ export function PresentationControls({
             Number of slides
           </label>
         )}
-        <Select
-          value={String(numSlides)}
-          onValueChange={(v) => setNumSlides(Number(v))}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select number of slides" />
-          </SelectTrigger>
-          <SelectContent>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12].map((num) => (
-              <SelectItem key={num} value={String(num)}>
-                {num} slides
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Input
+          type="number"
+          min={1}
+          max={50}
+          value={numSlides}
+          onChange={(e) => {
+            const value = parseInt(e.target.value);
+            if (!isNaN(value) && value >= 1 && value <= 50) {
+              setNumSlides(value);
+            } else if (e.target.value === "") {
+              // Allow empty for editing, will default to 5 on blur
+              setNumSlides(5);
+            }
+          }}
+          onBlur={(e) => {
+            // Ensure valid value on blur
+            const value = parseInt(e.target.value);
+            if (isNaN(value) || value < 1) {
+              setNumSlides(5);
+            } else if (value > 50) {
+              setNumSlides(50);
+            }
+          }}
+          placeholder="Enter number (1-50)"
+          className="h-10"
+        />
       </div>
 
       {/* Language */}
