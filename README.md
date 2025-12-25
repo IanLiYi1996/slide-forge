@@ -80,7 +80,7 @@ Before you begin, ensure you have the following installed:
 
    ```env
    # Database
-   DATABASE_URL="postgresql://username:password@localhost:5432/presentation_ai"
+   DATABASE_URL="postgresql://username:password@localhost:5432/slide_forge"
 
    # Authentication
    NEXTAUTH_SECRET=""  # Generate with: openssl rand -base64 32
