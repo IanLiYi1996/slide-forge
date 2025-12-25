@@ -64,8 +64,8 @@ Before you begin, ensure you have the following installed:
 1. **Clone the repository**
 
    ```bash
-   git clone git@github.com:allweonedev/presentation-ai.git
-   cd presentation-ai
+   git clone https://github.com/IanLiYi1996/slide-forge
+   cd slide-forge
    ```
 
 2. **Install dependencies**
