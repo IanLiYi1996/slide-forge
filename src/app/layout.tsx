@@ -25,7 +25,7 @@ export default async function RootLayout({
         <html lang="en" suppressHydrationWarning>
           <body className={`${inter.className} antialiased`} suppressHydrationWarning>
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-              <div className="flex h-screen w-full">
+              <div className="flex h-screen w-full overflow-hidden">
                 <GlobalSidebar />
                 <main className="flex-1 overflow-auto">
                   {children}

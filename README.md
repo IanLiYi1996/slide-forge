@@ -11,6 +11,14 @@ An intelligent presentation creation platform powered by AI. Generate stunning, 
 - **Multi-turn Editing**: Refine and modify generated slides with natural language instructions
 - **Web Search Integration**: Enhance outlines with real-time web search data
 
+### 🎯 Claude Agent (New!)
+
+- **Conversational AI**: Chat with Claude Agent powered by Amazon Bedrock to create presentations through natural dialogue
+- **Intelligent Tools**: Claude can automatically search the web, read files, and help refine your slides
+- **Session Management**: Save and resume conversations, maintain full context across multiple turns
+- **Multi-modal Input**: Upload files for analysis, ask questions, and iterate on your content
+- **Smart Sidebar**: Quick access to recent Agent sessions directly from the sidebar
+
 ### 📄 Flexible Input Methods
 
 - **Text Input**: Describe your topic directly in the input field
@@ -105,6 +113,24 @@ Before you begin, ensure you have the following installed:
 
    # Optional Services
    TAVILY_API_KEY=""       # For web search in outline generation (optional)
+
+   # Claude Agent SDK - Amazon Bedrock (NEW!)
+   CLAUDE_CODE_USE_BEDROCK="1"      # Enable Bedrock as API provider
+   ENABLE_CLAUDE_AGENT="true"       # Enable Claude Agent feature
+
+   # AWS Credentials (for Claude Agent via Bedrock)
+   # Choose one method:
+   # Method 1: Direct credentials
+   AWS_ACCESS_KEY_ID=""
+   AWS_SECRET_ACCESS_KEY=""
+   AWS_REGION="us-east-1"
+
+   # Method 2: AWS Profile (recommended for local development)
+   # AWS_PROFILE="your-profile-name"
+   # AWS_REGION="us-east-1"
+
+   # Method 3: IAM Role (automatic in AWS environments like EC2/ECS)
+   # AWS_REGION="us-east-1"
    ```
 
    > 💡 **Tip**: Copy `.env.example` to `.env` and fill in your actual values.
@@ -112,6 +138,12 @@ Before you begin, ensure you have the following installed:
    > 📝 **AWS Cognito Setup**: For detailed instructions on setting up AWS Cognito authentication, see [COGNITO_SETUP.md](COGNITO_SETUP.md).
    >
    > 🔑 **yunwu API**: Get your API key from [yunwu.ai](https://yunwu.ai) to enable AI image generation.
+   >
+   > 🤖 **Claude Agent Setup**:
+   > 1. Install Claude Code CLI: `npm install -g @anthropic-ai/claude-code`
+   > 2. Configure AWS Bedrock access in your AWS account
+   > 3. Request model access for Claude models in AWS Console > Bedrock > Model access
+   > 4. Ensure IAM permissions for `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`
 
 ### Database Setup
 
@@ -133,7 +165,7 @@ Before you begin, ensure you have the following installed:
 
 ## 📖 Usage Guide
 
-### Creating a Presentation
+### Method 1: Quick Generation (Traditional)
 
 1. **Configure Settings** (Optional)
    - Click **"图片设置"** to configure image aspect ratio and resolution
@@ -171,6 +203,34 @@ Before you begin, ensure you have the following installed:
    - View your completed presentation
    - Export as PDF, PPTX, or individual images
    - Share or download for your use
+
+### Method 2: Conversational AI with Claude Agent (New!)
+
+1. **Access Claude Agent**
+   - Click **"Claude Agent"** in the left sidebar (with Beta badge)
+   - Or navigate to existing Agent sessions in the sidebar
+
+2. **Start a Conversation**
+   - Click **"Start New Conversation"** from the quick start card
+   - Or click **"New Session"** button in the top right
+
+3. **Chat with Claude**
+   - Describe what presentation you want to create
+   - Example: "Create a 10-slide presentation about artificial intelligence in healthcare"
+   - Claude will automatically search the web for current information
+   - Upload files for Claude to analyze and incorporate
+
+4. **Iterate and Refine**
+   - Continue the conversation to refine your slides
+   - Ask Claude to add more detail, change tone, or reorganize content
+   - Request specific slide counts or formatting
+   - All context is preserved throughout the conversation
+
+5. **Manage Sessions**
+   - Sessions are automatically saved in the sidebar
+   - Click any session in the sidebar to resume
+   - Hover and click the delete button to remove sessions
+   - View all sessions from the Agent main page
 
 ### Image Configuration
 
@@ -215,6 +275,8 @@ Configure image generation parameters via the **"图片设置"** dialog:
 - **OpenAI API** - Text generation (outline, content)
 - **yunwu API** - Image generation (Gemini 3 Pro Image)
 - **Tavily API** - Web search integration
+- **Claude Agent SDK** - Conversational AI via Amazon Bedrock
+- **Amazon Bedrock** - Claude model access with enterprise security
 
 ### Database & Storage
 
@@ -248,12 +310,24 @@ src/
 │   │   ├── image/         # Image generation actions
 │   │   └── presentation/  # Presentation CRUD actions
 │   ├── api/               # API routes
+│   │   ├── agent/         # 🆕 Claude Agent API endpoints
+│   │   │   ├── chat/      # Chat streaming endpoint
+│   │   │   └── session/   # Session management
 │   │   ├── parse-file/    # File parsing endpoint
 │   │   ├── presentation/  # Presentation endpoints
 │   │   └── uploadthing/   # File upload configuration
 │   └── presentation/      # Presentation pages
+│       └── agent/         # 🆕 Claude Agent pages
+│           ├── page.tsx   # Agent session list
+│           └── [sessionId]/page.tsx  # Agent chat interface
 ├── components/
+│   ├── layout/            # Layout components
+│   │   ├── GlobalSidebar.tsx          # Main sidebar (collapsible)
+│   │   └── RecentAgentSessions.tsx    # 🆕 Agent session history
 │   ├── presentation/      # Presentation-specific components
+│   │   ├── agent/         # 🆕 Agent chat components
+│   │   │   ├── AgentChat.tsx         # Chat interface
+│   │   │   └── MarkdownMessage.tsx   # Markdown rendering
 │   │   ├── dashboard/     # Dashboard components
 │   │   ├── editor/        # Slide editor
 │   │   ├── generation/    # Slide generation UI
@@ -261,11 +335,16 @@ src/
 │   │   └── theme/         # Theme customization
 │   └── ui/                # Reusable UI components
 ├── lib/
+│   ├── agent/             # 🆕 Claude Agent SDK integration
+│   │   ├── agent-service.ts      # Agent core service
+│   │   ├── session-manager.ts    # Session management
+│   │   └── types.ts              # Agent type definitions
 │   ├── file-parsers/      # File parsing utilities
 │   ├── presentation/      # Presentation utilities
 │   └── model-picker.ts    # AI model configuration
 ├── states/
-│   └── presentation-state.ts  # Global state management (Zustand)
+│   ├── agent-state.ts     # 🆕 Agent state management
+│   └── presentation-state.ts  # Presentation state management
 ├── server/
 │   ├── auth.ts            # Authentication configuration
 │   └── db.ts              # Database client
@@ -280,8 +359,25 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the MIT License.
 
+## 🔧 Additional Features
+
+### Sidebar Features
+
+- **Collapsible Sidebar**: Click the collapse button (◀️/▶️) in the bottom left to expand/collapse
+- **Theme Toggle**: Switch between light and dark mode with the moon/sun button
+- **Quick Access**: Recent presentations and Agent sessions are displayed in the sidebar
+- **Hover Actions**: Hover over items to reveal delete buttons
+
+### Claude Agent Features
+
+- **Long-running Sessions**: Agents maintain context across multiple messages
+- **Tool Integration**: Automatic web search, file reading, and content analysis
+- **Markdown Support**: Rich text formatting in AI responses (code blocks, tables, lists, etc.)
+- **Enterprise Security**: Uses Amazon Bedrock for data privacy and compliance
+
 ## 🙏 Acknowledgments
 
 - yunwu.ai for providing the Gemini 3 Pro Image API
 - OpenAI for language model capabilities
+- Anthropic for Claude Agent SDK and Amazon Bedrock integration
 - All open-source libraries that made this project possible

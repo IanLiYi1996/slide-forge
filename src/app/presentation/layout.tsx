@@ -9,9 +9,9 @@ export default function PresentationLayout({
   return (
     <>
       <PresentationGenerationManager />
-      <div className="flex h-screen w-screen flex-col supports-[(height:100dvh)]:h-[100dvh]">
+      <div className="flex h-full w-full flex-col">
         <main className="relative flex flex-1 overflow-hidden">
-          <div className="sheet-container h-full flex-1 place-items-center overflow-y-auto overflow-x-clip">
+          <div className="sheet-container h-full flex-1 place-items-center overflow-y-auto overflow-x-hidden">
             {children}
           </div>
         </main>
