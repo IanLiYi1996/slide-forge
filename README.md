@@ -2,6 +2,27 @@
 
 An intelligent presentation creation platform powered by AI. Generate stunning, professional presentations from text input or file uploads in minutes.
 
+## ⚡ Quick Start (One Command!)
+
+```bash
+# First time installation
+./install.sh
+
+# Subsequent starts
+./start.sh
+```
+
+**That's it!** The script will automatically:
+- ✅ Check environment (Node.js, pnpm)
+- ✅ Install dependencies
+- ✅ Setup database
+- ✅ Configure environment
+- ✅ Start the server
+
+Access the app at: **http://localhost:3000** 🚀
+
+For detailed instructions, see [QUICK_START.md](QUICK_START.md)
+
 ## ✨ Features
 
 ### 🤖 AI-Powered Generation

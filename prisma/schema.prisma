@@ -163,10 +163,20 @@ model AgentSession {
     presentationId     String?
     status             String   @default("active")
 
+    // Workflow state fields
+    workflowStage      String   @default("IDLE")
+    workflowState      Json?    // Complete workflow state object
+    outline            Json?    // Outline data (array of outline items)
+    outlineTitle       String?
+    slides             Json?    // All slides data
+    currentSlideIndex  Int      @default(0)
+    modificationHistory Json?   // Array of modification records
+
     createdAt          DateTime @default(now())
     updatedAt          DateTime @updatedAt
     lastActivityAt     DateTime @default(now())
 
     @@index([userId])
     @@index([sessionId])
+    @@index([workflowStage])
 }

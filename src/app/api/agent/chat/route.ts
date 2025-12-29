@@ -49,14 +49,18 @@ export async function POST(req: Request) {
     }
 
     // 5. 获取或创建 Agent Session Instance
-    const agentSession = agentService.getOrCreateSession(sessionId);
+    // 如果是新 session（没有消息记录），创建全新实例
+    const sessionMessages = (Array.isArray(dbSession.messages) ? dbSession.messages : []) as unknown as Message[];
+    const isNewSession = sessionMessages.length === 0;
+    const agentSession = isNewSession
+      ? agentService.createNewSession(sessionId)
+      : agentService.getOrCreateSession(sessionId);
 
     // 6. 使用 Agent SDK 流式响应
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
         let fullResponse = "";
-        const messages = dbSession.messages as Message[];
         let responseComplete = false;
 
         // 创建监听器
@@ -107,7 +111,7 @@ export async function POST(req: Request) {
               // 保存对话历史到数据库
               sessionManager
                 .updateMessages(sessionId, session.user.id, [
-                  ...messages,
+                  ...sessionMessages,
                   { role: "user", content: message, timestamp: new Date() },
                   {
                     role: "assistant",

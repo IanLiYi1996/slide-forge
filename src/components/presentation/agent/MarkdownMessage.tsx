@@ -1,26 +1,55 @@
 /**
  * Markdown 消息渲染组件
  * 支持代码高亮、表格、列表等 markdown 特性
+ * 特殊支持 html-slide 代码块的预览渲染
  */
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import { SlideHTMLPreview } from "./SlideHTMLPreview";
+import { useMemo } from "react";
 
 interface MarkdownMessageProps {
   content: string;
   className?: string;
 }
 
+/**
+ * 检测是否包含 html-slide 代码块
+ */
+function hasHTMLSlide(content: string): boolean {
+  return /```html-slide/i.test(content);
+}
+
 export function MarkdownMessage({ content, className = "" }: MarkdownMessageProps) {
+  // 检测是否有 HTML slide 需要特殊渲染
+  const hasSlide = useMemo(() => hasHTMLSlide(content), [content]);
+  const slideNumber = useMemo(() => {
+    const match = content.match(/[Ss]lide\s+(\d+)/);
+    return match?.[1] ? parseInt(match[1]) : undefined;
+  }, [content]);
+
   return (
     <div className={`overflow-hidden ${className}`}>
+      {/* 如果有 HTML slide，先渲染预览 */}
+      {hasSlide && <SlideHTMLPreview content={content} slideNumber={slideNumber} />}
+
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
         // 自定义代码块样式
-        code({ node, inline, className, children, ...props }) {
-          return inline ? (
+        code({ node, className, children, ...props }) {
+          const match = /language-(\w+)/.exec(className || "");
+          const language = match ? match[1] : "";
+          const isInline = !className;
+
+          // 对于 html-slide，不渲染代码块（已在上方渲染预览）
+          if (language === "html-slide") {
+            return null;
+          }
+
+          return isInline ? (
             <code
               className="px-1 py-0.5 rounded bg-muted/50 text-[11px] font-mono border"
               {...props}

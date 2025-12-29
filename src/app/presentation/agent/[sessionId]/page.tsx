@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { AgentSessionData } from "@/lib/agent/types";
 import { use } from "react";
+import { useAgentState } from "@/states/agent-state";
 
 export default function AgentSessionPage({
   params,
@@ -21,6 +22,7 @@ export default function AgentSessionPage({
 }) {
   const { sessionId } = use(params);
   const router = useRouter();
+  const { setCurrentSession, clearCurrentSession } = useAgentState();
   const [session, setSession] = useState<AgentSessionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -28,7 +30,12 @@ export default function AgentSessionPage({
   // 加载会话数据
   useEffect(() => {
     loadSession();
-  }, [sessionId]);
+    // 设置当前 session
+    return () => {
+      // 清理：离开页面时清除当前 session
+      clearCurrentSession();
+    };
+  }, [sessionId, clearCurrentSession]);
 
   const loadSession = async () => {
     try {
@@ -39,6 +46,11 @@ export default function AgentSessionPage({
 
       const data = await response.json();
       setSession(data.session);
+
+      // 设置当前 session 到全局状态
+      if (data.session) {
+        setCurrentSession(data.session.sessionId, data.session.title);
+      }
     } catch (error) {
       console.error("Error loading session:", error);
       toast.error("Failed to load session");

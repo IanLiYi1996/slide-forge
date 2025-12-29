@@ -122,6 +122,19 @@ export class SessionManager {
   }
 
   /**
+   * 更新会话（通用方法）
+   */
+  async updateSession(sessionId: string, userId: string, data: any) {
+    return await db.agentSession.update({
+      where: { sessionId },
+      data: {
+        ...data,
+        lastActivityAt: new Date(),
+      },
+    });
+  }
+
+  /**
    * 删除会话
    */
   async deleteSession(sessionId: string, userId: string) {

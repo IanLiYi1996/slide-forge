@@ -5,6 +5,11 @@
 
 import { create } from "zustand";
 import type { Message, UploadedFile } from "@/lib/agent/types";
+import type {
+  WorkflowStage,
+  WorkflowState,
+  SlideData,
+} from "@/lib/agent/types/workflow";
 
 interface AgentState {
   // 当前会话信息
@@ -32,6 +37,16 @@ interface AgentState {
 
   // 文件上传
   uploadedFiles: UploadedFile[];
+
+  // 工作流状态
+  workflowStage: WorkflowStage;
+  workflowState: WorkflowState | null;
+
+  // 快捷访问工作流数据
+  outline: string[];
+  outlineTitle: string | null;
+  slides: SlideData[];
+  currentSlideIndex: number;
 
   // Actions - 会话管理
   setCurrentSession: (sessionId: string, title: string) => void;
@@ -67,6 +82,15 @@ interface AgentState {
   removeFile: (fileName: string) => void;
   clearFiles: () => void;
 
+  // Actions - 工作流管理
+  setWorkflowStage: (stage: WorkflowStage) => void;
+  setWorkflowState: (state: WorkflowState) => void;
+  updateSlide: (index: number, data: Partial<SlideData>) => void;
+  addSlide: (slide: SlideData) => void;
+  setOutline: (outline: string[], title: string | null) => void;
+  setCurrentSlideIndex: (index: number) => void;
+  incrementSlideIndex: () => void;
+
   // Actions - 重置
   reset: () => void;
 }
@@ -86,6 +110,14 @@ const initialState = {
   language: "en-US",
   tone: "professional",
   uploadedFiles: [],
+
+  // 工作流状态
+  workflowStage: "IDLE" as WorkflowStage,
+  workflowState: null as WorkflowState | null,
+  outline: [] as string[],
+  outlineTitle: null as string | null,
+  slides: [] as SlideData[],
+  currentSlideIndex: 0,
 };
 
 export const useAgentState = create<AgentState>((set) => ({
@@ -171,6 +203,46 @@ export const useAgentState = create<AgentState>((set) => ({
     })),
 
   clearFiles: () => set({ uploadedFiles: [] }),
+
+  // 工作流管理
+  setWorkflowStage: (stage) => set({ workflowStage: stage }),
+
+  setWorkflowState: (state) =>
+    set({
+      workflowState: state,
+      workflowStage: state.stage,
+      outline: state.outline,
+      outlineTitle: state.outlineTitle,
+      slides: state.slides,
+      currentSlideIndex: state.currentSlideIndex,
+    }),
+
+  updateSlide: (index, data) =>
+    set((state) => {
+      const updatedSlides = [...state.slides];
+      if (updatedSlides[index]) {
+        updatedSlides[index] = { ...updatedSlides[index], ...data } as SlideData;
+      }
+      return { slides: updatedSlides };
+    }),
+
+  addSlide: (slide) =>
+    set((state) => ({
+      slides: [...state.slides, slide],
+    })),
+
+  setOutline: (outline, title) =>
+    set({
+      outline,
+      outlineTitle: title,
+    }),
+
+  setCurrentSlideIndex: (index) => set({ currentSlideIndex: index }),
+
+  incrementSlideIndex: () =>
+    set((state) => ({
+      currentSlideIndex: state.currentSlideIndex + 1,
+    })),
 
   // 重置
   reset: () => set(initialState),

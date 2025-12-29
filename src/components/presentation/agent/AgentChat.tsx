@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAgentState } from "@/states/agent-state";
 import { Send, Loader2, Upload, X, User, Sparkles } from "lucide-react";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import type { Message } from "@/lib/agent/types";
 import { MarkdownMessage } from "./MarkdownMessage";
+import { ExportToolbar } from "./ExportToolbar";
+import { extractSlidesFromMessages, isPresentationComplete } from "@/lib/agent/utils/extract-slides";
 
 interface AgentChatProps {
   sessionId: string;
@@ -31,24 +33,52 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     uploadedFiles,
     addFile,
     removeFile,
+    clearMessages,
+    clearFiles,
+    reset,
   } = useAgentState();
 
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevSessionIdRef = useRef<string>(sessionId);
+
+  // 当 sessionId 改变时，重置状态
+  useEffect(() => {
+    if (prevSessionIdRef.current !== sessionId) {
+      // sessionId 改变了，重置所有状态
+      reset();
+      prevSessionIdRef.current = sessionId;
+    }
+  }, [sessionId, reset]);
 
   // 初始化消息
   useEffect(() => {
     if (initialMessages.length > 0) {
       setMessages(initialMessages);
+    } else {
+      // 如果没有初始消息，确保消息列表为空
+      clearMessages();
     }
-  }, [initialMessages, setMessages]);
+  }, [initialMessages, setMessages, clearMessages, sessionId]);
 
   // 自动滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingMessage]);
+
+  // 从消息中提取所有幻灯片
+  const extractedSlides = useMemo(
+    () => extractSlidesFromMessages(messages),
+    [messages],
+  );
+
+  // 检查演示文稿是否完成
+  const presentationComplete = useMemo(
+    () => isPresentationComplete(messages) && extractedSlides.length > 0,
+    [messages, extractedSlides],
+  );
 
   // 发送消息
   const handleSendMessage = async () => {
@@ -247,6 +277,13 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* 导出工具栏 - 当幻灯片完成时显示 */}
+          {presentationComplete && (
+            <div className="mt-6">
+              <ExportToolbar slides={extractedSlides} sessionId={sessionId} />
             </div>
           )}
 
