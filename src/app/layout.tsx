@@ -24,7 +24,7 @@ export default async function RootLayout({
       <NextAuthProvider>
         <html lang="en" suppressHydrationWarning>
           <body className={`${inter.className} antialiased`} suppressHydrationWarning>
-            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
               <div className="flex h-screen w-full overflow-hidden">
                 <GlobalSidebar />
                 <main className="flex-1 overflow-auto">

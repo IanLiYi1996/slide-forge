@@ -85,7 +85,7 @@ export function GlobalSidebar() {
             <Button
               variant="ghost"
               className={`w-full h-10 ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'}`}
-              onClick={() => router.push("/")}
+              onClick={() => router.push("/presentation")}
               title={isCollapsed ? "Image to Slides" : undefined}
             >
               <FileText className="h-4 w-4" />
