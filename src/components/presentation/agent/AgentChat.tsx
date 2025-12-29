@@ -354,8 +354,8 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     <div className="h-full flex flex-col overflow-x-hidden">
       {/* 顶部标题栏 - 仅在有会话标题时显示 */}
       {currentSessionTitle && (
-        <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-2">
-          <div className="flex items-center justify-between px-6">
+        <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex items-center justify-between px-4 py-2 max-w-full">
             <div className="flex items-center gap-3 min-w-0 flex-1 group">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <Sparkles className="h-4 w-4 text-purple-600 flex-shrink-0" />
@@ -454,8 +454,8 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
       )}
 
       {/* 消息列表 */}
-      <div className="flex-1 overflow-y-auto bg-background">
-        <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-background">
+        <div className="w-full max-w-4xl mx-auto px-4 py-6 space-y-6">
           {messages.length === 0 && !streamingMessage && (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
               <div className="w-20 h-20 mb-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
@@ -498,9 +498,9 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
               )}
 
               {/* 消息内容 */}
-              <div className={`flex-1 ${message.role === "user" ? "ml-12" : "mr-12"}`}>
+              <div className={`flex-1 min-w-0 ${message.role === "user" ? "ml-12" : "mr-12"}`}>
                 <div
-                  className={`rounded-2xl p-4 shadow-sm transition-shadow hover:shadow-md ${
+                  className={`rounded-2xl p-4 shadow-sm transition-shadow hover:shadow-md break-words ${
                     message.role === "user"
                       ? "bg-primary/10 border border-primary/20"
                       : "bg-card border border-border"
@@ -555,8 +555,8 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
       </div>
 
       {/* 输入区域容器 */}
-      <div className="flex-shrink-0 border-t bg-muted/30">
-        <div className="max-w-3xl mx-auto px-4 py-4">
+      <div className="flex-shrink-0 border-t bg-muted/30 w-full">
+        <div className="w-full max-w-3xl mx-auto px-4 py-4">
 
           {/* Web Search Toggle - 在输入框外上方 */}
           <div className="mb-3 flex items-center gap-2">
