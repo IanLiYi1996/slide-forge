@@ -39,8 +39,11 @@ export function GlobalSidebar() {
   const presentationId = params.id as string | undefined;
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Hide sidebar on auth pages and presentation view pages
-  if (pathname?.startsWith("/auth") || pathname?.match(/^\/presentation\/[^/]+$/)) {
+  // Hide sidebar on auth pages and presentation view pages (but not agent pages)
+  if (
+    pathname?.startsWith("/auth") ||
+    (pathname?.match(/^\/presentation\/[^/]+$/) && !pathname?.includes("/agent"))
+  ) {
     return null;
   }
 
@@ -83,24 +86,24 @@ export function GlobalSidebar() {
               variant="ghost"
               className={`w-full h-10 ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'}`}
               onClick={() => router.push("/")}
-              title={isCollapsed ? "New Presentation" : undefined}
+              title={isCollapsed ? "Image to Slides" : undefined}
             >
               <FileText className="h-4 w-4" />
-              {!isCollapsed && "New Presentation"}
+              {!isCollapsed && "Image to Slides"}
             </Button>
 
             <Button
               variant="ghost"
               className={`w-full h-10 ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'}`}
               onClick={() => router.push("/presentation/agent")}
-              title={isCollapsed ? "Claude Agent" : undefined}
+              title={isCollapsed ? "Chat to Slides" : undefined}
             >
               <Sparkles className="h-4 w-4" />
               {!isCollapsed && (
                 <>
-                  <span className="flex-1 text-left">Claude Agent</span>
+                  <span className="flex-1 text-left">Chat to Slides</span>
                   <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-1.5 py-0.5 rounded-full font-medium">
-                    Beta
+                    AI
                   </span>
                 </>
               )}

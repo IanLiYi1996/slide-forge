@@ -70,12 +70,21 @@ check_environment() {
     fi
     print_success "pnpm $(pnpm -v) detected"
 
-    # 检查 PostgreSQL
-    if ! command -v psql &> /dev/null; then
-        print_warning "PostgreSQL not detected. Make sure you have a PostgreSQL database available."
-    else
-        print_success "PostgreSQL detected"
+    # 检查 Docker
+    if ! command -v docker &> /dev/null; then
+        print_error "Docker is not installed. Please install Docker first."
+        print_info "Visit: https://docs.docker.com/get-docker/"
+        exit 1
     fi
+    print_success "Docker $(docker --version | cut -d' ' -f3 | cut -d',' -f1) detected"
+
+    # 检查 Docker Compose
+    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+        print_error "Docker Compose is not installed. Please install Docker Compose first."
+        print_info "Visit: https://docs.docker.com/compose/install/"
+        exit 1
+    fi
+    print_success "Docker Compose detected"
 
     # 检查 Git
     if ! command -v git &> /dev/null; then
@@ -158,23 +167,55 @@ install_dependencies() {
 }
 
 ###############################################################################
-# 4. 数据库设置
+# 4. Docker 数据库设置
 ###############################################################################
 
-setup_database() {
-    print_info "Setting up database..."
+setup_docker_database() {
+    print_info "Setting up Docker database..."
 
-    # 检查 DATABASE_URL 是否配置
-    if grep -q "DATABASE_URL=\"\"" .env.local 2>/dev/null; then
-        print_warning "DATABASE_URL is not configured in .env.local"
-        print_info "Skipping database migration. Configure DATABASE_URL and run: pnpm prisma db push"
-        return
+    # 检查 Docker 是否运行
+    if ! docker info &> /dev/null; then
+        print_error "Docker daemon is not running. Please start Docker first."
+        exit 1
+    fi
+
+    # 检查数据库容器是否已运行
+    if docker ps | grep -q "slide-forge-db"; then
+        print_success "Database container already running"
+    else
+        print_info "Starting PostgreSQL container..."
+
+        # 启动数据库容器
+        docker-compose up -d postgres || {
+            print_error "Failed to start database container"
+            exit 1
+        }
+
+        print_success "Database container started"
+
+        # 等待数据库就绪
+        print_info "Waiting for database to be ready..."
+        sleep 3
+
+        # 检查数据库是否可访问
+        for i in {1..10}; do
+            if docker exec slide-forge-db pg_isready -U presentation_user &> /dev/null; then
+                print_success "Database is ready"
+                break
+            fi
+            if [ $i -eq 10 ]; then
+                print_error "Database failed to start after 10 attempts"
+                exit 1
+            fi
+            echo -n "."
+            sleep 1
+        done
     fi
 
     # 运行 Prisma 迁移
     print_info "Running Prisma migrations..."
     pnpm prisma db push --skip-generate || {
-        print_error "Database migration failed. Please check your DATABASE_URL"
+        print_error "Database migration failed"
         print_info "You can run it manually later: pnpm prisma db push"
         return
     }
@@ -216,10 +257,10 @@ show_configuration() {
         echo "📄 Environment File: .env.local ✅"
 
         # 检查数据库
-        if grep -q "DATABASE_URL=\"postgresql" .env.local; then
-            echo "🗄️  Database: PostgreSQL configured ✅"
+        if docker ps | grep -q "slide-forge-db"; then
+            echo "🗄️  Database: Docker PostgreSQL running ✅"
         else
-            echo "🗄️  Database: ⚠️  Not configured"
+            echo "🗄️  Database: ⚠️  Docker container not running"
         fi
 
         # 检查 Unsplash
@@ -287,7 +328,7 @@ main() {
     check_environment
     setup_environment
     install_dependencies
-    setup_database
+    setup_docker_database
     check_build
     show_configuration
 

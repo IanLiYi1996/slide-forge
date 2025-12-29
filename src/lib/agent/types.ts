@@ -39,6 +39,7 @@ export interface ChatRequest {
   message: string;
   sessionId: string;
   files?: UploadedFile[];
+  enableWebSearch?: boolean;
 }
 
 export interface UploadedFile {

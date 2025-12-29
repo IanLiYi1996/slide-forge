@@ -114,60 +114,14 @@ export default function AgentSessionPage({
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-3">
-        <div className="flex items-center justify-between max-w-5xl mx-auto">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleBack}
-              className="gap-1.5 h-8"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span className="text-xs">Back</span>
-            </Button>
-            <div className="border-l h-5" />
-            <div>
-              <h1 className="text-sm font-semibold line-clamp-1">
-                {session.title}
-              </h1>
-              <p className="text-[10px] text-muted-foreground">
-                {Array.isArray(session.messages)
-                  ? session.messages.length
-                  : 0}{" "}
-                messages
-                {session.generatedOutline &&
-                session.generatedOutline.length > 0
-                  ? ` • ${session.generatedOutline.length} slides`
-                  : ""}
-              </p>
-            </div>
-          </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="gap-1.5 h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span className="text-xs">{isDeleting ? "..." : "Delete"}</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-hidden">
-        <AgentChat
-          sessionId={sessionId}
-          initialMessages={
-            Array.isArray(session.messages) ? session.messages : []
-          }
-        />
-      </div>
+    <div className="h-screen flex flex-col">
+      {/* Main Content - Full Height */}
+      <AgentChat
+        sessionId={sessionId}
+        initialMessages={
+          Array.isArray(session.messages) ? session.messages : []
+        }
+      />
     </div>
   );
 }

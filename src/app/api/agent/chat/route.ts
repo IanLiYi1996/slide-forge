@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     }
 
     // 2. 解析请求
-    const { message, sessionId, files } = (await req.json()) as ChatRequest;
+    const { message, sessionId, files, enableWebSearch = true } = (await req.json()) as ChatRequest;
 
     if (!message || !sessionId) {
       return NextResponse.json(
@@ -52,9 +52,17 @@ export async function POST(req: Request) {
     // 如果是新 session（没有消息记录），创建全新实例
     const sessionMessages = (Array.isArray(dbSession.messages) ? dbSession.messages : []) as unknown as Message[];
     const isNewSession = sessionMessages.length === 0;
+
+    // 根据 enableWebSearch 配置 Agent 工具
+    const agentConfig = {
+      allowedTools: enableWebSearch
+        ? ["Read", "Glob", "Grep", "WebSearch", "WebFetch"]
+        : ["Read", "Glob", "Grep"],  // 禁用搜索时排除 WebSearch 和 WebFetch
+    };
+
     const agentSession = isNewSession
-      ? agentService.createNewSession(sessionId)
-      : agentService.getOrCreateSession(sessionId);
+      ? agentService.createNewSession(sessionId, agentConfig)
+      : agentService.getOrCreateSession(sessionId, agentConfig);
 
     // 6. 使用 Agent SDK 流式响应
     const stream = new ReadableStream({

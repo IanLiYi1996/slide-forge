@@ -1,6 +1,8 @@
 export const SUPPORTED_FILE_TYPES = {
   "text/plain": [".txt"],
   "text/markdown": [".md"],
+  "text/csv": [".csv"],
+  "application/csv": [".csv"],
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
     ".docx",
   ],
@@ -30,7 +32,7 @@ export function validateFile(file: File): FileValidationResult {
   if (!isMimeTypeSupported && !isExtensionSupported) {
     return {
       valid: false,
-      error: "Unsupported file type. Please upload .txt, .md, .docx, or .pdf files.",
+      error: "Unsupported file type. Please upload .txt, .md, .csv, .docx, or .pdf files.",
     };
   }
 

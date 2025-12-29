@@ -35,6 +35,23 @@ export async function parseFile(file: File): Promise<string> {
     }
   }
 
+  // Client-side parsing for CSV files
+  if (
+    file.type === "text/csv" ||
+    file.type === "application/csv" ||
+    fileExtension === "csv"
+  ) {
+    try {
+      return await readTextFile(file);
+    } catch (error) {
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : "Failed to read CSV file",
+      );
+    }
+  }
+
   // Server-side parsing for complex formats (.docx, .pdf)
   if (
     file.type ===
@@ -47,10 +64,17 @@ export async function parseFile(file: File): Promise<string> {
       const formData = new FormData();
       formData.append("file", file);
 
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
       const response = await fetch("/api/parse-file", {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = (await response.json()) as ParseFileResponse;
@@ -66,6 +90,9 @@ export async function parseFile(file: File): Promise<string> {
       return data.text;
     } catch (error) {
       if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error("File parsing timed out. File may be too large or complex.");
+        }
         throw error;
       }
       throw new Error("Failed to parse file. Please try again or use manual input.");

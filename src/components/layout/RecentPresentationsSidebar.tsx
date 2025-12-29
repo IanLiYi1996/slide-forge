@@ -93,7 +93,7 @@ export function RecentPresentationsSidebar() {
         <Separator className="mb-4" />
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-3">
-            Recent
+            Recent Image Slides
           </p>
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-16 w-full rounded-lg" />
@@ -112,7 +112,7 @@ export function RecentPresentationsSidebar() {
       <Separator className="mb-4" />
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-3">
-          Recent
+          Recent Image Slides
         </p>
 
         {presentations.map((presentation) => (

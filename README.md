@@ -13,13 +13,30 @@ An intelligent presentation creation platform powered by AI. Generate stunning, 
 ```
 
 **That's it!** The script will automatically:
-- ✅ Check environment (Node.js, pnpm)
+- ✅ Check environment (Node.js, pnpm, Docker)
 - ✅ Install dependencies
-- ✅ Setup database
+- ✅ Start PostgreSQL in Docker
+- ✅ Setup database schema
 - ✅ Configure environment
-- ✅ Start the server
+- ✅ Start the dev server
 
 Access the app at: **http://localhost:3000** 🚀
+
+### 📦 Database Management Scripts
+
+```bash
+# Start database only
+./db-start.sh
+
+# Stop database (with options to keep or delete data)
+./db-stop.sh
+
+# View database logs
+docker logs slide-forge-db
+
+# Connect to database directly
+docker exec -it slide-forge-db psql -U presentation_user -d slide_forge
+```
 
 For detailed instructions, see [QUICK_START.md](QUICK_START.md)
 
@@ -80,7 +97,7 @@ Before you begin, ensure you have the following installed:
 
 - Node.js 18.x or higher
 - npm, yarn, or pnpm package manager (pnpm recommended)
-- PostgreSQL database
+- **Docker & Docker Compose** (for local database)
 - Required API keys:
   - OpenAI API key or OpenAI-compatible API (for text generation)
   - yunwu API key (for AI image generation with Gemini 3 Pro Image)
@@ -108,8 +125,8 @@ Before you begin, ensure you have the following installed:
    Create a `.env` file in the root directory with the following variables:
 
    ```env
-   # Database
-   DATABASE_URL="postgresql://username:password@localhost:5432/slide_forge"
+   # Database (Docker default)
+   DATABASE_URL="postgresql://presentation_user:presentation_password@localhost:5432/slide_forge"
 
    # Authentication
    NEXTAUTH_SECRET=""  # Generate with: openssl rand -base64 32
@@ -160,21 +177,184 @@ Before you begin, ensure you have the following installed:
    >
    > 🔑 **yunwu API**: Get your API key from [yunwu.ai](https://yunwu.ai) to enable AI image generation.
    >
-   > 🤖 **Claude Agent Setup**:
-   > 1. Install Claude Code CLI: `npm install -g @anthropic-ai/claude-code`
-   > 2. Configure AWS Bedrock access in your AWS account
-   > 3. Request model access for Claude models in AWS Console > Bedrock > Model access
-   > 4. Ensure IAM permissions for `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`
+   > 🤖 **Claude Agent Setup**: See detailed setup guide below
+
+### API Keys Configuration
+
+> 📖 **Detailed Guide**: See [docs/API_CONFIGURATION.md](docs/API_CONFIGURATION.md) for complete setup instructions, testing commands, and troubleshooting.
+
+#### Quick Reference Table
+
+| Service | Required | Used For | Get Key From |
+|---------|----------|----------|--------------|
+| **OpenAI API** | Choose one | Text generation | https://platform.openai.com/api-keys |
+| **OpenAI-Compatible API** | Choose one | Text generation | LM Studio / Ollama / yunwu.ai |
+| **yunwu API** | Optional | Image generation | https://yunwu.ai |
+| **AWS Bedrock** | For Chat to Slides | Claude Agent | AWS Console > Bedrock |
+| **Tavily API** | Optional | Web search | https://tavily.com |
+| **UploadThing** | Required | File storage | https://uploadthing.com |
+| **Unsplash API** | Optional | Stock images | https://unsplash.com/developers |
+
+#### Detailed Configuration
+
+#### 1. OpenAI API (Option A)
+
+For traditional OpenAI API access:
+
+```env
+OPENAI_API_KEY="sk-..."
+```
+
+**Get your key**: https://platform.openai.com/api-keys
+
+**Used for**: Outline generation, content suggestions
+
+#### 2. OpenAI-Compatible API (Option B - Recommended)
+
+For local or alternative LLM providers (LM Studio, Ollama, vLLM, etc.):
+
+```env
+LLM_BASE_URL="http://localhost:1234/v1"
+LLM_API_KEY="sk-no-key-required"  # Or actual key if required
+LLM_MODEL_NAME="gpt-4o-mini"      # Or your model name
+```
+
+**Popular providers**:
+- **LM Studio**: `http://localhost:1234/v1`
+- **Ollama**: `http://localhost:11434/v1`
+- **vLLM**: `http://localhost:8000/v1`
+- **云雾 API (yunwu.ai)**: `https://api.xiaomimimo.com/v1`
+
+**Used for**: All text generation tasks (outline, slides content)
+
+#### 3. Image Generation API
+
+```env
+YUNWU_API_KEY="sk-..."
+```
+
+**Get your key**: https://yunwu.ai
+
+**Used for**: AI-powered slide image generation (Gemini 3 Pro Image)
+
+#### 4. Claude Agent SDK (Amazon Bedrock)
+
+For the Chat to Slides feature, configure AWS Bedrock access:
+
+**Option A: AWS Profile (Recommended for local development)**
+```env
+CLAUDE_CODE_USE_BEDROCK="1"
+ENABLE_CLAUDE_AGENT="true"
+AWS_PROFILE="your-profile-name"
+AWS_REGION="us-east-1"
+```
+
+**Option B: Direct Credentials**
+```env
+CLAUDE_CODE_USE_BEDROCK="1"
+ENABLE_CLAUDE_AGENT="true"
+AWS_ACCESS_KEY_ID="AKIA..."
+AWS_SECRET_ACCESS_KEY="..."
+AWS_REGION="us-east-1"
+```
+
+**Option C: IAM Role (Automatic in AWS environments)**
+```env
+CLAUDE_CODE_USE_BEDROCK="1"
+ENABLE_CLAUDE_AGENT="true"
+AWS_REGION="us-east-1"
+```
+
+**Setup steps**:
+1. **Enable model access** in AWS Console:
+   - Navigate to AWS Console > Amazon Bedrock > Model access
+   - Request access to Claude models (Sonnet 3.5, Opus, Haiku)
+   - Wait for approval (usually instant)
+
+2. **Configure IAM permissions**:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "bedrock:InvokeModel",
+           "bedrock:InvokeModelWithResponseStream"
+         ],
+         "Resource": "arn:aws:bedrock:*::foundation-model/anthropic.claude-*"
+       }
+     ]
+   }
+   ```
+
+3. **Verify setup**:
+   ```bash
+   # Test AWS credentials
+   aws sts get-caller-identity
+
+   # Test Bedrock access
+   aws bedrock list-foundation-models --region us-east-1
+   ```
+
+**Used for**: Chat to Slides conversational interface, web search, file analysis
+
+#### 5. Web Search API (Optional)
+
+```env
+TAVILY_API_KEY="tvly-..."
+```
+
+**Get your key**: https://tavily.com
+
+**Used for**: Real-time web search in Chat to Slides
+
+#### 6. File Storage
+
+```env
+UPLOADTHING_TOKEN="..."
+```
+
+**Get your token**: https://uploadthing.com
+
+**Used for**: Storing uploaded files and generated images
 
 ### Database Setup
 
-1. **Initialize the database**
+The project uses Docker to run PostgreSQL locally for development.
+
+1. **Start the database with Docker**
+
+   ```bash
+   # Start PostgreSQL in Docker (runs in background)
+   docker-compose up -d
+
+   # Check database status
+   docker-compose ps
+   ```
+
+   The database will be accessible at `localhost:5432` with credentials:
+   - Username: `presentation_user`
+   - Password: `presentation_password`
+   - Database: `slide_forge`
+
+2. **Initialize the database schema**
 
    ```bash
    pnpm db:push
    ```
 
-1. **Start the development server**
+3. **Stop the database (when needed)**
+
+   ```bash
+   # Stop database
+   docker-compose down
+
+   # Stop and remove all data (⚠️  Warning: deletes all data)
+   docker-compose down -v
+   ```
+
+4. **Start the development server**
 
    ```bash
    pnpm dev
@@ -301,8 +481,9 @@ Configure image generation parameters via the **"图片设置"** dialog:
 
 ### Database & Storage
 
-- **PostgreSQL** - Primary database
-- **Prisma** - ORM
+- **PostgreSQL 15** - Primary database (runs in Docker for local dev)
+- **Docker & Docker Compose** - Container orchestration
+- **Prisma** - ORM and schema management
 - **UploadThing** - File upload and storage
 
 ### Authentication
@@ -381,6 +562,45 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 This project is licensed under the MIT License.
 
 ## 🔧 Additional Features
+
+### Database Management
+
+The project uses Docker for easy local database management:
+
+**Quick Commands:**
+```bash
+./db-start.sh    # Start database
+./db-stop.sh     # Stop database (interactive menu)
+```
+
+**Advanced Commands:**
+```bash
+# View database logs
+docker logs slide-forge-db
+
+# Follow logs in real-time
+docker logs -f slide-forge-db
+
+# Connect to database
+docker exec -it slide-forge-db psql -U presentation_user -d slide_forge
+
+# Backup database
+docker exec slide-forge-db pg_dump -U presentation_user slide_forge > backup.sql
+
+# Restore from backup
+cat backup.sql | docker exec -i slide-forge-db psql -U presentation_user -d slide_forge
+
+# View container status
+docker-compose ps
+
+# Restart database
+docker-compose restart postgres
+```
+
+**Troubleshooting:**
+- If database won't start: `docker-compose down && docker-compose up -d postgres`
+- If port 5432 is in use: Stop other PostgreSQL instances
+- To reset database: `./db-stop.sh` → choose option 2 (delete all data)
 
 ### Sidebar Features
 

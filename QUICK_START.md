@@ -9,9 +9,10 @@
 ```
 
 这个脚本会自动完成：
-- ✅ 环境检查（Node.js, pnpm, PostgreSQL）
+- ✅ 环境检查（Node.js, pnpm, Docker）
 - ✅ 创建 .env.local 配置文件
 - ✅ 安装所有依赖包
+- ✅ 启动 Docker 数据库
 - ✅ 数据库迁移
 - ✅ TypeScript 类型检查
 - ✅ 显示配置摘要
@@ -31,11 +32,16 @@
 
 ### 必需
 - **Node.js** 18+ ([下载](https://nodejs.org/))
-- **PostgreSQL** 数据库（本地或远程）
+- **Docker & Docker Compose** ([下载](https://docs.docker.com/get-docker/))
+- 以下 API 至少配置一个文本生成服务：
+  - **OpenAI API** 或
+  - **OpenAI-Compatible API** (LM Studio, Ollama, yunwu.ai 等)
 
-### 可选
+### 推荐
 - **pnpm** (脚本会自动安装)
 - **Git** (用于版本控制)
+- **AWS Bedrock** (用于 Chat to Slides 功能)
+- **Tavily API** (用于联网搜索)
 
 ---
 
@@ -60,10 +66,11 @@ cd slide-forge
 
 #### 必需配置
 
-1. **数据库连接**
+1. **数据库连接**（使用 Docker 默认值）
    ```env
-   DATABASE_URL="postgresql://username:password@localhost:5432/slide_forge"
+   DATABASE_URL="postgresql://presentation_user:presentation_password@localhost:5432/slide_forge"
    ```
+   ℹ️ 如果使用 docker-compose.yml，此值已正确配置
 
 2. **NextAuth 密钥**
    ```bash
@@ -74,25 +81,69 @@ cd slide-forge
    NEXTAUTH_SECRET="生成的密钥"
    ```
 
-#### 推荐配置
+3. **文本生成 API（选择一个）**
 
-3. **Unsplash API**（自动配图功能）
+   **选项 A: OpenAI API**
+   ```env
+   OPENAI_API_KEY="sk-..."
+   ```
+   获取: https://platform.openai.com/api-keys
+
+   **选项 B: OpenAI-Compatible API（推荐）**
+   ```env
+   LLM_BASE_URL="http://localhost:1234/v1"  # LM Studio 示例
+   LLM_API_KEY="sk-no-key-required"
+   LLM_MODEL_NAME="gpt-4o-mini"
+   ```
+
+   支持的服务：
+   - LM Studio (本地): `http://localhost:1234/v1`
+   - Ollama (本地): `http://localhost:11434/v1`
+   - yunwu.ai (云端): `https://api.xiaomimimo.com/v1`
+
+#### 推荐配置（功能增强）
+
+4. **Claude Agent（Chat to Slides 功能）**
+
+   **选项 A: AWS Profile（推荐）**
+   ```env
+   CLAUDE_CODE_USE_BEDROCK="1"
+   ENABLE_CLAUDE_AGENT="true"
+   AWS_PROFILE="default"
+   AWS_REGION="us-east-1"
+   ```
+
+   **选项 B: 直接凭证**
+   ```env
+   CLAUDE_CODE_USE_BEDROCK="1"
+   ENABLE_CLAUDE_AGENT="true"
+   AWS_ACCESS_KEY_ID="AKIA..."
+   AWS_SECRET_ACCESS_KEY="..."
+   AWS_REGION="us-east-1"
+   ```
+
+   **设置步骤**:
+   1. AWS Console > Bedrock > Model access
+   2. 请求 Claude 3.5 Sonnet 访问权限
+   3. 配置 IAM 权限（bedrock:InvokeModel）
+
+5. **联网搜索（可选）**
+   ```env
+   TAVILY_API_KEY="tvly-..."
+   ```
+   获取: https://tavily.com
+
+6. **自动配图（可选）**
    ```env
    UNSPLASH_ACCESS_KEY="your_access_key"
    ```
+   获取: https://unsplash.com/developers
 
-   获取方式：
-   - 访问 https://unsplash.com/developers
-   - 注册开发者账号
-   - 创建应用
-   - 复制 Access Key
-
-4. **AWS Bedrock**（Claude Agent）
+7. **文件存储（必需）**
    ```env
-   AWS_ACCESS_KEY_ID="your_access_key"
-   AWS_SECRET_ACCESS_KEY="your_secret_key"
-   AWS_REGION="us-west-2"
+   UPLOADTHING_TOKEN="..."
    ```
+   获取: https://uploadthing.com
 
 ### 步骤 4: 启动服务
 
@@ -185,6 +236,18 @@ pnpm dev
 ### 数据库
 
 ```bash
+# 启动数据库
+./db-start.sh
+
+# 停止数据库
+./db-stop.sh
+
+# 查看数据库日志
+docker logs slide-forge-db
+
+# 连接到数据库
+docker exec -it slide-forge-db psql -U presentation_user -d slide_forge
+
 # 应用数据库更改
 pnpm prisma db push
 
@@ -243,23 +306,35 @@ PORT=3001 pnpm dev
 **错误**: `Can't reach database server`
 
 **解决**:
-1. 确认 PostgreSQL 正在运行
+1. 检查 Docker 数据库是否运行
    ```bash
-   # Linux/Mac
-   sudo systemctl status postgresql
+   # 查看容器状态
+   docker ps | grep slide-forge-db
 
+   # 如果未运行，启动数据库
+   ./db-start.sh
    # 或
-   pg_ctl status
+   docker-compose up -d postgres
    ```
 
-2. 检查 DATABASE_URL 格式
-   ```env
-   DATABASE_URL="postgresql://username:password@host:5432/database"
-   ```
-
-3. 测试连接
+2. 检查 Docker daemon 是否运行
    ```bash
-   psql "postgresql://username:password@host:5432/database"
+   docker info
+   ```
+
+3. 检查数据库日志
+   ```bash
+   docker logs slide-forge-db
+   ```
+
+4. 重启数据库容器
+   ```bash
+   docker-compose restart postgres
+   ```
+
+5. 测试数据库连接
+   ```bash
+   docker exec -it slide-forge-db psql -U presentation_user -d slide_forge
    ```
 
 ### 问题 3: pnpm 命令未找到
@@ -289,14 +364,77 @@ pnpm prisma db push
 pnpm prisma studio
 ```
 
-### 问题 5: Agent 不响应
+### 问题 5: Agent 不响应 / Chat to Slides 无法使用
 
-**可能原因**: AWS Bedrock 未配置
+**可能原因**: AWS Bedrock 未配置或配置错误
 
 **解决**:
-1. 配置 AWS 凭证在 .env.local
-2. 或使用其他 LLM provider
-3. 检查网络连接
+
+1. **检查环境变量**
+   ```bash
+   # 查看当前配置
+   cat .env.local | grep -E "CLAUDE|AWS|BEDROCK"
+   ```
+
+2. **验证 AWS 凭证**
+   ```bash
+   # 测试凭证是否有效
+   aws sts get-caller-identity
+
+   # 测试 Bedrock 访问
+   aws bedrock list-foundation-models --region us-east-1
+   ```
+
+3. **检查 Bedrock 模型访问权限**
+   - 访问 AWS Console > Amazon Bedrock > Model access
+   - 确认 Claude 3.5 Sonnet 状态为 "Access granted"
+
+4. **检查 IAM 权限**
+   确保您的 IAM 用户/角色有以下权限：
+   ```json
+   {
+     "Effect": "Allow",
+     "Action": [
+       "bedrock:InvokeModel",
+       "bedrock:InvokeModelWithResponseStream"
+     ],
+     "Resource": "arn:aws:bedrock:*::foundation-model/anthropic.claude-*"
+   }
+   ```
+
+5. **查看浏览器控制台错误**
+   - 打开浏览器开发者工具 (F12)
+   - 查看 Console 和 Network 标签
+   - 寻找 AWS 或 Bedrock 相关错误
+
+### 问题 6: 文本生成失败 / Outline 无法生成
+
+**可能原因**: OpenAI API 或 LLM 服务未配置
+
+**解决**:
+
+1. **确认至少配置了一个文本生成服务**
+   ```bash
+   # 检查配置
+   cat .env.local | grep -E "OPENAI_API_KEY|LLM_BASE_URL"
+   ```
+
+2. **如果使用 OpenAI API**:
+   - 验证 API key 有效性
+   - 检查账户余额
+   - 确认 API key 有正确的权限
+
+3. **如果使用 OpenAI-Compatible API**:
+   - 确认服务正在运行（如 LM Studio、Ollama）
+   - 测试 API 端点：
+     ```bash
+     curl http://localhost:1234/v1/models
+     ```
+   - 检查 LLM_MODEL_NAME 是否匹配可用模型
+
+4. **切换到备用服务**:
+   - 如果 OpenAI 失败，尝试 LLM_BASE_URL
+   - 如果本地 LLM 失败，尝试云端服务（yunwu.ai）
 
 ### 问题 6: 导出 PDF 白屏
 
