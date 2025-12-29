@@ -351,7 +351,7 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col overflow-x-hidden">
       {/* 顶部标题栏 - 仅在有会话标题时显示 */}
       {currentSessionTitle && (
         <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-2">

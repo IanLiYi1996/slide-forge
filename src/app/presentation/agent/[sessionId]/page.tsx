@@ -114,7 +114,7 @@ export default function AgentSessionPage({
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-x-hidden">
       {/* Main Content - Full Height */}
       <AgentChat
         sessionId={sessionId}
