@@ -118,8 +118,6 @@ export function ProcessingView({
     }
   };
 
-  const allProcessed = processedCount === totalPages;
-
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -142,12 +140,13 @@ export function ProcessingView({
               <Home className="mr-2 h-4 w-4" />
               New Upload
             </Button>
-            {allProcessed && (
-              <Button onClick={() => setShowExportDialog(true)}>
-                <Download className="mr-2 h-4 w-4" />
-                Export All
-              </Button>
-            )}
+            <Button
+              onClick={() => setShowExportDialog(true)}
+              disabled={images.length === 0}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
           </div>
         </div>
       </div>

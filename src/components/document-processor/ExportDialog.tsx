@@ -44,37 +44,41 @@ export function ExportDialog({
     setIsExporting(true);
     try {
       if (exportFormat === "zip") {
-        // Export as ZIP
+        // Export as ZIP - mixed mode (processed + original)
         const zip = new JSZip();
 
         for (const image of images) {
           const processedUrl = processedImages.get(image.pageNumber);
-          if (processedUrl) {
-            const blob = await dataUrlToBlob(processedUrl);
-            zip.file(`page_${image.pageNumber}.png`, blob);
-          }
+          const exportUrl = processedUrl || image.dataUrl; // Fallback to original
+
+          const blob = await dataUrlToBlob(exportUrl);
+          const suffix = processedUrl ? 'processed' : 'original';
+          zip.file(`page_${image.pageNumber}_${suffix}.png`, blob);
         }
 
         const zipBlob = await zip.generateAsync({ type: "blob" });
-        saveAs(zipBlob, `processed_images_${Date.now()}.zip`);
+        saveAs(zipBlob, `images_${Date.now()}.zip`);
 
+        const originalCount = images.length - processedImages.size;
         toast({
           title: "Export successful",
-          description: `${processedImages.size} images exported as ZIP`,
+          description: `${images.length} images exported (${processedImages.size} processed, ${originalCount} original)`,
         });
       } else {
-        // Export individually
+        // Export individually - mixed mode (processed + original)
         for (const image of images) {
           const processedUrl = processedImages.get(image.pageNumber);
-          if (processedUrl) {
-            const blob = await dataUrlToBlob(processedUrl);
-            saveAs(blob, `page_${image.pageNumber}.png`);
-          }
+          const exportUrl = processedUrl || image.dataUrl; // Fallback to original
+
+          const blob = await dataUrlToBlob(exportUrl);
+          const suffix = processedUrl ? 'processed' : 'original';
+          saveAs(blob, `page_${image.pageNumber}_${suffix}.png`);
         }
 
+        const originalCount = images.length - processedImages.size;
         toast({
           title: "Export successful",
-          description: `${processedImages.size} images downloaded`,
+          description: `${images.length} images downloaded (${processedImages.size} processed, ${originalCount} original)`,
         });
       }
 
