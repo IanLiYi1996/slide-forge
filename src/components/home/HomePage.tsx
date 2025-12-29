@@ -2,7 +2,7 @@
 
 import { WebGLShader } from "@/components/ui/web-gl-shader";
 import { LiquidButton } from "@/components/ui/liquid-glass-button";
-import { FileText, Sparkles, ArrowRight } from "lucide-react";
+import { FileText, Sparkles, ArrowRight, Image } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export function HomePage() {
@@ -43,7 +43,7 @@ export function HomePage() {
           </div>
 
           {/* Feature Options */}
-          <div className="grid md:grid-cols-2 gap-6 px-6 mb-12">
+          <div className="grid md:grid-cols-3 gap-6 px-6 mb-12">
             {/* Image to Slides Option */}
             <div className="group relative p-6 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-sm hover:bg-black/50 hover:border-orange-500/50 transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
@@ -125,12 +125,53 @@ export function HomePage() {
                 <Sparkles className="ml-2 h-4 w-4" />
               </LiquidButton>
             </div>
+
+            {/* Document Processor Option */}
+            <div className="group relative p-6 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-sm hover:bg-black/50 hover:border-blue-500/50 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 group-hover:scale-110 transition-transform">
+                  <Image className="h-6 w-6 text-blue-400" />
+                </div>
+                <span className="text-[10px] font-bold text-blue-400 px-2 py-1 rounded-full border border-blue-500/30 bg-blue-500/10">
+                  SMART
+                </span>
+              </div>
+
+              <h3 className="text-2xl font-bold text-white mb-2">Document Processor</h3>
+              <p className="text-white/60 text-sm mb-4">
+                Process PDF and images page by page with AI-powered instructions
+              </p>
+
+              <ul className="space-y-2 mb-6">
+                <li className="flex items-start gap-2 text-xs text-white/70">
+                  <span className="text-blue-500 mt-0.5">▸</span>
+                  <span>PDF to image conversion</span>
+                </li>
+                <li className="flex items-start gap-2 text-xs text-white/70">
+                  <span className="text-blue-500 mt-0.5">▸</span>
+                  <span>Step-by-step processing</span>
+                </li>
+                <li className="flex items-start gap-2 text-xs text-white/70">
+                  <span className="text-blue-500 mt-0.5">▸</span>
+                  <span>Batch export functionality</span>
+                </li>
+              </ul>
+
+              <LiquidButton
+                className="w-full text-white border border-blue-500/30 hover:border-blue-500/60 bg-gradient-to-r from-blue-500/10 to-cyan-500/10"
+                size="lg"
+                onClick={() => router.push("/document-processor")}
+              >
+                Start Processing
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </LiquidButton>
+            </div>
           </div>
 
           {/* Bottom Info */}
           <div className="text-center px-6">
             <p className="text-xs text-white/50">
-              Both methods support multiple languages and customizable themes
+              All modules support multiple languages and customizable themes
             </p>
           </div>
         </main>

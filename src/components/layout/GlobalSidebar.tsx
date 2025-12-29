@@ -23,6 +23,7 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
+  Image,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useParams, useRouter, usePathname } from "next/navigation";
@@ -107,6 +108,16 @@ export function GlobalSidebar() {
                   </span>
                 </>
               )}
+            </Button>
+
+            <Button
+              variant="ghost"
+              className={`w-full h-10 ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'}`}
+              onClick={() => router.push("/document-processor")}
+              title={isCollapsed ? "Document Processor" : undefined}
+            >
+              <Image className="h-4 w-4" />
+              {!isCollapsed && "Document Processor"}
             </Button>
 
             {/* Export Button - Only show when viewing a presentation */}

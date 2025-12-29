@@ -34,4 +34,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-resource/
+resource/# PDF.js worker file (auto-generated)
+/public/pdf.worker.min.mjs
