@@ -5,7 +5,7 @@ import { db } from "@/server/db";
 // GET - Fetch single session
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
     const session = await auth();
@@ -22,9 +22,11 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    const { sessionId } = await params;
+
     const documentSession = await db.documentProcessorSession.findFirst({
       where: {
-        sessionId: params.sessionId,
+        sessionId: sessionId,
         userId: user.id,
       },
     });
@@ -46,7 +48,7 @@ export async function GET(
 // PUT - Update session
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
     const session = await auth();
@@ -63,6 +65,8 @@ export async function PUT(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    const { sessionId } = await params;
+
     const body = await request.json();
     const {
       title,
@@ -74,7 +78,7 @@ export async function PUT(
 
     const updatedSession = await db.documentProcessorSession.updateMany({
       where: {
-        sessionId: params.sessionId,
+        sessionId: sessionId,
         userId: user.id,
       },
       data: {
@@ -94,7 +98,7 @@ export async function PUT(
     // Fetch updated session
     const documentSession = await db.documentProcessorSession.findFirst({
       where: {
-        sessionId: params.sessionId,
+        sessionId: sessionId,
         userId: user.id,
       },
     });
@@ -112,7 +116,7 @@ export async function PUT(
 // DELETE - Delete session
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
     const session = await auth();
@@ -129,9 +133,11 @@ export async function DELETE(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    const { sessionId } = await params;
+
     const result = await db.documentProcessorSession.deleteMany({
       where: {
-        sessionId: params.sessionId,
+        sessionId: sessionId,
         userId: user.id,
       },
     });
