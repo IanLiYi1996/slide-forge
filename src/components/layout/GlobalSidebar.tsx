@@ -13,6 +13,7 @@ import {
 import { ExportButton } from "@/components/presentation/presentation-page/buttons/ExportButton";
 import { RecentPresentationsSidebar } from "./RecentPresentationsSidebar";
 import { RecentAgentSessions } from "./RecentAgentSessions";
+import { RecentDocumentSessions } from "./RecentDocumentSessions";
 import {
   LogOut,
   Settings,
@@ -137,6 +138,9 @@ export function GlobalSidebar() {
 
         {/* Recent Agent Sessions - Only show when expanded */}
         {!isCollapsed && <RecentAgentSessions />}
+
+        {/* Recent Document Sessions - Only show when expanded */}
+        {!isCollapsed && <RecentDocumentSessions />}
       </div>
 
       {/* Bottom Section - Theme Toggle & User Profile */}

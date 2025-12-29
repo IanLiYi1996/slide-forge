@@ -8,7 +8,7 @@ import { processUploadedFile, PageImage } from "@/lib/document-processor/pdf-uti
 import { useToast } from "@/components/ui/use-toast";
 
 interface DocumentUploaderProps {
-  onImagesLoaded: (images: PageImage[]) => void;
+  onImagesLoaded: (images: PageImage[], file: File) => void;
 }
 
 export function DocumentUploader({ onImagesLoaded }: DocumentUploaderProps) {
@@ -28,7 +28,7 @@ export function DocumentUploader({ onImagesLoaded }: DocumentUploaderProps) {
         console.log("processUploadedFile completed, images:", images.length);
 
         console.log("Calling onImagesLoaded callback...");
-        onImagesLoaded(images);
+        onImagesLoaded(images, file);
 
         toast({
           title: "File loaded successfully",
