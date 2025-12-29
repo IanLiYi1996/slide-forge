@@ -8,7 +8,7 @@
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAgentState } from "@/states/agent-state";
-import { Send, Loader2, Upload, X, User, Sparkles, FileText, FileCode, File as FileIcon, Globe, Home, Trash2, MessageSquare, ArrowUp } from "lucide-react";
+import { Send, Loader2, Upload, X, User, Sparkles, FileText, FileCode, File as FileIcon, Globe, Home, Trash2, MessageSquare, ArrowUp, Edit2, Check } from "lucide-react";
 import { useRef, useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import type { Message } from "@/lib/agent/types";
@@ -19,6 +19,7 @@ import { parseFile } from "@/lib/file-parsers";
 import { AgentWebSearchToggle } from "./AgentWebSearchToggle";
 import { FilePreviewCard } from "./FilePreviewCard";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AgentChatProps {
   sessionId: string;
@@ -27,6 +28,7 @@ interface AgentChatProps {
 
 export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const {
     messages,
     setMessages,
@@ -49,10 +51,63 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Map<string, string>>(new Map());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState("");
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const prevSessionIdRef = useRef<string>(sessionId);
+
+  // 开始编辑标题
+  const handleStartEdit = () => {
+    setEditedTitle(currentSessionTitle || "");
+    setIsEditingTitle(true);
+    // Focus input after state update
+    setTimeout(() => titleInputRef.current?.focus(), 0);
+  };
+
+  // 取消编辑
+  const handleCancelEdit = () => {
+    setIsEditingTitle(false);
+    setEditedTitle("");
+  };
+
+  // 保存标题
+  const handleSaveTitle = async () => {
+    if (!editedTitle.trim() || editedTitle === currentSessionTitle) {
+      setIsEditingTitle(false);
+      return;
+    }
+
+    setIsSavingTitle(true);
+    try {
+      const response = await fetch(`/api/agent/session/${sessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: editedTitle.trim() }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update title");
+      }
+
+      // Update local state via agent state
+      useAgentState.setState({ currentSessionTitle: editedTitle.trim() });
+
+      // Refresh sidebar sessions list
+      await queryClient.invalidateQueries({ queryKey: ["agent-sessions-recent"] });
+
+      toast.success("Session name updated");
+      setIsEditingTitle(false);
+    } catch (error) {
+      console.error("Error updating title:", error);
+      toast.error("Failed to update session name");
+    } finally {
+      setIsSavingTitle(false);
+    }
+  };
 
   // 删除会话
   const handleDelete = async () => {
@@ -301,25 +356,74 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
       {currentSessionTitle && (
         <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-2">
           <div className="flex items-center justify-between px-6">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-3 min-w-0 flex-1 group">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <Sparkles className="h-4 w-4 text-purple-600 flex-shrink-0" />
-                <div className="min-w-0">
-                  <h1 className="text-sm font-semibold line-clamp-1">
-                    {currentSessionTitle}
-                  </h1>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <MessageSquare className="h-3 w-3" />
-                      {messages.length} messages
-                    </span>
-                    {extractedSlides.length > 0 && (
-                      <>
-                        <span>•</span>
-                        <span>{extractedSlides.length} slides</span>
-                      </>
-                    )}
-                  </div>
+                <div className="min-w-0 flex-1">
+                  {isEditingTitle ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={titleInputRef}
+                        type="text"
+                        value={editedTitle}
+                        onChange={(e) => setEditedTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveTitle();
+                          if (e.key === "Escape") handleCancelEdit();
+                        }}
+                        className="text-sm font-semibold bg-transparent border-b border-primary focus:outline-none w-full max-w-md"
+                        disabled={isSavingTitle}
+                        placeholder="Enter session name"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleSaveTitle}
+                        disabled={isSavingTitle || !editedTitle.trim()}
+                        className="h-6 w-6 p-0"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCancelEdit}
+                        disabled={isSavingTitle}
+                        className="h-6 w-6 p-0"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-sm font-semibold line-clamp-1">
+                        {currentSessionTitle}
+                      </h1>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleStartEdit}
+                        className="h-6 w-6 p-0 opacity-60 group-hover:opacity-100 transition-opacity"
+                        title="Edit session name"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                  {!isEditingTitle && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <MessageSquare className="h-3 w-3" />
+                        {messages.length} messages
+                      </span>
+                      {extractedSlides.length > 0 && (
+                        <>
+                          <span>•</span>
+                          <span>{extractedSlides.length} slides</span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
