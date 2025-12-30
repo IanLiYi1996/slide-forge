@@ -16,11 +16,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
@@ -31,9 +33,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   Copy,
+  Edit,
   EllipsisVertical,
+  Eye,
   Loader2,
   Pencil,
+  PlayCircle,
   Presentation,
   Trash2,
 } from "lucide-react";
@@ -47,12 +52,40 @@ interface PresentationItemProps {
       id: string;
       content: unknown;
       theme: string;
+      generationStage?: string | null;
+      slidesGenerated?: number | null;
+      outline?: string[];
+      lastAccessedAt?: Date | string | null;
     } | null;
   };
   isSelecting?: boolean;
   onSelect?: (id: string) => void;
   isSelected?: boolean;
   isLoading?: boolean;
+}
+
+// Helper function to get stage badge
+function getStageBadge(stage: string | null | undefined, completed: number, total: number) {
+  if (!stage) {
+    return <Badge variant="secondary">✅ 已完成</Badge>;
+  }
+
+  switch (stage) {
+    case "outline":
+      return <Badge variant="secondary">📝 大纲</Badge>;
+    case "slides":
+      return (
+        <Badge variant="default">
+          ⚙️ 生成中 ({completed}/{total})
+        </Badge>
+      );
+    case "completed":
+      return <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-400">✅ 已完成</Badge>;
+    case "exported":
+      return <Badge variant="outline">📦 已导出</Badge>;
+    default:
+      return <Badge variant="secondary">✅ 已完成</Badge>;
+  }
 }
 
 export function PresentationItem({
@@ -234,10 +267,19 @@ export function PresentationItem({
               )}
             </div>
           )}
-          <div>
-            <h3 className="font-medium text-foreground">
-              {isLoading ? "Loading..." : presentation.title || "Untitled"}
-            </h3>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium text-foreground">
+                {isLoading ? "Loading..." : presentation.title || "Untitled"}
+              </h3>
+              {!isLoading && presentation.presentation && (
+                getStageBadge(
+                  presentation.presentation.generationStage,
+                  presentation.presentation.slidesGenerated || 0,
+                  presentation.presentation.outline?.length || 0
+                )
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">
               {isLoading
                 ? "Loading..."
@@ -255,28 +297,63 @@ export function PresentationItem({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {/* Contextual actions based on generation stage */}
+                {presentation.presentation?.generationStage === "outline" ||
+                 presentation.presentation?.generationStage === "slides" ? (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/presentation/edit/${presentation.id}`);
+                    }}
+                  >
+                    <PlayCircle className="mr-2 h-4 w-4" />
+                    继续编辑
+                  </DropdownMenuItem>
+                ) : (
+                  <>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/presentation/${presentation.id}`);
+                      }}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      查看
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/presentation/edit/${presentation.id}`);
+                      }}
+                    >
+                      <Edit className="mr-2 h-4 w-4" />
+                      编辑幻灯片
+                    </DropdownMenuItem>
+                  </>
+                )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => renameMutation()}
                   disabled={isRenaming}
                 >
                   <Pencil className="mr-2 h-4 w-4" />
-                  Rename
+                  重命名
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => duplicateMutation()}
                   disabled={isDuplicating}
                 >
                   <Copy className="mr-2 h-4 w-4" />
-                  Duplicate
+                  复制
                 </DropdownMenuItem>
-
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => setIsDeleteDialogOpen(true)}
                   disabled={isDeleting}
                   className="text-destructive"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+                  删除
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

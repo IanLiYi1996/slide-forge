@@ -96,6 +96,13 @@ export async function updatePresentation({
   thumbnailUrl,
   slides,
   slideImages,
+  generationStage,
+  lastAccessedAt,
+  slidesGenerated,
+  currentSlideIndex,
+  exportedAt,
+  exportFormat,
+  exportCount,
 }: {
   id: string;
   content?: {
@@ -113,6 +120,13 @@ export async function updatePresentation({
   thumbnailUrl?: string;
   slides?: string[]; // New: array of image URLs for pure-image mode
   slideImages?: Record<string, unknown>; // New: slide image generation history
+  generationStage?: string; // New: outline, slides, completed, exported
+  lastAccessedAt?: Date; // New: track last access time
+  slidesGenerated?: number; // New: count of completed slides
+  currentSlideIndex?: number; // New: last edited slide position
+  exportedAt?: Date; // New: export timestamp
+  exportFormat?: string; // New: pdf, pptx, images
+  exportCount?: number; // New: number of times exported
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -150,6 +164,15 @@ export async function updatePresentation({
             outline,
             searchResults: searchResults as unknown as InputJsonValue,
             slideImages: slideImages as unknown as InputJsonValue,
+            // Session management fields
+            generationStage,
+            lastAccessedAt,
+            slidesGenerated,
+            currentSlideIndex,
+            // Export tracking
+            exportedAt,
+            exportFormat,
+            exportCount,
           },
         },
       },

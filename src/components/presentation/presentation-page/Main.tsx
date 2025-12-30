@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -180,6 +180,17 @@ export default function PresentationPage() {
             fileName={presentationData.title || "presentation"}
             variant="toolbar"
           />
+
+          {/* Edit Slides Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push(`/presentation/edit/${id}`)}
+            className="gap-2"
+          >
+            <Edit className="h-4 w-4" />
+            编辑幻灯片
+          </Button>
 
           {/* Delete Button */}
           <Button

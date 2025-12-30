@@ -116,6 +116,20 @@ model Presentation {
     templateId        String?
     customThemeId     String? // Reference to custom theme if used
     customTheme       CustomTheme? @relation(fields: [customThemeId], references: [id])
+
+    // Session management fields
+    generationStage   String?      @default("outline") // outline, slides, completed, exported
+    lastAccessedAt    DateTime?    @default(now())
+    slidesGenerated   Int?         @default(0) // Count of completed slides
+    currentSlideIndex Int?         @default(0) // Last edited slide position
+
+    // Export tracking
+    exportedAt        DateTime?
+    exportFormat      String? // pdf, pptx, images
+    exportCount       Int          @default(0)
+
+    @@index([lastAccessedAt])
+    @@index([generationStage])
 }
 
 model CustomTheme {

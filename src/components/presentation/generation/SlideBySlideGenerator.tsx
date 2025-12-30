@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePresentationState } from "@/states/presentation-state";
 import { type SlideImage } from "@/types/presentation-types";
-import { Check, Loader2, RefreshCw, Sparkles, X, ArrowLeft } from "lucide-react";
+import { Check, Loader2, RefreshCw, Sparkles, X, ArrowLeft, Save } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -16,12 +16,16 @@ interface SlideBySlideGeneratorProps {
   outline: string[]; // Array of outline topics
   templateId: string;
   onComplete: (slides: SlideImage[]) => void;
+  editMode?: boolean; // New: marks if reopening for editing
+  initialSlideIndex?: number; // New: resume at specific slide
 }
 
 export function SlideBySlideGenerator({
   outline,
   templateId,
   onComplete,
+  editMode = false,
+  initialSlideIndex = 0,
 }: SlideBySlideGeneratorProps) {
   const router = useRouter();
   const { customThemePrompt, imageModel } = usePresentationState();
@@ -36,7 +40,7 @@ export function SlideBySlideGenerator({
     })),
   );
 
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(initialSlideIndex);
   const [modificationPrompt, setModificationPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRestored, setIsRestored] = useState(false); // Track if slides were restored from database
@@ -219,13 +223,21 @@ export function SlideBySlideGenerator({
         }
       });
 
-      // Save to database in background
+      // Count completed slides
+      const completedSlidesCount = slides.filter(s => s.status === "ready").length;
+      const isAllComplete = completedSlidesCount === slides.length;
+
+      // Save to database in background with session state
       void updatePresentation({
         id: currentPresentationId,
         slideImages: slideImagesData,
+        lastAccessedAt: new Date(),
+        slidesGenerated: completedSlidesCount,
+        currentSlideIndex: currentSlideIndex,
+        generationStage: isAllComplete ? "completed" : "slides",
       })
         .then(() => {
-          console.log("Slide images auto-saved to database");
+          console.log("Slide images and session state auto-saved to database");
         })
         .catch((err) => {
           console.error("Failed to auto-save slide images:", err);
@@ -233,7 +245,7 @@ export function SlideBySlideGenerator({
     }, 1000); // 1 second debounce
 
     return () => clearTimeout(timer);
-  }, [slides]); // Save when slides change
+  }, [slides, currentSlideIndex]); // Save when slides or currentSlideIndex changes
 
   if (!currentSlide) {
     return (
@@ -336,6 +348,40 @@ export function SlideBySlideGenerator({
               </div>
             </button>
           ))}
+        </div>
+
+        {/* Save & Exit Button */}
+        <div className="p-4 border-t bg-background/50 backdrop-blur-sm">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              const { currentPresentationId } = usePresentationState.getState();
+              if (!currentPresentationId) return;
+
+              const completedSlidesCount = slides.filter(s => s.status === "ready").length;
+              const isAllComplete = completedSlidesCount === slides.length;
+
+              try {
+                await updatePresentation({
+                  id: currentPresentationId,
+                  lastAccessedAt: new Date(),
+                  currentSlideIndex: currentSlideIndex,
+                  slidesGenerated: completedSlidesCount,
+                  generationStage: isAllComplete ? "completed" : "slides",
+                });
+
+                toast.success("Progress saved!");
+                router.push("/presentation");
+              } catch (error) {
+                console.error("Failed to save progress:", error);
+                toast.error("Failed to save progress");
+              }
+            }}
+            className="w-full gap-2"
+          >
+            <Save className="h-4 w-4" />
+            Save & Exit
+          </Button>
         </div>
 
         {/* Progress Summary */}
