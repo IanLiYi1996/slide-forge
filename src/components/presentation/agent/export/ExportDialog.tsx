@@ -18,7 +18,8 @@ import { Progress } from "@/components/ui/progress";
 import type { SlideData } from "@/lib/agent/types/workflow";
 import { Download, FileImage, FileText, Presentation, Loader2 } from "lucide-react";
 import { downloadAllSlidesPNGZip } from "@/lib/presentation/export-to-png";
-import { downloadPPTX } from "@/lib/presentation/export-to-pptx";
+import { downloadEditablePPTX } from "@/lib/presentation/export-editable-pptx";
+import { downloadImagePPTX } from "@/lib/presentation/export-to-pptx";
 import { downloadPDF } from "@/lib/presentation/export-to-pdf";
 import { downloadAllSlidesAsHTML } from "@/lib/presentation/export-simple";
 import { toast } from "sonner";
@@ -42,7 +43,7 @@ export function ExportDialog({
   const [exportTotal, setExportTotal] = useState(0);
   const [exportType, setExportType] = useState<string>("");
 
-  const handleExport = async (type: "png" | "pptx" | "pdf" | "html") => {
+  const handleExport = async (type: "png" | "pptx-editable" | "pptx-image" | "pdf" | "html") => {
     setExporting(true);
     setExportType(type.toUpperCase());
     setExportProgress(0);
@@ -72,9 +73,14 @@ export function ExportDialog({
           toast.success("PNG files exported successfully!");
           break;
 
-        case "pptx":
-          await downloadPPTX(slidesData, title, onProgress);
-          toast.success("PPTX file exported successfully!");
+        case "pptx-editable":
+          await downloadEditablePPTX(slidesData, title, onProgress);
+          toast.success("Editable PPTX file exported successfully!");
+          break;
+
+        case "pptx-image":
+          await downloadImagePPTX(slidesData, title, onProgress);
+          toast.success("Image PPTX file exported successfully!");
           break;
 
         case "pdf":
@@ -152,19 +158,42 @@ export function ExportDialog({
               </div>
             </Button>
 
-            {/* PPTX Export */}
+            {/* Editable PPTX Export (NEW) */}
+            <Button
+              variant="outline"
+              className="justify-start h-auto py-3 w-full border-green-200 bg-green-50/50 dark:bg-green-950/20"
+              onClick={() => handleExport("pptx-editable")}
+              disabled={validSlidesCount === 0}
+            >
+              <div className="flex items-start gap-3 text-left w-full min-w-0">
+                <Presentation className="h-5 w-5 mt-0.5 flex-shrink-0 text-green-600" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm">
+                    PowerPoint (Editable Text)
+                    <span className="ml-2 text-[10px] bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-1.5 py-0.5 rounded font-medium">
+                      NEW
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground break-words">
+                    Editable text with HTML styling preserved
+                  </div>
+                </div>
+              </div>
+            </Button>
+
+            {/* Image PPTX Export (Backup) */}
             <Button
               variant="outline"
               className="justify-start h-auto py-3 w-full"
-              onClick={() => handleExport("pptx")}
+              onClick={() => handleExport("pptx-image")}
               disabled={validSlidesCount === 0}
             >
               <div className="flex items-start gap-3 text-left w-full min-w-0">
                 <Presentation className="h-5 w-5 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm">PowerPoint (PPTX)</div>
+                  <div className="font-semibold text-sm">PowerPoint (Image)</div>
                   <div className="text-xs text-muted-foreground break-words">
-                    PowerPoint format with images embedded
+                    Image-based PPTX (fallback option)
                   </div>
                 </div>
               </div>

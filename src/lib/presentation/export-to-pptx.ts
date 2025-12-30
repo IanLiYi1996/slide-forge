@@ -7,9 +7,9 @@ import PptxGenJS from "pptxgenjs";
 import { exportSlideToPNG } from "./export-to-png";
 
 /**
- * 导出为 PPTX 文件
+ * 导出为图片 PPTX 文件 (图片模式,保留作为备选)
  */
-export async function exportToPPTX(
+export async function exportImagePPTX(
   slides: Array<{ html: string; index: number }>,
   title: string = "Presentation",
   onProgress?: (current: number, total: number) => void,
@@ -70,14 +70,14 @@ export async function exportToPPTX(
 }
 
 /**
- * 导出并下载 PPTX
+ * 导出并下载图片 PPTX (图片模式,保留作为备选)
  */
-export async function downloadPPTX(
+export async function downloadImagePPTX(
   slides: Array<{ html: string; index: number }>,
   title: string = "presentation",
   onProgress?: (current: number, total: number) => void,
 ): Promise<void> {
-  const blob = await exportToPPTX(slides, title, onProgress);
+  const blob = await exportImagePPTX(slides, title, onProgress);
 
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

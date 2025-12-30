@@ -8,9 +8,10 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Download, FileImage, FileText, Presentation, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ExportDialog } from "./export/ExportDialog";
 import type { SlideData } from "@/lib/agent/types/workflow";
+import { useAgentState } from "@/states/agent-state";
 
 interface ExportToolbarProps {
   slides: SlideData[];
@@ -19,12 +20,37 @@ interface ExportToolbarProps {
 
 export function ExportToolbar({ slides, sessionId }: ExportToolbarProps) {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const { currentSessionTitle } = useAgentState();
 
   if (slides.length === 0) {
     return null;
   }
 
   const readySlides = slides.filter((s) => s.html && s.status === "ready");
+
+  // 生成文件名：优先使用会话标题，否则使用第一张幻灯片标题或默认名
+  const presentationTitle = useMemo(() => {
+    // 1. 优先使用会话标题
+    if (currentSessionTitle && currentSessionTitle !== "New Agent Session") {
+      return currentSessionTitle;
+    }
+
+    // 2. 尝试从第一张幻灯片的outline提取标题
+    const firstSlide = slides[0];
+    if (firstSlide?.outlineContent) {
+      // 提取第一行或前30个字符作为标题
+      const firstLine = firstSlide.outlineContent.split("\n")[0]?.trim();
+      if (firstLine) {
+        const cleanTitle = firstLine.replace(/^[#\-*\s]+/, "").trim();
+        if (cleanTitle.length > 0) {
+          return cleanTitle.substring(0, 50); // 限制长度
+        }
+      }
+    }
+
+    // 3. 默认使用sessionId
+    return `Presentation-${sessionId.slice(0, 8)}`;
+  }, [currentSessionTitle, slides, sessionId]);
 
   return (
     <>
@@ -91,7 +117,7 @@ export function ExportToolbar({ slides, sessionId }: ExportToolbarProps) {
         open={exportDialogOpen}
         onOpenChange={setExportDialogOpen}
         slides={slides}
-        title={`Transformer-Presentation-${sessionId.slice(0, 8)}`}
+        title={presentationTitle}
       />
     </>
   );
