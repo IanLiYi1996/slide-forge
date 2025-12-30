@@ -128,7 +128,7 @@ DATABASE_URL="postgresql://user:password@localhost:5432/slide_forge"
 
 # NextAuth
 NEXTAUTH_SECRET="generate-with-openssl-rand-base64-32"
-NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_URL="http://localhost:8080"
 
 # Unsplash API (for auto images)
 UNSPLASH_ACCESS_KEY=""
@@ -138,8 +138,11 @@ AWS_ACCESS_KEY_ID=""
 AWS_SECRET_ACCESS_KEY=""
 AWS_REGION="us-west-2"
 
+# LLM API (OpenAI Compatible)
+LLM_API_KEY=""
+LLM_BASE_URL=""  # Optional: leave empty for OpenAI
+
 # Optional
-OPENAI_API_KEY=""
 TAVILY_API_KEY=""
 EOF
             print_success "Minimal .env.local created"
@@ -299,8 +302,8 @@ start_service() {
     echo ""
     print_info "Access the app at:"
     echo ""
-    echo -e "  ${GREEN}➜${NC}  Local:   ${BLUE}http://localhost:3000${NC}"
-    echo -e "  ${GREEN}➜${NC}  Agent:   ${BLUE}http://localhost:3000/presentation/agent${NC}"
+    echo -e "  ${GREEN}➜${NC}  Local:   ${BLUE}http://localhost:8080${NC}"
+    echo -e "  ${GREEN}➜${NC}  Agent:   ${BLUE}http://localhost:8080/presentation/agent${NC}"
     echo ""
     print_info "Press Ctrl+C to stop the server"
     echo ""

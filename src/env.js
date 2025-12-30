@@ -9,12 +9,13 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
 
-    OPENAI_API_KEY: z.string(),
-    YUNWU_API_KEY: z.string(),
     // OpenAI Compatible LLM Configuration
-    LLM_BASE_URL: z.string().optional(),
-    LLM_API_KEY: z.string().optional(),
+    LLM_API_KEY: z.string(),
+    LLM_BASE_URL: z.string().optional(), // Optional: defaults to OpenAI if not set
     LLM_MODEL_NAME: z.string().default("gpt-4o-mini"),
+    // Image Generation APIs
+    YUNWU_API_KEY: z.string(),
+    DASHSCOPE_API_KEY: z.string().optional(), // 🆕 新增：z-image-turbo API key (可选)
     // Claude Agent SDK - Amazon Bedrock 配置
     CLAUDE_CODE_USE_BEDROCK: z.string().default("0"),
     ENABLE_CLAUDE_AGENT: z.string().default("false"),
@@ -46,11 +47,11 @@ export const env = createEnv({
     UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY,
     TAVILY_API_KEY: process.env.TAVILY_API_KEY,
     NODE_ENV: process.env.NODE_ENV,
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    YUNWU_API_KEY: process.env.YUNWU_API_KEY,
-    LLM_BASE_URL: process.env.LLM_BASE_URL,
     LLM_API_KEY: process.env.LLM_API_KEY,
+    LLM_BASE_URL: process.env.LLM_BASE_URL,
     LLM_MODEL_NAME: process.env.LLM_MODEL_NAME,
+    YUNWU_API_KEY: process.env.YUNWU_API_KEY,
+    DASHSCOPE_API_KEY: process.env.DASHSCOPE_API_KEY, // 🆕 新增
     CLAUDE_CODE_USE_BEDROCK: process.env.CLAUDE_CODE_USE_BEDROCK,
     ENABLE_CLAUDE_AGENT: process.env.ENABLE_CLAUDE_AGENT,
     AGENT_SESSION_TIMEOUT: process.env.AGENT_SESSION_TIMEOUT,

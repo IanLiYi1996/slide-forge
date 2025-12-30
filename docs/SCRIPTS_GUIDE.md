@@ -111,8 +111,8 @@ Ready to start? Press Enter to continue...
 🚀 Starting development server...
 
 Access the app at:
-  ➜  Local:   http://localhost:3000
-  ➜  Agent:   http://localhost:3000/presentation/agent
+  ➜  Local:   http://localhost:8080
+  ➜  Agent:   http://localhost:8080/presentation/agent
 
 Press Ctrl+C to stop the server
 ```
@@ -154,8 +154,8 @@ Press Ctrl+C to stop the server
 🚀 Starting development server...
 
 Access the app at:
-  ➜  Local:   http://localhost:3000
-  ➜  Agent:   http://localhost:3000/presentation/agent
+  ➜  Local:   http://localhost:8080
+  ➜  Agent:   http://localhost:8080/presentation/agent
 
 Press Ctrl+C to stop the server
 
@@ -165,7 +165,7 @@ Press Ctrl+C to stop the server
 > next dev
 
   ▲ Next.js 15.x.x
-  - Local:        http://localhost:3000
+  - Local:        http://localhost:8080
   - Environments: .env.local
 
 ✓ Starting...
@@ -277,7 +277,7 @@ cd slide-forge
 # 编辑 .env.local
 
 # 4. 访问应用
-# http://localhost:3000
+# http://localhost:8080
 ```
 
 ### 场景 2: 日常开发
@@ -377,7 +377,7 @@ DATABASE_URL="postgresql://user:pass@localhost:5432/slide_forge"
 
 # NextAuth 密钥（生成方式见下）
 NEXTAUTH_SECRET="your-secret-here"
-NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_URL="http://localhost:8080"
 ```
 
 ### 生成 NEXTAUTH_SECRET
@@ -403,9 +403,10 @@ AWS_SECRET_ACCESS_KEY="your_aws_secret"
 AWS_REGION="us-west-2"
 # 配置: AWS Console > IAM > Users
 
-# OpenAI - 文本生成（可选，如果不用Agent）
-OPENAI_API_KEY="sk-..."
-# 获取: https://platform.openai.com/api-keys
+# LLM API - 文本生成（OpenAI 兼容）
+LLM_API_KEY="sk-..."
+# LLM_BASE_URL=""  # 可选，不填则使用 OpenAI
+# 获取: https://platform.openai.com/api-keys (OpenAI) 或其他提供商
 ```
 
 ### 可选配置（增强功能）

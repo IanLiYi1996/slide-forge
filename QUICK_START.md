@@ -81,25 +81,24 @@ cd slide-forge
    NEXTAUTH_SECRET="生成的密钥"
    ```
 
-3. **文本生成 API（选择一个）**
+3. **文本生成 API（OpenAI 兼容配置）**
 
-   **选项 A: OpenAI API**
    ```env
-   OPENAI_API_KEY="sk-..."
-   ```
-   获取: https://platform.openai.com/api-keys
-
-   **选项 B: OpenAI-Compatible API（推荐）**
-   ```env
-   LLM_BASE_URL="http://localhost:1234/v1"  # LM Studio 示例
-   LLM_API_KEY="sk-no-key-required"
-   LLM_MODEL_NAME="gpt-4o-mini"
+   LLM_API_KEY="sk-..."              # 必填：API密钥
+   LLM_BASE_URL=""                   # 可选：不填则使用OpenAI
+   LLM_MODEL_NAME="gpt-4o-mini"      # 可选：默认 gpt-4o-mini
    ```
 
-   支持的服务：
-   - LM Studio (本地): `http://localhost:1234/v1`
-   - Ollama (本地): `http://localhost:11434/v1`
-   - yunwu.ai (云端): `https://api.xiaomimimo.com/v1`
+   **使用 OpenAI（默认）**:
+   - 仅配置 `LLM_API_KEY`，获取密钥: https://platform.openai.com/api-keys
+   - `LLM_BASE_URL` 留空或不配置
+
+   **使用其他兼容服务**:
+   - 配置 `LLM_API_KEY` 和 `LLM_BASE_URL`
+   - 支持的服务：
+     - LM Studio (本地): `http://localhost:1234/v1`
+     - Ollama (本地): `http://localhost:11434/v1`
+     - yunwu.ai (云端): `https://api.xiaomimimo.com/v1`
 
 #### 推荐配置（功能增强）
 
@@ -156,8 +155,8 @@ pnpm dev
 ### 步骤 5: 访问应用
 
 打开浏览器访问：
-- 主页: http://localhost:3000
-- **Agent 页面**: http://localhost:3000/presentation/agent ← 开始这里！
+- 主页: http://localhost:8080
+- **Agent 页面**: http://localhost:8080/presentation/agent ← 开始这里！
 
 ---
 
@@ -166,7 +165,7 @@ pnpm dev
 ### 1. 访问 Agent 页面
 
 ```
-http://localhost:3000/presentation/agent
+http://localhost:8080/presentation/agent
 ```
 
 ### 2. 创建新 Session
@@ -416,7 +415,7 @@ pnpm prisma studio
 1. **确认至少配置了一个文本生成服务**
    ```bash
    # 检查配置
-   cat .env.local | grep -E "OPENAI_API_KEY|LLM_BASE_URL"
+   cat .env.local | grep -E "LLM_API_KEY|LLM_BASE_URL"
    ```
 
 2. **如果使用 OpenAI API**:

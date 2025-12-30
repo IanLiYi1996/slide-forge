@@ -20,7 +20,7 @@ An intelligent presentation creation platform powered by AI. Generate stunning, 
 - ✅ Configure environment
 - ✅ Start the dev server
 
-Access the app at: **http://localhost:3000** 🚀
+Access the app at: **http://localhost:8080** 🚀
 
 ### 📦 Database Management Scripts
 
@@ -137,14 +137,13 @@ Before you begin, ensure you have the following installed:
    COGNITO_CLIENT_SECRET=""
    COGNITO_ISSUER=""
 
-   # AI Providers
-   OPENAI_API_KEY=""  # For text generation (outline, content)
-   YUNWU_API_KEY=""   # For AI image generation (Gemini 3 Pro Image)
+   # AI Providers - Text Generation (OpenAI Compatible)
+   LLM_API_KEY=""            # Required: API key for LLM service
+   LLM_BASE_URL=""           # Optional: Leave empty to use OpenAI
+   LLM_MODEL_NAME="gpt-4o-mini"  # Optional: Model name (default: gpt-4o-mini)
 
-   # OpenAI-compatible LLM Configuration (alternative to OpenAI)
-   LLM_BASE_URL=""           # e.g., http://localhost:1234/v1
-   LLM_API_KEY=""            # API key for your LLM service
-   LLM_MODEL_NAME="gpt-4o-mini"  # Model name to use
+   # AI Providers - Image Generation
+   YUNWU_API_KEY=""   # For AI image generation (Gemini 3 Pro Image)
 
    # File Storage
    UPLOADTHING_TOKEN=""  # For storing generated images and uploads
@@ -187,8 +186,7 @@ Before you begin, ensure you have the following installed:
 
 | Service | Required | Used For | Get Key From |
 |---------|----------|----------|--------------|
-| **OpenAI API** | Choose one | Text generation | https://platform.openai.com/api-keys |
-| **OpenAI-Compatible API** | Choose one | Text generation | LM Studio / Ollama / yunwu.ai |
+| **LLM API** | Required | Text generation | https://platform.openai.com/api-keys (or your provider) |
 | **yunwu API** | Optional | Image generation | https://yunwu.ai |
 | **AWS Bedrock** | For Chat to Slides | Claude Agent | AWS Console > Bedrock |
 | **Tavily API** | Optional | Web search | https://tavily.com |
@@ -197,29 +195,28 @@ Before you begin, ensure you have the following installed:
 
 #### Detailed Configuration
 
-#### 1. OpenAI API (Option A)
+#### 1. Text Generation (OpenAI Compatible)
 
-For traditional OpenAI API access:
+Unified configuration that supports OpenAI and compatible services:
 
+**Using OpenAI (Default)**:
 ```env
-OPENAI_API_KEY="sk-..."
+LLM_API_KEY="sk-..."              # Required: Your OpenAI API key
+# LLM_BASE_URL=""                 # Leave empty or omit for OpenAI
+# LLM_MODEL_NAME="gpt-4o-mini"    # Optional: defaults to gpt-4o-mini
 ```
 
 **Get your key**: https://platform.openai.com/api-keys
 
-**Used for**: Outline generation, content suggestions
-
-#### 2. OpenAI-Compatible API (Option B - Recommended)
-
-For local or alternative LLM providers (LM Studio, Ollama, vLLM, etc.):
-
+**Using Alternative Providers**:
 ```env
-LLM_BASE_URL="http://localhost:1234/v1"
-LLM_API_KEY="sk-no-key-required"  # Or actual key if required
-LLM_MODEL_NAME="gpt-4o-mini"      # Or your model name
+LLM_API_KEY="sk-..."              # Your API key
+LLM_BASE_URL="http://localhost:1234/v1"  # Custom endpoint
+LLM_MODEL_NAME="gpt-4o-mini"      # Your model name
 ```
 
 **Popular providers**:
+- **OpenAI** (default): Leave `LLM_BASE_URL` empty
 - **LM Studio**: `http://localhost:1234/v1`
 - **Ollama**: `http://localhost:11434/v1`
 - **vLLM**: `http://localhost:8000/v1`
@@ -227,7 +224,7 @@ LLM_MODEL_NAME="gpt-4o-mini"      # Or your model name
 
 **Used for**: All text generation tasks (outline, slides content)
 
-#### 3. Image Generation API
+#### 2. Image Generation API
 
 ```env
 YUNWU_API_KEY="sk-..."
@@ -237,7 +234,7 @@ YUNWU_API_KEY="sk-..."
 
 **Used for**: AI-powered slide image generation (Gemini 3 Pro Image)
 
-#### 4. Claude Agent SDK (Amazon Bedrock)
+#### 3. Claude Agent SDK (Amazon Bedrock)
 
 For the Chat to Slides feature, configure AWS Bedrock access:
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { type AspectRatio, type ImageSize } from "@/app/_actions/image/generate";
+import { type ImageGenerationProvider } from "@/states/presentation-state";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,8 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { usePresentationState } from "@/states/presentation-state";
 import { Image } from "lucide-react";
+
+// 🆕 模型提供商选项
+const MODEL_PROVIDERS: { value: ImageGenerationProvider; label: string; description: string }[] = [
+  { value: "yunwu", label: "yunwu (Gemini 3 Pro)", description: "高质量，支持多轮对话" },
+  { value: "z-image-turbo", label: "z-image-turbo (通义)", description: "快速生成，中英文渲染" },
+];
 
 const ASPECT_RATIOS: { value: AspectRatio; label: string; description: string }[] = [
   { value: "16:9", label: "16:9", description: "Widescreen (Recommended)" },
@@ -55,10 +63,47 @@ export function ImageConfigDialog() {
         <DialogHeader>
           <DialogTitle>图片生成设置</DialogTitle>
           <DialogDescription>
-            配置AI生成幻灯片图片的宽高比和分辨率
+            配置AI生成幻灯片图片的模型、宽高比和分辨率
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6 py-4">
+          {/* 🆕 模型选择器 */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">图片生成模型 (Model)</Label>
+            <Select
+              value={imageModel.provider}
+              onValueChange={(value) =>
+                setImageModel({
+                  ...imageModel,
+                  provider: value as ImageGenerationProvider,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MODEL_PROVIDERS.map((provider) => (
+                  <SelectItem key={provider.value} value={provider.value}>
+                    <div className="flex items-center justify-between w-full">
+                      <span className="font-medium">{provider.label}</span>
+                      <span className="text-xs text-muted-foreground ml-3">
+                        {provider.description}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              当前选择: <span className="font-medium">
+                {MODEL_PROVIDERS.find((p) => p.value === imageModel.provider)?.label}
+              </span>
+              {" - "}
+              {MODEL_PROVIDERS.find((p) => p.value === imageModel.provider)?.description}
+            </p>
+          </div>
+
           {/* Aspect Ratio */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">宽高比 (Aspect Ratio)</Label>
@@ -128,6 +173,35 @@ export function ImageConfigDialog() {
               {IMAGE_SIZES.find((s) => s.value === imageModel.imageSize)?.description}
             </p>
           </div>
+
+          {/* 🆕 智能提示词改写开关（仅 z-image-turbo）*/}
+          {imageModel.provider === "z-image-turbo" && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">智能提示词改写</Label>
+                  <p className="text-xs text-muted-foreground">
+                    使用大模型优化提示词，提升图片质量（推荐开启）
+                  </p>
+                </div>
+                <Switch
+                  checked={imageModel.promptExtend ?? true}
+                  onCheckedChange={(checked) =>
+                    setImageModel({
+                      ...imageModel,
+                      promptExtend: checked,
+                    })
+                  }
+                />
+              </div>
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 p-3 text-xs">
+                <p className="text-blue-700 dark:text-blue-300">
+                  <span className="font-medium">💡 说明：</span>
+                  开启后，系统会使用大模型优化您的提示词，并输出思考过程，生成效果更好但响应时间会略微增加。
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Info Box */}
           <div className="rounded-lg bg-muted/50 p-4 text-sm">

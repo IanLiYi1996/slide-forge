@@ -47,14 +47,26 @@ docker exec -it slide-forge-db psql -U presentation_user -d slide_forge
 
 ---
 
-## 2. 🤖 Text Generation API (Choose One)
+## 2. 🤖 Text Generation API (OpenAI Compatible)
 
-### Option A: OpenAI API
+Unified configuration that works with OpenAI and compatible services.
 
-**Best for**: Simple setup, reliable service
+### Configuration
 
 ```env
-OPENAI_API_KEY="sk-proj-..."
+LLM_API_KEY="sk-..."              # Required: Your API key
+LLM_BASE_URL=""                   # Optional: Leave empty for OpenAI
+LLM_MODEL_NAME="gpt-4o-mini"      # Optional: Default model name
+```
+
+### Using OpenAI (Default)
+
+**Best for**: Simple setup, reliable service, no local setup
+
+**Configuration**:
+```env
+LLM_API_KEY="sk-proj-..."
+# LLM_BASE_URL=""  # Leave empty or omit
 ```
 
 **Get your key**:
@@ -66,20 +78,19 @@ OPENAI_API_KEY="sk-proj-..."
 **Test**:
 ```bash
 curl https://api.openai.com/v1/models \
-  -H "Authorization: Bearer $OPENAI_API_KEY"
+  -H "Authorization: Bearer $LLM_API_KEY"
 ```
 
 **Pricing**: Pay-per-use (typically $0.01-0.06 per 1K tokens)
 
-### Option B: OpenAI-Compatible API (Recommended)
+### Using LM Studio (Local)
 
-**Best for**: Cost savings, privacy, local development
+**Best for**: Privacy, cost savings, offline work
 
-#### B1. LM Studio (Local)
-
+**Configuration**:
 ```env
-LLM_BASE_URL="http://localhost:1234/v1"
 LLM_API_KEY="sk-no-key-required"
+LLM_BASE_URL="http://localhost:1234/v1"
 LLM_MODEL_NAME="qwen2.5-7b-instruct"  # or your model
 ```
 
@@ -92,11 +103,14 @@ LLM_MODEL_NAME="qwen2.5-7b-instruct"  # or your model
 **Pros**: Free, private, fast
 **Cons**: Requires powerful hardware
 
-#### B2. Ollama (Local)
+### Using Ollama (Local)
 
+**Best for**: CLI-friendly local LLM
+
+**Configuration**:
 ```env
-LLM_BASE_URL="http://localhost:11434/v1"
 LLM_API_KEY="sk-no-key-required"
+LLM_BASE_URL="http://localhost:11434/v1"
 LLM_MODEL_NAME="qwen2.5:7b"
 ```
 
@@ -114,11 +128,14 @@ ollama pull qwen2.5:7b
 **Pros**: Easy to use, CLI-friendly
 **Cons**: Requires local resources
 
-#### B3. yunwu.ai (Cloud)
+### Using yunwu.ai (Cloud)
 
+**Best for**: Fast cloud service without local setup
+
+**Configuration**:
 ```env
-LLM_BASE_URL="https://api.xiaomimomo.com/v1"
 LLM_API_KEY="sk-..."
+LLM_BASE_URL="https://api.xiaomimomo.com/v1"
 LLM_MODEL_NAME="mimo-v2-flash"
 ```
 
@@ -131,12 +148,13 @@ LLM_MODEL_NAME="mimo-v2-flash"
 
 | Model | Size | Speed | Quality | Use Case |
 |-------|------|-------|---------|----------|
-| Qwen 2.5 7B | 7B | Fast | Good | General use |
-| Llama 3.1 8B | 8B | Fast | Good | English tasks |
-| Gemma 2 9B | 9B | Medium | Better | Complex reasoning |
-| Mistral 7B | 7B | Fast | Good | Coding tasks |
+| GPT-4o-mini | N/A | Fast | Excellent | OpenAI (default) |
+| Qwen 2.5 7B | 7B | Fast | Good | General use (local) |
+| Llama 3.1 8B | 8B | Fast | Good | English tasks (local) |
+| Gemma 2 9B | 9B | Medium | Better | Complex reasoning (local) |
+| Mistral 7B | 7B | Fast | Good | Coding tasks (local) |
 
-**Status**: ✅ Required (choose one option)
+**Status**: ✅ Required
 
 ---
 

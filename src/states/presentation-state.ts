@@ -4,10 +4,15 @@ import { type ThemeProperties, type Themes } from "@/lib/presentation/themes";
 import { type TElement } from "platejs";
 import { create } from "zustand";
 
+// 图片生成模型提供商类型
+export type ImageGenerationProvider = "yunwu" | "z-image-turbo";
+
 // Type for image model configuration
 export type ImageModelConfig = {
   aspectRatio: AspectRatio;
   imageSize: ImageSize;
+  provider: ImageGenerationProvider; // 🆕 新增：模型选择
+  promptExtend?: boolean; // 🆕 智能提示词改写（z-image-turbo 专用）
 };
 
 interface PresentationState {
@@ -180,7 +185,12 @@ export const usePresentationState = create<PresentationState>((set) => ({
   webSearchEnabled: false,
   theme: "mystique",
   customThemeData: null,
-  imageModel: { aspectRatio: "16:9", imageSize: "1K" },
+  imageModel: {
+    aspectRatio: "16:9",
+    imageSize: "1K",
+    provider: "yunwu",
+    promptExtend: true, // 🆕 默认启用智能提示词改写
+  },
   imageSource: "ai", // 默认使用 AI 生成
   stockImageProvider: "unsplash",
   presentationStyle: "professional",

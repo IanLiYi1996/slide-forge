@@ -5,6 +5,11 @@ import { env } from "@/env";
 /**
  * Centralized model picker function for all presentation generation routes
  * Supports OpenAI Compatible APIs (OpenAI, LM Studio, or any OpenAI-compatible service)
+ *
+ * Configuration:
+ * - LLM_API_KEY: Required API key (for OpenAI or compatible service)
+ * - LLM_BASE_URL: Optional base URL (defaults to OpenAI if not set)
+ * - LLM_MODEL_NAME: Optional model name (defaults to gpt-4o-mini)
  */
 export function modelPicker(
   modelProvider: string,
@@ -21,23 +26,15 @@ export function modelPicker(
     return lmstudio(modelId) as unknown as LanguageModelV1;
   }
 
-  // Custom OpenAI Compatible API: Use custom base URL if configured
-  if (env.LLM_BASE_URL && env.LLM_API_KEY) {
-    const customLLM = createOpenAI({
-      name: "custom-llm",
-      baseURL: env.LLM_BASE_URL,
-      apiKey: env.LLM_API_KEY,
-    });
-    // Priority: user-specified modelName > env modelName > default
-    const finalModelName = modelName || env.LLM_MODEL_NAME || "gpt-4o-mini";
-    return customLLM(finalModelName) as unknown as LanguageModelV1;
-  }
-
-  // Default to OpenAI
-  const openai = createOpenAI({
-    apiKey: env.OPENAI_API_KEY,
+  // Unified OpenAI Compatible API
+  // If LLM_BASE_URL is set, use custom endpoint; otherwise default to OpenAI
+  const llmClient = createOpenAI({
+    name: env.LLM_BASE_URL ? "custom-llm" : "openai",
+    ...(env.LLM_BASE_URL && { baseURL: env.LLM_BASE_URL }),
+    apiKey: env.LLM_API_KEY,
   });
+
   // Priority: user-specified modelName > env modelName > default
   const finalModelName = modelName || env.LLM_MODEL_NAME || "gpt-4o-mini";
-  return openai(finalModelName) as unknown as LanguageModelV1;
+  return llmClient(finalModelName) as unknown as LanguageModelV1;
 }
