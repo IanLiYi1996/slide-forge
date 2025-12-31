@@ -103,7 +103,8 @@ export class CloudFrontConstruct extends Construct {
     });
 
     // Grant S3 read permissions to CloudFront OAC
-    props.staticBucket.grantRead(this.distribution.node.findChild('Origin2') as any);
+    // CloudFront OAC 权限通过 bucket policy 自动配置，无需手动 grant
+    // props.staticBucket.grantRead(this.distribution);
 
     // Outputs
     new cdk.CfnOutput(this, 'DistributionId', {

@@ -23,11 +23,6 @@ export interface CognitoConstructProps {
    * 初始管理员邮箱地址
    */
   adminEmail: string;
-
-  /**
-   * 应用 URL（用于 OAuth 回调）
-   */
-  applicationUrl: string;
 }
 
 export interface OIDCConfig {
@@ -126,6 +121,7 @@ export class CognitoConstruct extends Construct {
       },
 
       // OAuth 2.0 配置
+      // 注意：Callback URLs 会在 CloudFront 创建后通过 addPropertyOverride 动态更新
       oAuth: {
         flows: {
           authorizationCodeGrant: true, // NextAuth 使用授权码流程
@@ -136,15 +132,12 @@ export class CognitoConstruct extends Construct {
           OAuthScope.EMAIL,
           OAuthScope.PROFILE,
         ],
+        // 初始只配置本地开发 URLs，生产 URLs 稍后动态添加
         callbackUrls: [
-          // 生产环境回调
-          `${props.applicationUrl}/api/auth/callback/cognito`,
-          // 本地开发回调
           'http://localhost:3000/api/auth/callback/cognito',
           'http://localhost:8080/api/auth/callback/cognito',
         ],
         logoutUrls: [
-          props.applicationUrl,
           'http://localhost:3000',
           'http://localhost:8080',
         ],
@@ -155,9 +148,10 @@ export class CognitoConstruct extends Construct {
     // Cognito 托管域名
     // =========================================================================
 
-    // 从 Stack ID 生成唯一的短 ID
-    const stackId = cdk.Fn.select(2, cdk.Fn.split('/', cdk.Stack.of(this).stackId));
-    const domainPrefix = `slide-forge-${stackId}`.toLowerCase();
+    // 从 Stack 名称生成合法的域名前缀（只包含小写字母、数字和连字符）
+    // 添加随机后缀确保唯一性
+    const timestamp = Date.now().toString(36); // 转换为36进制，更短
+    const domainPrefix = `${props.stackName}-${timestamp}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
 
     const domain = this.userPool.addDomain('CognitoDomain', {
       cognitoDomain: {

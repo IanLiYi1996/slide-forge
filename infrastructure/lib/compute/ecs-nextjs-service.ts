@@ -109,20 +109,22 @@ export class EcsNextjsServiceConstruct extends Construct {
     });
 
     // Grant S3 permissions
-    props.kmsKey.grantEncryptDecrypt(this.taskRole);
-    props.uploadsBucket.grantReadWrite(this.taskRole);
+    if (this.taskRole) {
+      props.kmsKey.grantEncryptDecrypt(this.taskRole);
+      props.uploadsBucket.grantReadWrite(this.taskRole);
 
-    // 如果提供了 Agent SDK Role，添加 AssumeRole 权限
-    if (props.agentSdkRoleArn) {
-      this.taskRole.addToPolicy(
-        new iam.PolicyStatement({
-          sid: 'AssumeAgentSdkRole',
-          effect: iam.Effect.ALLOW,
-          actions: ['sts:AssumeRole'],
-          resources: [props.agentSdkRoleArn],
-        })
-      );
-      console.log('✓ ECS Task Role can assume Agent SDK Role');
+      // 如果提供了 Agent SDK Role，添加 AssumeRole 权限
+      if (props.agentSdkRoleArn) {
+        this.taskRole.addToPolicy(
+          new iam.PolicyStatement({
+            sid: 'AssumeAgentSdkRole',
+            effect: iam.Effect.ALLOW,
+            actions: ['sts:AssumeRole'],
+            resources: [props.agentSdkRoleArn],
+          })
+        );
+        console.log('✓ ECS Task Role can assume Agent SDK Role');
+      }
     }
 
     // Task Definition
@@ -248,8 +250,8 @@ export class EcsNextjsServiceConstruct extends Construct {
 
     // Container
     const container = taskDefinition.addContainer('nextjs', {
-      image: ecs.ContainerImage.fromAsset('../../frontend', {
-        file: '../infrastructure/docker/Dockerfile.nextjs',
+      image: ecs.ContainerImage.fromAsset('../frontend', {
+        file: 'Dockerfile.production',
         platform: Platform.LINUX_ARM64,
       }),
       memoryLimitMiB: ECS_CONFIG.memory,

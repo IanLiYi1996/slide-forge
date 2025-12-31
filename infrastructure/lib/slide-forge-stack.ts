@@ -58,11 +58,10 @@ export class SlideForgeStack extends cdk.Stack {
       deletionProtection: environment === 'production',
     });
 
-    // 4. Create Cognito User Pool (在 ECS 之前)
+    // 4. Create Cognito User Pool (在 ECS 之前，不需要 CloudFront URL)
     const cognitoConstruct = new CognitoConstruct(this, 'Auth', {
       stackName,
       adminEmail: envConfig.cognito.adminEmail,
-      applicationUrl: 'https://placeholder.example.com', // 临时 URL，稍后用 CloudFront 更新
     });
 
     // 5. Create Claude Agent SDK IAM Role (在 ECS 之前)
@@ -120,8 +119,26 @@ export class SlideForgeStack extends cdk.Stack {
       stackName,
     });
 
-    // 8. Create Admin User (使用实际的 CloudFront URL)
+    // 8. 动态更新 Cognito Callback URLs（使用 CloudFront URL）
     const applicationUrl = `https://${cloudfrontConstruct.distribution.distributionDomainName}`;
+
+    // 获取底层的 CfnUserPoolClient 并添加 CloudFront callback URLs
+    const cfnUserPoolClient = cognitoConstruct.userPoolClient.node
+      .defaultChild as cdk.aws_cognito.CfnUserPoolClient;
+
+    cfnUserPoolClient.addPropertyOverride('CallbackURLs', [
+      'http://localhost:3000/api/auth/callback/cognito',
+      'http://localhost:8080/api/auth/callback/cognito',
+      `${applicationUrl}/api/auth/callback/cognito`, // CloudFront URL
+    ]);
+
+    cfnUserPoolClient.addPropertyOverride('LogoutURLs', [
+      'http://localhost:3000',
+      'http://localhost:8080',
+      applicationUrl, // CloudFront URL
+    ]);
+
+    // 9. Create Admin User (使用实际的 CloudFront URL)
     new AdminUserCreator(this, 'AdminUserCreator', {
       userPoolId: cognitoConstruct.userPool.userPoolId,
       adminEmail: envConfig.cognito.adminEmail,
