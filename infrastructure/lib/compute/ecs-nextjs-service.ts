@@ -21,6 +21,25 @@ export interface EcsNextjsServiceConstructProps {
   databaseSecret: secretsmanager.ISecret;
   stackName: string;
   distributionDomain?: string;
+  // 环境变量配置
+  envConfig?: {
+    claudeUseBedrock?: boolean;
+    anthropicApiKey?: string;
+    llmApiKey?: string;
+    llmBaseUrl?: string;
+    llmModelName?: string;
+    tavilyApiKey?: string;
+    uploadthingToken?: string;
+    unsplashAccessKey?: string;
+  };
+  // Cognito 认证配置
+  cognitoConfig?: {
+    clientId: string;
+    clientSecret: cdk.SecretValue;
+    issuer: string;
+  };
+  // Claude Agent SDK IAM Role（可选）
+  agentSdkRoleArn?: string;
 }
 
 export class EcsNextjsServiceConstruct extends Construct {
@@ -93,6 +112,19 @@ export class EcsNextjsServiceConstruct extends Construct {
     props.kmsKey.grantEncryptDecrypt(this.taskRole);
     props.uploadsBucket.grantReadWrite(this.taskRole);
 
+    // 如果提供了 Agent SDK Role，添加 AssumeRole 权限
+    if (props.agentSdkRoleArn) {
+      this.taskRole.addToPolicy(
+        new iam.PolicyStatement({
+          sid: 'AssumeAgentSdkRole',
+          effect: iam.Effect.ALLOW,
+          actions: ['sts:AssumeRole'],
+          resources: [props.agentSdkRoleArn],
+        })
+      );
+      console.log('✓ ECS Task Role can assume Agent SDK Role');
+    }
+
     // Task Definition
     const taskDefinition = new ecs.FargateTaskDefinition(this, 'TaskDef', {
       memoryLimitMiB: ECS_CONFIG.memory,
@@ -105,6 +137,115 @@ export class EcsNextjsServiceConstruct extends Construct {
       taskRole: this.taskRole,
     });
 
+    // 构建环境变量映射
+    const environment: Record<string, string> = {
+      NODE_ENV: 'production',
+      PORT: '3000',
+      HOSTNAME: '0.0.0.0',
+      AWS_REGION: cdk.Aws.REGION,
+
+      // AI Services
+      CLAUDE_CODE_USE_BEDROCK: props.envConfig?.claudeUseBedrock !== false ? '1' : '0',
+      ENABLE_CLAUDE_AGENT: 'true',
+
+      // S3 Configuration
+      UPLOADS_BUCKET: props.uploadsBucket.bucketName,
+
+      // NextAuth URLs (will be updated with CloudFront domain)
+      NEXTAUTH_URL: props.distributionDomain
+        ? `https://${props.distributionDomain}`
+        : 'http://localhost:3000',
+    };
+
+    // 如果提供了 Agent SDK Role，传递 Role ARN
+    if (props.agentSdkRoleArn) {
+      environment.AGENT_SDK_ROLE_ARN = props.agentSdkRoleArn;
+      console.log('✓ Agent SDK Role ARN configured for container');
+    }
+
+    // 添加可选的第三方服务配置
+    if (props.envConfig?.llmBaseUrl) {
+      environment.LLM_BASE_URL = props.envConfig.llmBaseUrl;
+    }
+    if (props.envConfig?.llmModelName) {
+      environment.LLM_MODEL_NAME = props.envConfig.llmModelName;
+    }
+
+    // 构建 secrets 映射（敏感信息）
+    const secrets: Record<string, ecs.Secret> = {
+      DATABASE_URL: ecs.Secret.fromSecretsManager(props.databaseSecret, 'connectionString'),
+      NEXTAUTH_SECRET: ecs.Secret.fromSecretsManager(nextAuthSecret),
+    };
+
+    // 从环境变量或 props 添加可选的 API keys
+    if (props.envConfig?.anthropicApiKey) {
+      // 如果提供了 API key，创建 secret 并使用
+      const anthropicSecret = new secretsmanager.Secret(this, 'AnthropicApiKey', {
+        secretName: `${props.stackName}/anthropic-api-key`,
+        secretStringValue: cdk.SecretValue.unsafePlainText(props.envConfig.anthropicApiKey),
+      });
+      secrets.ANTHROPIC_API_KEY = ecs.Secret.fromSecretsManager(anthropicSecret);
+      console.log('✓ Using provided Anthropic API Key');
+    }
+
+    if (props.envConfig?.llmApiKey) {
+      const llmSecret = new secretsmanager.Secret(this, 'LlmApiKey', {
+        secretName: `${props.stackName}/llm-api-key`,
+        secretStringValue: cdk.SecretValue.unsafePlainText(props.envConfig.llmApiKey),
+      });
+      secrets.LLM_API_KEY = ecs.Secret.fromSecretsManager(llmSecret);
+      console.log('✓ Using provided LLM API Key');
+    }
+
+    if (props.envConfig?.tavilyApiKey) {
+      const tavilySecret = new secretsmanager.Secret(this, 'TavilyApiKey', {
+        secretName: `${props.stackName}/tavily-api-key`,
+        secretStringValue: cdk.SecretValue.unsafePlainText(props.envConfig.tavilyApiKey),
+      });
+      secrets.TAVILY_API_KEY = ecs.Secret.fromSecretsManager(tavilySecret);
+      console.log('✓ Using provided Tavily API Key');
+    }
+
+    if (props.envConfig?.uploadthingToken) {
+      const uploadthingSecret = new secretsmanager.Secret(this, 'UploadthingToken', {
+        secretName: `${props.stackName}/uploadthing-token`,
+        secretStringValue: cdk.SecretValue.unsafePlainText(props.envConfig.uploadthingToken),
+      });
+      secrets.UPLOADTHING_TOKEN = ecs.Secret.fromSecretsManager(uploadthingSecret);
+      console.log('✓ Using provided UploadThing Token');
+    }
+
+    if (props.envConfig?.unsplashAccessKey) {
+      const unsplashSecret = new secretsmanager.Secret(this, 'UnsplashAccessKey', {
+        secretName: `${props.stackName}/unsplash-access-key`,
+        secretStringValue: cdk.SecretValue.unsafePlainText(props.envConfig.unsplashAccessKey),
+      });
+      secrets.UNSPLASH_ACCESS_KEY = ecs.Secret.fromSecretsManager(unsplashSecret);
+      console.log('✓ Using provided Unsplash Access Key');
+    }
+
+    // Cognito 认证配置
+    if (props.cognitoConfig) {
+      // 创建 Secret 存储 Client Secret
+      const cognitoClientSecret = new secretsmanager.Secret(this, 'CognitoClientSecret', {
+        secretName: `${props.stackName}/cognito-client-secret`,
+        secretStringValue: props.cognitoConfig.clientSecret,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      });
+
+      // 授权 TaskExecutionRole 读取
+      cognitoClientSecret.grantRead(taskExecutionRole);
+
+      // 添加到 secrets (敏感信息)
+      secrets.COGNITO_CLIENT_SECRET = ecs.Secret.fromSecretsManager(cognitoClientSecret);
+
+      // 添加到环境变量 (非敏感信息)
+      environment.COGNITO_CLIENT_ID = props.cognitoConfig.clientId;
+      environment.COGNITO_ISSUER = props.cognitoConfig.issuer;
+
+      console.log('✓ Cognito authentication configured');
+    }
+
     // Container
     const container = taskDefinition.addContainer('nextjs', {
       image: ecs.ContainerImage.fromAsset('../../frontend', {
@@ -112,33 +253,8 @@ export class EcsNextjsServiceConstruct extends Construct {
         platform: Platform.LINUX_ARM64,
       }),
       memoryLimitMiB: ECS_CONFIG.memory,
-      environment: {
-        NODE_ENV: 'production',
-        PORT: '3000',
-        HOSTNAME: '0.0.0.0',
-        AWS_REGION: cdk.Aws.REGION,
-
-        // AI Services
-        CLAUDE_CODE_USE_BEDROCK: '1',
-        ENABLE_CLAUDE_AGENT: 'true',
-
-        // S3 Configuration
-        UPLOADS_BUCKET: props.uploadsBucket.bucketName,
-
-        // NextAuth URLs (will be updated with CloudFront domain)
-        NEXTAUTH_URL: props.distributionDomain
-          ? `https://${props.distributionDomain}`
-          : 'http://localhost:3000',
-      },
-      secrets: {
-        DATABASE_URL: ecs.Secret.fromSecretsManager(props.databaseSecret, 'connectionString'),
-        NEXTAUTH_SECRET: ecs.Secret.fromSecretsManager(nextAuthSecret),
-        // Add other secrets from Secrets Manager
-        // LLM_API_KEY: ecs.Secret.fromSecretsManager(openaiSecret),
-        // YUNWU_API_KEY: ecs.Secret.fromSecretsManager(yunwuSecret),
-        // UPLOADTHING_TOKEN: ecs.Secret.fromSecretsManager(uploadthingSecret),
-        // TAVILY_API_KEY: ecs.Secret.fromSecretsManager(tavilySecret),
-      },
+      environment,
+      secrets,
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: 'nextjs',
         logGroup: logGroup,

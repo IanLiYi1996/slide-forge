@@ -4,8 +4,12 @@
  * 使用 Amazon Bedrock 作为 API provider
  *
  * 参考: claude-agent-sdk-demos/simple-chatapp
+ *
+ * ⚠️ 此文件只能在服务端使用 (API Routes)
+ * 客户端请使用 agent-client.ts
  */
 
+import "server-only";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "./types";
 import * as tools from "./tools";

@@ -217,13 +217,19 @@ export class HTMLSlideParser {
         /linear-gradient\([^)]*?([#\w]+)\s+\d+%[^)]*?([#\w]+)\s+\d+%/,
       );
       if (gradientMatch) {
-        defaultTheme.primary = this.normalizeColor(gradientMatch[1]) || defaultTheme.primary;
-        defaultTheme.secondary = this.normalizeColor(gradientMatch[2]) || defaultTheme.secondary;
+        const color1 = gradientMatch[1];
+        const color2 = gradientMatch[2];
+        if (color1) {
+          defaultTheme.primary = this.normalizeColor(color1) || defaultTheme.primary;
+        }
+        if (color2) {
+          defaultTheme.secondary = this.normalizeColor(color2) || defaultTheme.secondary;
+        }
       }
 
       // 提取背景色
       const bgMatch = styleContent.match(/\.slide-container[^{]*{[^}]*background:\s*([#\w]+)/);
-      if (bgMatch) {
+      if (bgMatch && bgMatch[1]) {
         defaultTheme.bg = this.normalizeColor(bgMatch[1]) || defaultTheme.bg;
       }
 
@@ -231,17 +237,19 @@ export class HTMLSlideParser {
       const titleColorMatch = styleContent.match(/\.slide-title[^{]*{[^}]*color:\s*([#\w]+)/);
       if (titleColorMatch) {
         const color = titleColorMatch[1];
-        // transparent时使用默认深色，其他颜色正常转换
-        if (color.toLowerCase() === 'transparent') {
-          defaultTheme.titleColor = "#1a202c"; // 使用默认深色
-        } else {
-          defaultTheme.titleColor = this.normalizeColor(color) || defaultTheme.titleColor;
+        if (color) {
+          // transparent时使用默认深色，其他颜色正常转换
+          if (color.toLowerCase() === 'transparent') {
+            defaultTheme.titleColor = "#1a202c"; // 使用默认深色
+          } else {
+            defaultTheme.titleColor = this.normalizeColor(color) || defaultTheme.titleColor;
+          }
         }
       }
 
       // 提取内容文本颜色
       const textColorMatch = styleContent.match(/\.slide-content[^{]*{[^}]*color:\s*([#\w]+)/);
-      if (textColorMatch) {
+      if (textColorMatch && textColorMatch[1]) {
         defaultTheme.textColor = this.normalizeColor(textColorMatch[1]) || defaultTheme.textColor;
       }
 
@@ -280,7 +288,7 @@ export class HTMLSlideParser {
 
     const lowerColor = color.toLowerCase();
     if (lowerColor in colorMap) {
-      return colorMap[lowerColor];
+      return colorMap[lowerColor] || color;
     }
 
     // 如果无法识别，返回原值

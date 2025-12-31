@@ -47,6 +47,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Install Claude Code CLI for Agent SDK
+# This provides the runtime required by @anthropic-ai/claude-agent-sdk
+RUN corepack enable pnpm && \
+    npm install -g @anthropic-ai/claude-code
+
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

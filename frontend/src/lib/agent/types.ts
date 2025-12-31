@@ -46,7 +46,7 @@ export interface UploadedFile {
   name: string;
   content: string;
   type: string;
-  size?: number;
+  size: number;
 }
 
 export interface OutlineGenerationRequest {

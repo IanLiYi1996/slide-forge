@@ -8,11 +8,20 @@
     "watch": "tsc -w",
     "cdk": "cdk",
     "synth": "cdk synth",
-    "deploy": "cdk deploy --all --require-approval never",
-    "destroy": "cdk destroy --all",
-    "diff": "cdk diff"
+    "deploy": "./scripts/deploy.sh --non-interactive",
+    "deploy:interactive": "./scripts/deploy.sh",
+    "destroy": "./scripts/destroy.sh",
+    "diff": "cdk diff",
+    "configure": "./scripts/configure.sh",
+    "validate": "./scripts/validate.sh",
+    "status": "./scripts/status.sh",
+    "logs": "./scripts/logs.sh"
   },
-  "keywords": ["aws-cdk", "infrastructure", "slide-forge"],
+  "keywords": [
+    "aws-cdk",
+    "infrastructure",
+    "slide-forge"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -24,6 +33,7 @@
   "dependencies": {
     "aws-cdk-lib": "^2.170.0",
     "cdk-nag": "^2.30.0",
-    "constructs": "^10.4.2"
+    "constructs": "^10.4.2",
+    "dotenv": "^17.2.3"
   }
 }

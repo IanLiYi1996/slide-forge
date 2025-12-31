@@ -1,4 +1,4 @@
-import { db } from "~/server/db";
+import { db } from "@/server/db";
 
 /**
  * Health check endpoint for ECS/ALB health checks

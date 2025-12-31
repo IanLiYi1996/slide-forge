@@ -5,6 +5,10 @@ import { AuroraServerlessConstruct } from './storage/aurora-serverless';
 import { S3BucketsConstruct } from './storage/s3-buckets';
 import { EcsNextjsServiceConstruct } from './compute/ecs-nextjs-service';
 import { CloudFrontConstruct } from './cdn/cloudfront';
+import { CognitoConstruct } from './auth/cognito';
+import { AdminUserCreator } from './auth/admin-user-creator';
+import { AgentSdkRole } from './auth/agent-sdk-role';
+import { getEnvConfig, validateEnvConfig, printEnvStatus } from '../config/env-config';
 
 export interface SlideForgeStackProps extends cdk.StackProps {
   /**
@@ -19,6 +23,18 @@ export class SlideForgeStack extends cdk.Stack {
 
     const stackName = this.stackName;
     const environment = props?.environment || 'development';
+
+    // 从环境变量加载配置
+    const envConfig = getEnvConfig();
+    const validation = validateEnvConfig(envConfig);
+
+    if (!validation.valid) {
+      console.error('❌ 环境变量验证失败:');
+      validation.errors.forEach((error) => console.error(`  - ${error}`));
+      throw new Error('环境变量配置不完整，请检查 .env 文件或环境变量');
+    }
+
+    printEnvStatus(envConfig);
 
     // 1. Create VPC and Security Groups
     const vpcConstruct = new VpcConstruct(this, 'Network', {
@@ -42,7 +58,20 @@ export class SlideForgeStack extends cdk.Stack {
       deletionProtection: environment === 'production',
     });
 
-    // 4. Create ECS Service
+    // 4. Create Cognito User Pool (在 ECS 之前)
+    const cognitoConstruct = new CognitoConstruct(this, 'Auth', {
+      stackName,
+      adminEmail: envConfig.cognito.adminEmail,
+      applicationUrl: 'https://placeholder.example.com', // 临时 URL，稍后用 CloudFront 更新
+    });
+
+    // 5. Create Claude Agent SDK IAM Role (在 ECS 之前)
+    const agentSdkRole = new AgentSdkRole(this, 'AgentSdkRole', {
+      stackName,
+      uploadsBucket: s3Construct.uploadsBucket,
+    });
+
+    // 6. Create ECS Service (传入 Agent SDK Role ARN)
     const ecsConstruct = new EcsNextjsServiceConstruct(this, 'Compute', {
       vpc: vpcConstruct.vpc,
       albSecurityGroup: vpcConstruct.albSecurityGroup,
@@ -52,14 +81,51 @@ export class SlideForgeStack extends cdk.Stack {
       kmsKey: s3Construct.kmsKey,
       databaseSecret: auroraConstruct.secret,
       stackName,
+      // 传递环境变量配置
+      envConfig: {
+        claudeUseBedrock: envConfig.claudeConfig.useBedrock,
+        anthropicApiKey: envConfig.claudeConfig.anthropicApiKey,
+        llmApiKey: envConfig.thirdParty.llmApiKey,
+        llmBaseUrl: envConfig.thirdParty.llmBaseUrl,
+        llmModelName: envConfig.thirdParty.llmModelName,
+        tavilyApiKey: envConfig.thirdParty.tavilyApiKey,
+        uploadthingToken: envConfig.thirdParty.uploadthingToken,
+        unsplashAccessKey: envConfig.thirdParty.unsplashAccessKey,
+      },
+      // 传递 Cognito 配置
+      cognitoConfig: {
+        clientId: cognitoConstruct.oidc.clientId,
+        clientSecret: cognitoConstruct.oidc.clientSecret,
+        issuer: cognitoConstruct.oidc.issuer,
+      },
+      // 传递 Agent SDK Role ARN
+      agentSdkRoleArn: agentSdkRole.role.roleArn,
     });
 
-    // 5. Create CloudFront Distribution
+    // 授权 ECS Task Role 可以代入 Agent SDK Role
+    ecsConstruct.taskRole.addToPolicy(
+      new cdk.aws_iam.PolicyStatement({
+        sid: 'AssumeAgentSdkRole',
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: ['sts:AssumeRole'],
+        resources: [agentSdkRole.role.roleArn],
+      })
+    );
+
+    // 7. Create CloudFront Distribution
     const cloudfrontConstruct = new CloudFrontConstruct(this, 'CDN', {
       alb: ecsConstruct.alb,
       staticBucket: s3Construct.staticBucket,
       logsBucket: s3Construct.logsBucket,
       stackName,
+    });
+
+    // 8. Create Admin User (使用实际的 CloudFront URL)
+    const applicationUrl = `https://${cloudfrontConstruct.distribution.distributionDomainName}`;
+    new AdminUserCreator(this, 'AdminUserCreator', {
+      userPoolId: cognitoConstruct.userPool.userPoolId,
+      adminEmail: envConfig.cognito.adminEmail,
+      applicationUrl: applicationUrl,
     });
 
     // Add tags to all resources
@@ -71,6 +137,44 @@ export class SlideForgeStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'Environment', {
       value: environment,
       description: 'Deployment environment',
+    });
+
+    // Cognito Outputs
+    new cdk.CfnOutput(this, 'CognitoUserPoolId', {
+      value: cognitoConstruct.userPool.userPoolId,
+      description: 'Cognito User Pool ID',
+      exportName: `${stackName}-cognito-user-pool-id`,
+    });
+
+    new cdk.CfnOutput(this, 'CognitoClientId', {
+      value: cognitoConstruct.oidc.clientId,
+      description: 'Cognito App Client ID',
+      exportName: `${stackName}-cognito-client-id`,
+    });
+
+    new cdk.CfnOutput(this, 'CognitoDomain', {
+      value: cognitoConstruct.userPoolDomain,
+      description: 'Cognito Hosted UI Domain',
+      exportName: `${stackName}-cognito-domain`,
+    });
+
+    new cdk.CfnOutput(this, 'CognitoIssuer', {
+      value: cognitoConstruct.oidc.issuer,
+      description: 'Cognito OIDC Issuer URL',
+      exportName: `${stackName}-cognito-issuer`,
+    });
+
+    // Agent SDK Role Outputs
+    new cdk.CfnOutput(this, 'AgentSdkRoleArn', {
+      value: agentSdkRole.role.roleArn,
+      description: 'Claude Agent SDK IAM Role ARN',
+      exportName: `${stackName}-agent-sdk-role-arn`,
+    });
+
+    new cdk.CfnOutput(this, 'AgentSdkRoleName', {
+      value: agentSdkRole.role.roleName,
+      description: 'Claude Agent SDK IAM Role Name',
+      exportName: `${stackName}-agent-sdk-role-name`,
     });
 
     new cdk.CfnOutput(this, 'DeploymentInstructions', {

@@ -4,7 +4,36 @@ AWS CDK infrastructure for deploying Slide-Forge to AWS with a hybrid architectu
 - **Static assets**: S3 + CloudFront
 - **API routes**: ECS Fargate + ALB
 - **Database**: Aurora Serverless v2 PostgreSQL
-- **AI Services**: AWS Bedrock + OpenAI API
+- **AI Services**: AWS Bedrock + Claude Agent SDK + OpenAI API
+
+## ⚡ 快速部署（新）
+
+### 使用环境变量部署
+
+```bash
+# 1. 配置环境变量
+cp .env.example .env
+nano .env  # 填入你的 API keys
+
+# 2. 部署
+pnpm install
+pnpm deploy
+
+# CDK 会自动读取 .env 并配置所有服务
+```
+
+**最简配置** - 只需要以下之一:
+```bash
+# 使用 AWS Bedrock
+CLAUDE_CODE_USE_BEDROCK=1
+AWS_REGION=us-east-1
+
+# 或使用 Anthropic API
+ANTHROPIC_API_KEY=sk-ant-api03-...
+AWS_REGION=us-east-1
+```
+
+详见: [QUICK_DEPLOY.md](./QUICK_DEPLOY.md)
 
 ## 📁 Project Structure
 
