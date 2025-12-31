@@ -11,10 +11,11 @@ WORKDIR /app
 # Install pnpm
 RUN corepack enable pnpm
 
-# Copy dependency files
+# Copy dependency files and Prisma schema
 COPY package.json pnpm-lock.yaml* ./
+COPY prisma ./prisma
 
-# Install dependencies
+# Install dependencies (prisma generate runs in postinstall)
 RUN pnpm install --frozen-lockfile
 
 # Build the application
@@ -26,12 +27,6 @@ RUN corepack enable pnpm
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
-
-# Copy Prisma schema first
-COPY prisma ./prisma
-
-# Generate Prisma Client
-RUN npx prisma generate
 
 # Copy all source files
 COPY . .
