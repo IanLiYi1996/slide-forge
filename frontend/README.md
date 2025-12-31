@@ -25,10 +25,10 @@ From project root:
 
 ```bash
 # First time installation
-./install.sh
+./scripts/install.sh
 
 # Subsequent starts
-./start.sh
+./scripts/start.sh
 ```
 
 ## 📁 Directory Structure

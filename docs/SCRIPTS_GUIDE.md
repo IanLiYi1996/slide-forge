@@ -4,13 +4,13 @@
 
 | 脚本 | 用途 | 使用场景 |
 |------|------|---------|
-| `install.sh` | 完整安装 | 首次安装或重新配置 |
-| `start.sh` | 快速启动 | 日常启动开发服务器 |
+| `scripts/install.sh` | 完整安装 | 首次安装或重新配置 |
+| `scripts/start.sh` | 快速启动 | 日常启动开发服务器 |
 | `scripts/check-env.sh` | 环境检查 | 诊断配置问题 |
 
 ---
 
-## 📦 install.sh - 完整安装脚本
+## 📦 scripts/install.sh - 完整安装脚本
 
 ### 功能
 
@@ -54,7 +54,7 @@
 
 ```bash
 # 首次安装
-./install.sh
+./scripts/install.sh
 
 # 脚本会引导你完成所有步骤
 ```
@@ -126,7 +126,7 @@ Press Ctrl+C to stop the server
 
 ---
 
-## 🚀 start.sh - 快速启动脚本
+## 🚀 scripts/start.sh - 快速启动脚本
 
 ### 功能
 
@@ -134,14 +134,14 @@ Press Ctrl+C to stop the server
 
 1. ✅ 检查是否在项目目录
 2. ✅ 检查依赖是否已安装
-3. ✅ 如果未安装，自动调用 install.sh
+3. ✅ 如果未安装，自动调用 scripts/install.sh
 4. ✅ 启动开发服务器
 
 ### 使用方法
 
 ```bash
 # 日常启动（最常用）
-./start.sh
+./scripts/start.sh
 ```
 
 ### 预期输出
@@ -271,7 +271,7 @@ git clone <repo-url>
 cd slide-forge
 
 # 2. 一键安装
-./install.sh
+./scripts/install.sh
 
 # 3. 配置环境变量（脚本会提示）
 # 编辑 .env.local
@@ -284,7 +284,7 @@ cd slide-forge
 
 ```bash
 # 早上开始工作
-./start.sh
+./scripts/start.sh
 
 # 开发...
 
@@ -300,7 +300,7 @@ cd slide-forge
 # 查看输出，修复标记的问题
 
 # 重新启动
-./start.sh
+./scripts/start.sh
 ```
 
 ### 场景 4: 更新依赖后
@@ -310,7 +310,7 @@ cd slide-forge
 git pull
 
 # 重新安装（确保依赖最新）
-./install.sh
+./scripts/install.sh
 
 # 或只更新依赖
 pnpm install
@@ -488,15 +488,15 @@ PORT=3001 ./start.sh
 ```bash
 git clone <repo>
 cd slide-forge
-./install.sh          # 一键安装
+./scripts/install.sh          # 一键安装
 # 配置 .env.local
-./start.sh            # 启动
+./scripts/start.sh            # 启动
 ```
 
 ### 2. 日常开发流程
 
 ```bash
-./start.sh            # 启动服务器
+./scripts/start.sh            # 启动服务器
 # 开发...
 Ctrl+C                # 停止服务器
 ```
@@ -506,7 +506,7 @@ Ctrl+C                # 停止服务器
 ```bash
 ./scripts/check-env.sh   # 诊断环境
 # 根据提示修复问题
-./start.sh               # 重新启动
+./scripts/start.sh               # 重新启动
 ```
 
 ### 4. 更新代码后
@@ -515,7 +515,7 @@ Ctrl+C                # 停止服务器
 git pull
 pnpm install          # 更新依赖
 pnpm prisma generate  # 更新 Prisma Client
-./start.sh           # 启动
+./scripts/start.sh           # 启动
 ```
 
 ---
@@ -549,8 +549,8 @@ pnpm prisma generate  # 更新 Prisma Client
 ### 修改脚本
 
 脚本位置：
-- `/install.sh` - 主安装脚本
-- `/start.sh` - 快速启动脚本
+- `/scripts/install.sh` - 主安装脚本
+- `/scripts/start.sh` - 快速启动脚本
 - `/scripts/check-env.sh` - 环境检查脚本
 
 可以根据项目需要自定义：
@@ -583,8 +583,8 @@ pnpm prisma generate  # 更新 Prisma Client
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # 安装和启动
-./install.sh         # 完整安装（首次）
-./start.sh           # 快速启动（日常）
+./scripts/install.sh         # 完整安装（首次）
+./scripts/start.sh           # 快速启动（日常）
 
 # 诊断
 ./scripts/check-env.sh   # 环境检查

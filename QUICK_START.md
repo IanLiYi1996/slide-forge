@@ -5,7 +5,7 @@
 ### 方式 1: 完整安装（首次使用）
 
 ```bash
-./install.sh
+./scripts/install.sh
 ```
 
 这个脚本会自动完成：
@@ -21,7 +21,7 @@
 ### 方式 2: 快速启动（已安装）
 
 ```bash
-./start.sh
+./scripts/start.sh
 ```
 
 这个脚本用于已安装的项目，直接启动开发服务器。
@@ -57,7 +57,7 @@ cd slide-forge
 ### 步骤 2: 运行安装脚本
 
 ```bash
-./install.sh
+./scripts/install.sh
 ```
 
 ### 步骤 3: 配置环境变量
@@ -229,7 +229,7 @@ You: 点击 [HTML Files] 导出
 pnpm dev
 
 # 或使用快速启动脚本
-./start.sh
+./scripts/start.sh
 ```
 
 ### 数据库
@@ -525,7 +525,7 @@ Agent 生成的每页幻灯片立即显示在聊天界面中，使用 iframe 安
 
 ```bash
 # 方式 1: 使用启动脚本
-./start.sh
+./scripts/start.sh
 
 # 方式 2: 直接使用 pnpm
 pnpm dev
@@ -593,7 +593,7 @@ pnpm prisma db push --force-reset
 运行安装脚本：
 
 ```bash
-./install.sh
+./scripts/install.sh
 ```
 
 跟随提示完成配置，然后开始创建你的第一个 AI 生成的演示文稿！

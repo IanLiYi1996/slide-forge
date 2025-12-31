@@ -24,10 +24,10 @@ slide-forge/
 
 ```bash
 # First time installation
-./install.sh
+./scripts/install.sh
 
 # Subsequent starts
-./start.sh
+./scripts/start.sh
 ```
 
 **That's it!** The script will automatically:
