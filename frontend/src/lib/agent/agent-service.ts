@@ -61,6 +61,34 @@ export class AgentSessionInstance {
   constructor(sessionId: string, config?: AgentConfig) {
     this.sessionId = sessionId;
 
+    // 确定Claude Code CLI路径
+    // 生产环境：尝试多个可能的路径
+    let pathToClaudeCode: string | undefined;
+    if (process.env.NODE_ENV === 'production') {
+      const possiblePaths = [
+        '/usr/local/bin/claude-code',
+        '/app/node_modules/@anthropic-ai/claude-agent-sdk/cli.js',
+        'node_modules/@anthropic-ai/claude-agent-sdk/cli.js',
+      ];
+
+      // 使用第一个存在的路径（如果有）
+      for (const path of possiblePaths) {
+        try {
+          if (require('fs').existsSync(path)) {
+            pathToClaudeCode = path;
+            console.log(`[Agent SDK] Using Claude Code CLI at: ${path}`);
+            break;
+          }
+        } catch (e) {
+          // 忽略检查错误，继续尝试下一个路径
+        }
+      }
+
+      if (!pathToClaudeCode) {
+        console.warn('[Agent SDK] Claude Code CLI not found in expected paths, using default');
+      }
+    }
+
     // 启动长期运行的 Agent query
     this.outputIterator = query({
       prompt: this.queue as any, // 使用消息队列作为输入
@@ -77,6 +105,7 @@ export class AgentSessionInstance {
         ],
         systemPrompt: config?.systemPrompt || this.getWorkflowSystemPrompt(),
         permissionMode: "bypassPermissions" as const,
+        ...(pathToClaudeCode && { pathToClaudeCodeExecutable: pathToClaudeCode }), // 仅在有路径时添加
       },
     })[Symbol.asyncIterator]();
 
