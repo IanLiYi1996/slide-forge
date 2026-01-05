@@ -5,6 +5,7 @@ import { VpcConstruct } from './network/vpc';
 import { AuroraServerlessConstruct } from './storage/aurora-serverless';
 import { AuroraSecretConnectionStringUpdater } from './storage/aurora-secret-connection-string';
 import { S3BucketsConstruct } from './storage/s3-buckets';
+import { StaticAssetsDeployment } from './storage/static-assets-deployment';
 import { EcsNextjsServiceConstruct } from './compute/ecs-nextjs-service';
 import { CloudFrontConstruct } from './cdn/cloudfront';
 import { CognitoConstruct } from './auth/cognito';
@@ -165,6 +166,13 @@ export class SlideForgeStack extends cdk.Stack {
       userPoolId: cognitoConstruct.userPool.userPoolId,
       adminEmail: envConfig.cognito.adminEmail,
       applicationUrl: applicationUrl,
+    });
+
+    // 11. Auto-deploy static assets to S3 (requires frontend to be built first)
+    new StaticAssetsDeployment(this, 'StaticAssets', {
+      staticBucket: s3Construct.staticBucket,
+      distribution: cloudfrontConstruct.distribution,
+      stackName,
     });
 
     // Add tags to all resources
