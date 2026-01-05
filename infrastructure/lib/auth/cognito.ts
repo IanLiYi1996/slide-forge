@@ -148,10 +148,8 @@ export class CognitoConstruct extends Construct {
     // Cognito 托管域名
     // =========================================================================
 
-    // 从 Stack 名称生成合法的域名前缀（只包含小写字母、数字和连字符）
-    // 添加随机后缀确保唯一性
-    const timestamp = Date.now().toString(36); // 转换为36进制，更短
-    const domainPrefix = `${props.stackName}-${timestamp}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    // 使用region作为后缀（简单且唯一，每个region一个stack）
+    const domainPrefix = `${props.stackName}-${region}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
 
     const domain = this.userPool.addDomain('CognitoDomain', {
       cognitoDomain: {

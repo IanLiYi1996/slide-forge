@@ -13,6 +13,7 @@ import { ECS_CONFIG } from '../common/constants';
 
 export interface EcsNextjsServiceConstructProps {
   vpc: ec2.IVpc;
+  alb: elbv2.IApplicationLoadBalancer; // Receive existing ALB instead of creating
   albSecurityGroup: ec2.ISecurityGroup;
   ecsSecurityGroup: ec2.ISecurityGroup;
   uploadsBucket: s3.IBucket;
@@ -20,7 +21,7 @@ export interface EcsNextjsServiceConstructProps {
   kmsKey: kms.IKey;
   databaseSecret: secretsmanager.ISecret;
   stackName: string;
-  distributionDomain?: string;
+  distributionDomain: string; // Required parameter for NEXTAUTH_URL
   // 环境变量配置
   envConfig?: {
     claudeUseBedrock?: boolean;
@@ -45,7 +46,7 @@ export interface EcsNextjsServiceConstructProps {
 export class EcsNextjsServiceConstruct extends Construct {
   public readonly cluster: ecs.Cluster;
   public readonly service: ecs.FargateService;
-  public readonly alb: elbv2.ApplicationLoadBalancer;
+  public readonly alb: elbv2.IApplicationLoadBalancer;
   public readonly taskRole: iam.Role;
 
   constructor(scope: Construct, id: string, props: EcsNextjsServiceConstructProps) {
@@ -153,10 +154,8 @@ export class EcsNextjsServiceConstruct extends Construct {
       // S3 Configuration
       UPLOADS_BUCKET: props.uploadsBucket.bucketName,
 
-      // NextAuth URLs (will be updated with CloudFront domain)
-      NEXTAUTH_URL: props.distributionDomain
-        ? `https://${props.distributionDomain}`
-        : 'http://localhost:3000',
+      // NextAuth URLs (using CloudFront domain)
+      NEXTAUTH_URL: `https://${props.distributionDomain}`,
     };
 
     // 如果提供了 Agent SDK Role，传递 Role ARN
@@ -174,6 +173,8 @@ export class EcsNextjsServiceConstruct extends Construct {
     }
 
     // 构建 secrets 映射（敏感信息）
+    // Note: DATABASE_URL requires 'connectionString' field in Aurora secret
+    // This will be automatically added by AuroraSecretConnectionStringUpdater
     const secrets: Record<string, ecs.Secret> = {
       DATABASE_URL: ecs.Secret.fromSecretsManager(props.databaseSecret, 'connectionString'),
       NEXTAUTH_SECRET: ecs.Secret.fromSecretsManager(nextAuthSecret),
@@ -275,18 +276,8 @@ export class EcsNextjsServiceConstruct extends Construct {
       protocol: ecs.Protocol.TCP,
     });
 
-    // Application Load Balancer
-    this.alb = new elbv2.ApplicationLoadBalancer(this, 'ALB', {
-      vpc: props.vpc,
-      internetFacing: false, // Internal ALB (accessed via CloudFront)
-      securityGroup: props.albSecurityGroup,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
-    });
-
-    // Enable access logs
-    this.alb.logAccessLogs(props.logsBucket, 'alb-access-logs');
+    // Use the provided ALB (created before CloudFront in main stack)
+    this.alb = props.alb;
 
     // Target Group
     const targetGroup = new elbv2.ApplicationTargetGroup(this, 'TargetGroup', {

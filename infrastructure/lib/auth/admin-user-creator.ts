@@ -82,7 +82,7 @@ export class AdminUserCreator extends Construct {
             },
           ],
           DesiredDeliveryMediums: ['EMAIL'], // 通过邮件发送临时密码
-          MessageAction: 'SUPPRESS', // 使用自定义邮件模板
+          // MessageAction removed - let Cognito send the welcome email with temp password
         },
         physicalResourceId: cr.PhysicalResourceId.of(`AdminUser-${props.adminEmail}`),
         // 忽略用户已存在错误（避免重复创建）

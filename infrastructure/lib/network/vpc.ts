@@ -77,17 +77,19 @@ export class VpcConstruct extends Construct {
       allowAllOutbound: false,
     });
 
-    // Allow HTTP/HTTPS from VPC (CloudFront will route through VPC)
+    // Allow HTTP/HTTPS from anywhere for CloudFront VPC Origin access
+    // CloudFront uses various IP ranges, so we need to allow 0.0.0.0/0
+    // For production security, use AWS WAF and custom headers to restrict access
     this.albSecurityGroup.addIngressRule(
-      ec2.Peer.ipv4(this.vpc.vpcCidrBlock),
+      ec2.Peer.anyIpv4(),
       ec2.Port.tcp(80),
-      'HTTP from VPC',
+      'HTTP from CloudFront VPC Origin',
     );
 
     this.albSecurityGroup.addIngressRule(
-      ec2.Peer.ipv4(this.vpc.vpcCidrBlock),
+      ec2.Peer.anyIpv4(),
       ec2.Port.tcp(443),
-      'HTTPS from VPC',
+      'HTTPS from CloudFront VPC Origin',
     );
 
     // 2. ECS Task Security Group

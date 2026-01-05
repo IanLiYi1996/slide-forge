@@ -36,7 +36,7 @@ export class AuroraServerlessConstruct extends Construct {
     // Create Aurora Serverless v2 Cluster
     this.cluster = new rds.DatabaseCluster(this, 'AuroraCluster', {
       engine: rds.DatabaseClusterEngine.auroraPostgres({
-        version: rds.AuroraPostgresEngineVersion.VER_15_5,
+        version: rds.AuroraPostgresEngineVersion.VER_15_8,
       }),
 
       // Serverless v2 configuration

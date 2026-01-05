@@ -24,18 +24,20 @@ export class CloudFrontConstruct extends Construct {
       signing: cloudfront.Signing.SIGV4_ALWAYS,
     });
 
+    // VPC Origin for private ALB (CloudFront can access private ALB via VPC peering)
+    const vpcOrigin = origins.VpcOrigin.withApplicationLoadBalancer(props.alb, {
+      httpPort: 80,
+      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+      originId: `${props.stackName}-${cdk.Aws.ACCOUNT_ID}-alb-vpc-origin`,
+    });
+
     // CloudFront Distribution
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
-      comment: `Slide-Forge CDN - ${props.stackName}`,
+      comment: `Slide-Forge CDN - ${props.stackName} (with VPC origin for private ALB)`,
 
       // Default behavior: ALB origin (dynamic content + API routes)
       defaultBehavior: {
-        origin: new origins.LoadBalancerV2Origin(props.alb, {
-          protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-          httpPort: 80,
-          connectionAttempts: 3,
-          connectionTimeout: cdk.Duration.seconds(10),
-        }),
+        origin: vpcOrigin,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
         cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,

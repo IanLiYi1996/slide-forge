@@ -1,7 +1,9 @@
 import * as cdk from 'aws-cdk-lib';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import { Construct } from 'constructs';
 import { VpcConstruct } from './network/vpc';
 import { AuroraServerlessConstruct } from './storage/aurora-serverless';
+import { AuroraSecretConnectionStringUpdater } from './storage/aurora-secret-connection-string';
 import { S3BucketsConstruct } from './storage/s3-buckets';
 import { EcsNextjsServiceConstruct } from './compute/ecs-nextjs-service';
 import { CloudFrontConstruct } from './cdn/cloudfront';
@@ -58,6 +60,11 @@ export class SlideForgeStack extends cdk.Stack {
       deletionProtection: environment === 'production',
     });
 
+    // 3b. Add connectionString field to Aurora secret (for Prisma compatibility)
+    new AuroraSecretConnectionStringUpdater(this, 'AuroraSecretUpdater', {
+      secret: auroraConstruct.secret,
+    });
+
     // 4. Create Cognito User Pool (在 ECS 之前，不需要 CloudFront URL)
     const cognitoConstruct = new CognitoConstruct(this, 'Auth', {
       stackName,
@@ -70,9 +77,31 @@ export class SlideForgeStack extends cdk.Stack {
       uploadsBucket: s3Construct.uploadsBucket,
     });
 
-    // 6. Create ECS Service (传入 Agent SDK Role ARN)
+    // 6. Create Application Load Balancer (before CloudFront)
+    const alb = new elbv2.ApplicationLoadBalancer(this, 'ALB', {
+      vpc: vpcConstruct.vpc,
+      internetFacing: false, // Private ALB accessed via CloudFront VPC Origin
+      securityGroup: vpcConstruct.albSecurityGroup,
+      vpcSubnets: {
+        subnetType: cdk.aws_ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
+    });
+
+    // Enable ALB access logs
+    alb.logAccessLogs(s3Construct.logsBucket, 'alb-access-logs');
+
+    // 7. Create CloudFront Distribution (using ALB)
+    const cloudfrontConstruct = new CloudFrontConstruct(this, 'CDN', {
+      alb: alb,
+      staticBucket: s3Construct.staticBucket,
+      logsBucket: s3Construct.logsBucket,
+      stackName,
+    });
+
+    // 8. Create ECS Service (after CloudFront, with distribution domain)
     const ecsConstruct = new EcsNextjsServiceConstruct(this, 'Compute', {
       vpc: vpcConstruct.vpc,
+      alb: alb, // Pass existing ALB
       albSecurityGroup: vpcConstruct.albSecurityGroup,
       ecsSecurityGroup: vpcConstruct.ecsSecurityGroup,
       uploadsBucket: s3Construct.uploadsBucket,
@@ -80,6 +109,7 @@ export class SlideForgeStack extends cdk.Stack {
       kmsKey: s3Construct.kmsKey,
       databaseSecret: auroraConstruct.secret,
       stackName,
+      distributionDomain: cloudfrontConstruct.distribution.distributionDomainName, // ✅
       // 传递环境变量配置
       envConfig: {
         claudeUseBedrock: envConfig.claudeConfig.useBedrock,
@@ -111,15 +141,7 @@ export class SlideForgeStack extends cdk.Stack {
       })
     );
 
-    // 7. Create CloudFront Distribution
-    const cloudfrontConstruct = new CloudFrontConstruct(this, 'CDN', {
-      alb: ecsConstruct.alb,
-      staticBucket: s3Construct.staticBucket,
-      logsBucket: s3Construct.logsBucket,
-      stackName,
-    });
-
-    // 8. 动态更新 Cognito Callback URLs（使用 CloudFront URL）
+    // 9. 动态更新 Cognito Callback URLs（使用 CloudFront URL）
     const applicationUrl = `https://${cloudfrontConstruct.distribution.distributionDomainName}`;
 
     // 获取底层的 CfnUserPoolClient 并添加 CloudFront callback URLs
@@ -138,7 +160,7 @@ export class SlideForgeStack extends cdk.Stack {
       applicationUrl, // CloudFront URL
     ]);
 
-    // 9. Create Admin User (使用实际的 CloudFront URL)
+    // 10. Create Admin User (after CloudFront, with correct URL in email)
     new AdminUserCreator(this, 'AdminUserCreator', {
       userPoolId: cognitoConstruct.userPool.userPoolId,
       adminEmail: envConfig.cognito.adminEmail,
@@ -181,18 +203,8 @@ export class SlideForgeStack extends cdk.Stack {
       exportName: `${stackName}-cognito-issuer`,
     });
 
-    // Agent SDK Role Outputs
-    new cdk.CfnOutput(this, 'AgentSdkRoleArn', {
-      value: agentSdkRole.role.roleArn,
-      description: 'Claude Agent SDK IAM Role ARN',
-      exportName: `${stackName}-agent-sdk-role-arn`,
-    });
-
-    new cdk.CfnOutput(this, 'AgentSdkRoleName', {
-      value: agentSdkRole.role.roleName,
-      description: 'Claude Agent SDK IAM Role Name',
-      exportName: `${stackName}-agent-sdk-role-name`,
-    });
+    // Agent SDK Role Outputs are already defined in AgentSdkRole construct
+    // Removed duplicate outputs to avoid CloudFormation export name conflicts
 
     new cdk.CfnOutput(this, 'DeploymentInstructions', {
       value: [
