@@ -11,8 +11,8 @@ export const VPC_CONFIG = {
 };
 
 export const ECS_CONFIG = {
-  cpu: 1024, // 1 vCPU
-  memory: 2048, // 2 GB
+  cpu: 2048, // 2 vCPU (upgraded for session pool)
+  memory: 4096, // 4 GB (upgraded to support 3 pooled agent sessions)
   desiredCount: 2,
   minCapacity: 2,
   maxCapacity: 10,
@@ -31,4 +31,12 @@ export const CLOUDFRONT_CONFIG = {
   priceClass: 'PRICE_CLASS_100', // North America and Europe only
   staticCacheTtlDays: 365,
   publicCacheTtlDays: 7,
+  // Timeout configurations for long-running agent operations
+  // Note: CloudFront VpcOrigin has max readTimeout of 180 seconds
+  originReadTimeout: 180, // 3 minutes (CloudFront VpcOrigin maximum)
+  originKeepaliveTimeout: 60, // Keep TCP connection alive
+};
+
+export const ALB_CONFIG = {
+  idleTimeout: 300, // 5 minutes to support long-running SSE connections
 };

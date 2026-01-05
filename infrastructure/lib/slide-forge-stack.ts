@@ -88,6 +88,9 @@ export class SlideForgeStack extends cdk.Stack {
       },
     });
 
+    // Configure ALB idle timeout for long-running SSE connections (Agent chat streams)
+    alb.setAttribute('idle_timeout.timeout_seconds', '300');
+
     // Enable ALB access logs
     alb.logAccessLogs(s3Construct.logsBucket, 'alb-access-logs');
 

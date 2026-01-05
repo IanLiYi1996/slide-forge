@@ -1,27 +1,50 @@
-import { db } from "@/server/db";
-
 /**
- * Health check endpoint for ECS/ALB health checks
- * Tests database connectivity and returns service status
+ * Health Check API
+ *
+ * Purpose:
+ * - ECS/ALB health checks hit this endpoint every 30 seconds
+ * - Verifies database connectivity
+ * - Triggers session pool warmup on container startup
+ * - Reports session pool status
  */
+
+import { NextResponse } from "next/server";
+import { db } from "@/server/db";
+import { sessionPoolManager } from "@/lib/agent/session-pool-manager";
+
 export async function GET() {
   try {
-    // Test database connection
+    // Check database connectivity
     await db.$queryRaw`SELECT 1`;
 
-    return Response.json({
+    // Get session pool statistics
+    const poolStats = sessionPoolManager.getPoolStats();
+
+    // Trigger warmup if pool is empty (non-blocking)
+    // This happens on container startup when health checks begin
+    if (poolStats.total === 0 && !sessionPoolManager.isWarming) {
+      console.log('[Health] Pool empty, triggering warmup...');
+      sessionPoolManager.warmPool().catch((error) => {
+        console.error('[Health] Pool warmup failed:', error);
+      });
+    }
+
+    return NextResponse.json({
       status: "healthy",
       timestamp: new Date().toISOString(),
       service: "slide-forge",
+      database: "connected",
+      sessionPool: poolStats,
     });
   } catch (error) {
-    console.error("Health check failed:", error);
+    console.error("[Health] Health check failed:", error);
 
-    return Response.json(
+    return NextResponse.json(
       {
         status: "unhealthy",
-        error: error instanceof Error ? error.message : String(error),
         timestamp: new Date().toISOString(),
+        service: "slide-forge",
+        error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 503 },
     );

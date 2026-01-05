@@ -25,6 +25,8 @@ export class CloudFrontConstruct extends Construct {
     });
 
     // VPC Origin for private ALB (CloudFront can access private ALB via VPC peering)
+    // Note: VpcOrigin does not support readTimeout/keepaliveTimeout parameters
+    // We rely on ALB idle timeout (300s) and early SSE response to prevent timeouts
     const vpcOrigin = origins.VpcOrigin.withApplicationLoadBalancer(props.alb, {
       httpPort: 80,
       protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,

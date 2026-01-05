@@ -13,6 +13,11 @@ interface LMStudioResponse {
 
 // Fetch models from LM Studio
 async function fetchLMStudioModels(): Promise<ModelInfo[]> {
+  // Only attempt to connect to local LM Studio in development
+  if (process.env.NODE_ENV !== 'development') {
+    return [];
+  }
+
   try {
     const response = await fetch("http://localhost:1234/v1/models");
 

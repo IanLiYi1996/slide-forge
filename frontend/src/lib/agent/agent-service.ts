@@ -158,6 +158,25 @@ export class AgentSessionInstance {
     this.listeners = [];
   }
 
+  /**
+   * Check if session is ready to accept messages
+   */
+  isReady(): boolean {
+    return this.outputIterator !== null && this.isListening;
+  }
+
+  /**
+   * Get session health metrics
+   */
+  getHealth() {
+    return {
+      sessionId: this.sessionId,
+      isListening: this.isListening,
+      listenerCount: this.listeners.length,
+      isReady: this.isReady(),
+    };
+  }
+
   private getWorkflowSystemPrompt(): string {
     return `You are Slide Forge AI, an expert presentation designer.
 
