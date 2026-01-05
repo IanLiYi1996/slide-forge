@@ -73,8 +73,8 @@ USER nextjs
 # Expose the port Next.js runs on
 EXPOSE 3000
 
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
+# Note: PORT and HOSTNAME are set via ECS environment variables
+# Do not set them here to avoid URL generation issues
 
 # Start the application
 CMD ["node", "server.js"]
