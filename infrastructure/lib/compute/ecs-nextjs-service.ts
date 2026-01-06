@@ -175,6 +175,11 @@ export class EcsNextjsServiceConstruct extends Construct {
       '#!/bin/bash',
       `echo "ECS_CLUSTER=${this.cluster.clusterName}" >> /etc/ecs/ecs.config`,
       'echo "ECS_ENABLE_CONTAINER_METADATA=true" >> /etc/ecs/ecs.config',
+      '',
+      '# Create directory for Agent SDK session persistence',
+      'mkdir -p /mnt/claude-sessions',
+      'chmod 777 /mnt/claude-sessions',
+      'echo "✅ Created /mnt/claude-sessions for Agent SDK state persistence"',
     );
 
     // Auto Scaling Group
@@ -207,6 +212,14 @@ export class EcsNextjsServiceConstruct extends Construct {
       networkMode: ecs.NetworkMode.BRIDGE,  // ⚠️ EC2使用bridge模式
       executionRole: taskExecutionRole,
       taskRole: this.taskRole,
+      volumes: [
+        {
+          name: 'claude-sessions',
+          host: {
+            sourcePath: '/mnt/claude-sessions',  // EC2主机上的目录
+          },
+        },
+      ],
     });
 
     // 构建环境变量映射
@@ -338,6 +351,13 @@ export class EcsNextjsServiceConstruct extends Construct {
         retries: 5,
         startPeriod: cdk.Duration.seconds(120),
       },
+    });
+
+    // ✅ 挂载卷以持久化Agent SDK session state
+    container.addMountPoints({
+      containerPath: '/root/.claude',  // 容器内的.claude目录
+      sourceVolume: 'claude-sessions',
+      readOnly: false,
     });
 
     container.addPortMappings({
