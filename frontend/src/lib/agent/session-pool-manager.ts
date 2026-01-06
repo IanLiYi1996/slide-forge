@@ -342,9 +342,10 @@ export class SessionPoolManager {
 // Export singleton instance
 export const sessionPoolManager = new SessionPoolManager();
 
-// Periodic cleanup (every 5 minutes)
-if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
-    sessionPoolManager.cleanup();
-  }, 5 * 60 * 1000);
-}
+// Periodic cleanup disabled - we now use agentService.getOrCreateSession() instead
+// which manages sessions by database sessionId for proper isolation
+// if (typeof setInterval !== 'undefined') {
+//   setInterval(() => {
+//     sessionPoolManager.cleanup();
+//   }, 5 * 60 * 1000);
+// }
