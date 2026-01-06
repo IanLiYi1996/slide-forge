@@ -55,10 +55,11 @@ export class AgentSessionInstance {
   private queue = new MessageQueue();
   private outputIterator: AsyncIterator<any> | null = null;
   public sessionId: string;
+  public sdkSessionId: string | null = null;  // ✅ 新增：存储SDK session ID
   private isListening = false;
   private listeners: Array<(message: any) => void> = [];
 
-  constructor(sessionId: string, config?: AgentConfig) {
+  constructor(sessionId: string, config?: AgentConfig, resumeSdkSessionId?: string) {
     this.sessionId = sessionId;
 
     // 确定Claude Code CLI路径
@@ -89,24 +90,35 @@ export class AgentSessionInstance {
       }
     }
 
+    // 构建query选项
+    const queryOptions: any = {
+      maxTurns: 100,
+      allowedTools: config?.allowedTools || [
+        "Read",
+        "Glob",
+        "Grep",
+        "WebSearch",
+        "WebFetch",
+        // Note: Write, Edit, Bash disabled to prevent file system access
+        // Agent should return HTML directly in conversation
+      ],
+      systemPrompt: config?.systemPrompt || this.getWorkflowSystemPrompt(),
+      permissionMode: "bypassPermissions" as const,
+      ...(pathToClaudeCode && { pathToClaudeCodeExecutable: pathToClaudeCode }), // 仅在有路径时添加
+    };
+
+    // ✅ 如果提供了SDK session ID，使用resume恢复会话
+    if (resumeSdkSessionId) {
+      queryOptions.resume = resumeSdkSessionId;
+      console.log(`[Agent SDK] Resuming session with SDK session ID: ${resumeSdkSessionId}`);
+    } else {
+      console.log(`[Agent SDK] Creating new SDK session for app sessionId: ${sessionId}`);
+    }
+
     // 启动长期运行的 Agent query
     this.outputIterator = query({
       prompt: this.queue as any, // 使用消息队列作为输入
-      options: {
-        maxTurns: 100,
-        allowedTools: config?.allowedTools || [
-          "Read",
-          "Glob",
-          "Grep",
-          "WebSearch",
-          "WebFetch",
-          // Note: Write, Edit, Bash disabled to prevent file system access
-          // Agent should return HTML directly in conversation
-        ],
-        systemPrompt: config?.systemPrompt || this.getWorkflowSystemPrompt(),
-        permissionMode: "bypassPermissions" as const,
-        ...(pathToClaudeCode && { pathToClaudeCodeExecutable: pathToClaudeCode }), // 仅在有路径时添加
-      },
+      options: queryOptions,
     })[Symbol.asyncIterator]();
 
     // 启动后台监听
@@ -122,6 +134,12 @@ export class AgentSessionInstance {
       while (true) {
         const { value, done } = await this.outputIterator.next();
         if (done) break;
+
+        // ✅ 捕获SDK session ID（来自system init消息）
+        if (value.type === 'system' && value.subtype === 'init' && value.session_id) {
+          this.sdkSessionId = value.session_id;
+          console.log(`[Agent SDK] Captured SDK session ID: ${this.sdkSessionId} for app sessionId: ${this.sessionId}`);
+        }
 
         // 广播到所有监听器
         for (const listener of this.listeners) {
@@ -462,20 +480,86 @@ Ready to create amazing presentations!`;
  */
 export class AgentService {
   private sessions = new Map<string, AgentSessionInstance>();
+  private prisma: any; // Prisma client，延迟初始化避免循环依赖
+
+  constructor() {
+    // 延迟导入Prisma client避免circular dependency
+    if (typeof window === 'undefined') {
+      import('@/server/db').then(module => {
+        this.prisma = module.db;
+      });
+    }
+  }
 
   /**
    * 获取或创建 Agent Session
+   * ✅ 修改为支持SDK resume机制
    */
-  getOrCreateSession(sessionId: string, config?: AgentConfig): AgentSessionInstance {
-    // 如果 session 已存在，直接返回
+  async getOrCreateSession(sessionId: string, config?: AgentConfig): Promise<AgentSessionInstance> {
+    // 如果 session 已在内存中，直接返回
     if (this.sessions.has(sessionId)) {
-      return this.sessions.get(sessionId)!;
+      const existingSession = this.sessions.get(sessionId)!;
+      console.log(`[AgentService] Reusing existing in-memory session: ${sessionId}`);
+      return existingSession;
     }
 
-    // 创建新的 session 实例
-    const session = new AgentSessionInstance(sessionId, config);
+    // ✅ 从数据库查询SDK session ID
+    let sdkSessionId: string | undefined;
+    if (this.prisma) {
+      try {
+        const dbSession = await this.prisma.agentSession.findUnique({
+          where: { sessionId },
+          select: { sdkSessionId: true },
+        });
+        sdkSessionId = dbSession?.sdkSessionId;
+
+        if (sdkSessionId) {
+          console.log(`[AgentService] Found SDK session ID in database: ${sdkSessionId} for app sessionId: ${sessionId}`);
+        }
+      } catch (error) {
+        console.error('[AgentService] Failed to query SDK session ID from database:', error);
+      }
+    }
+
+    // ✅ 创建新的 session 实例，传递sdkSessionId用于resume
+    const session = new AgentSessionInstance(sessionId, config, sdkSessionId);
     this.sessions.set(sessionId, session);
+
+    // ✅ 启动后台任务：等待SDK session ID捕获后保存到数据库
+    this.saveSdkSessionIdWhenReady(session).catch(error => {
+      console.error(`[AgentService] Failed to save SDK session ID for ${sessionId}:`, error);
+    });
+
     return session;
+  }
+
+  /**
+   * 等待SDK session ID捕获后保存到数据库
+   */
+  private async saveSdkSessionIdWhenReady(session: AgentSessionInstance): Promise<void> {
+    // 等待SDK session ID被捕获（最多等待30秒）
+    const maxWaitTime = 30000; // 30秒
+    const checkInterval = 100;  // 100ms
+    let elapsed = 0;
+
+    while (!session.sdkSessionId && elapsed < maxWaitTime) {
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      elapsed += checkInterval;
+    }
+
+    if (session.sdkSessionId && this.prisma) {
+      try {
+        await this.prisma.agentSession.update({
+          where: { sessionId: session.sessionId },
+          data: { sdkSessionId: session.sdkSessionId },
+        });
+        console.log(`[AgentService] Saved SDK session ID: ${session.sdkSessionId} for app sessionId: ${session.sessionId}`);
+      } catch (error) {
+        console.error(`[AgentService] Failed to save SDK session ID:`, error);
+      }
+    } else if (!session.sdkSessionId) {
+      console.warn(`[AgentService] SDK session ID not captured within ${maxWaitTime}ms for sessionId: ${session.sessionId}`);
+    }
   }
 
   /**

@@ -172,6 +172,7 @@ model AgentSession {
     user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     sessionId          String   @unique
+    sdkSessionId       String?  @unique  // Agent SDK session ID for resume
     title              String   @default("New Agent Session")
     messages           Json     @default("[]")
     context            Json?
@@ -195,6 +196,7 @@ model AgentSession {
 
     @@index([userId])
     @@index([sessionId])
+    @@index([sdkSessionId])  // 添加索引
     @@index([workflowStage])
 }
 

@@ -10,12 +10,18 @@ export const VPC_CONFIG = {
   natGateways: 1, // Use 2 for production high availability
 };
 
+// EC2实例配置（用于ECS on EC2）
+export const EC2_CONFIG = {
+  instanceType: 'c6i.xlarge',  // 4 vCPU, 8 GB RAM - 计算优化型
+  rootVolumeSize: 30,           // GB (操作系统)
+};
+
 export const ECS_CONFIG = {
-  cpu: 2048, // 2 vCPU (upgraded for session pool)
-  memory: 4096, // 4 GB (upgraded to support 3 pooled agent sessions)
-  desiredCount: 2,
-  minCapacity: 2,
-  maxCapacity: 10,
+  cpu: 4096, // 4 vCPU (匹配c6i.xlarge)
+  memory: 8192, // 8 GB (匹配c6i.xlarge)
+  desiredCount: 1,  // ⚠️ 改为1（固定单实例）
+  minCapacity: 1,   // ⚠️ 改为1
+  maxCapacity: 1,   // ⚠️ 改为1（禁用auto-scaling）
   targetCpuUtilization: 70,
   targetMemoryUtilization: 80,
 };

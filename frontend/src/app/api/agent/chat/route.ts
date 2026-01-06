@@ -113,9 +113,10 @@ export async function POST(req: Request) {
           // ✅ 使用 agentService 按数据库 sessionId 获取或创建 Agent
           // 同一个 sessionId 会复用同一个 Agent instance（保留历史）
           // 不同 sessionId 使用不同 Agent instance（完全隔离）
-          const agentSession = agentService.getOrCreateSession(sessionId, agentConfig);
+          // ✅ SDK resume支持：如果数据库中有sdkSessionId，会自动恢复会话
+          const agentSession = await agentService.getOrCreateSession(sessionId, agentConfig);
 
-          console.log(`[Agent Chat] Using agent session for database sessionId: ${sessionId}`);
+          console.log(`[Agent Chat] Using agent session for database sessionId: ${sessionId}, SDK sessionId: ${agentSession.sdkSessionId || 'new'}`);
 
           // ✅ 步骤 4: 发送就绪状态
           sendSSE('status', {

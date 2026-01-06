@@ -7,9 +7,11 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as kms from 'aws-cdk-lib/aws-kms';
+import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';  // ✅ 新增
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';    // ✅ 新增
 import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
 import { Construct } from 'constructs';
-import { ECS_CONFIG } from '../common/constants';
+import { ECS_CONFIG, EC2_CONFIG } from '../common/constants';  // ✅ 添加EC2_CONFIG
 
 export interface EcsNextjsServiceConstructProps {
   vpc: ec2.IVpc;
@@ -45,7 +47,7 @@ export interface EcsNextjsServiceConstructProps {
 
 export class EcsNextjsServiceConstruct extends Construct {
   public readonly cluster: ecs.Cluster;
-  public readonly service: ecs.FargateService;
+  public readonly service: ecs.BaseService;  // ✅ 改为BaseService以支持EC2和Fargate
   public readonly alb: elbv2.IApplicationLoadBalancer;
   public readonly taskRole: iam.Role;
 
@@ -136,14 +138,73 @@ export class EcsNextjsServiceConstruct extends Construct {
       }
     }
 
-    // Task Definition
-    const taskDefinition = new ecs.FargateTaskDefinition(this, 'TaskDef', {
-      memoryLimitMiB: ECS_CONFIG.memory,
-      cpu: ECS_CONFIG.cpu,
-      runtimePlatform: {
-        cpuArchitecture: ecs.CpuArchitecture.ARM64, // Use Graviton2 for cost savings
-        operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
+    // ========================================
+    // EC2 Instance and Auto Scaling Group
+    // ========================================
+
+    // EC2 Instance Role
+    const instanceRole = new iam.Role(this, 'InstanceRole', {
+      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonEC2ContainerServiceforEC2Role'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'), // Enable SSM access
+      ],
+    });
+
+    // Launch Template
+    const launchTemplate = new ec2.LaunchTemplate(this, 'LaunchTemplate', {
+      instanceType: new ec2.InstanceType(EC2_CONFIG.instanceType),
+      machineImage: ecs.EcsOptimizedImage.amazonLinux2023(ecs.AmiHardwareType.STANDARD),
+      securityGroup: props.ecsSecurityGroup,
+      role: instanceRole,
+      blockDevices: [
+        {
+          deviceName: '/dev/xvda',
+          volume: ec2.BlockDeviceVolume.ebs(EC2_CONFIG.rootVolumeSize, {
+            volumeType: ec2.EbsDeviceVolumeType.GP3,
+            encrypted: true,
+          }),
+        },
+      ],
+      userData: ec2.UserData.forLinux(),
+    });
+
+    // UserData - Register to ECS cluster
+    const userData = launchTemplate.userData!;
+    userData.addCommands(
+      '#!/bin/bash',
+      `echo "ECS_CLUSTER=${this.cluster.clusterName}" >> /etc/ecs/ecs.config`,
+      'echo "ECS_ENABLE_CONTAINER_METADATA=true" >> /etc/ecs/ecs.config',
+    );
+
+    // Auto Scaling Group
+    const asg = new autoscaling.AutoScalingGroup(this, 'ASG', {
+      vpc: props.vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
       },
+      launchTemplate: launchTemplate,
+      minCapacity: 1,
+      maxCapacity: 1,
+      desiredCapacity: 1,
+      healthCheck: autoscaling.HealthCheck.elb({
+        grace: cdk.Duration.seconds(180),
+      }),
+    });
+
+    // Capacity Provider
+    const capacityProvider = new ecs.AsgCapacityProvider(this, 'AsgCapacityProvider', {
+      autoScalingGroup: asg,
+      enableManagedTerminationProtection: false,
+    });
+    this.cluster.addAsgCapacityProvider(capacityProvider);
+
+    // ========================================
+    // Task Definition (EC2)
+    // ========================================
+
+    const taskDefinition = new ecs.Ec2TaskDefinition(this, 'TaskDef', {
+      networkMode: ecs.NetworkMode.BRIDGE,  // ⚠️ EC2使用bridge模式
       executionRole: taskExecutionRole,
       taskRole: this.taskRole,
     });
@@ -261,9 +322,9 @@ export class EcsNextjsServiceConstruct extends Construct {
     const container = taskDefinition.addContainer('nextjs', {
       image: ecs.ContainerImage.fromAsset('../frontend', {
         file: 'Dockerfile.production',
-        platform: Platform.LINUX_ARM64,
+        platform: Platform.LINUX_AMD64,  // ⚠️ 改为AMD64（从ARM64）
       }),
-      memoryLimitMiB: ECS_CONFIG.memory,
+      memoryReservationMiB: 7680,  // ⚠️ 软限制，为系统预留512MB（8GB总内存）
       environment,
       secrets,
       logging: ecs.LogDrivers.awsLogs({
@@ -281,6 +342,7 @@ export class EcsNextjsServiceConstruct extends Construct {
 
     container.addPortMappings({
       containerPort: 3000,
+      hostPort: 0,  // ⚠️ bridge模式使用动态端口映射
       protocol: ecs.Protocol.TCP,
     });
 
@@ -290,9 +352,9 @@ export class EcsNextjsServiceConstruct extends Construct {
     // Target Group
     const targetGroup = new elbv2.ApplicationTargetGroup(this, 'TargetGroup', {
       vpc: props.vpc,
-      port: 3000,
+      port: 80,  // ⚠️ 任意端口，实际使用bridge模式的动态端口
       protocol: elbv2.ApplicationProtocol.HTTP,
-      targetType: elbv2.TargetType.IP,
+      targetType: elbv2.TargetType.INSTANCE,  // ⚠️ 改为INSTANCE（从IP）
 
       // Enable sticky sessions to ensure same sessionId routes to same ECS task
       // This is critical for maintaining Agent conversation context across multiple requests
@@ -320,43 +382,29 @@ export class EcsNextjsServiceConstruct extends Construct {
       defaultAction: elbv2.ListenerAction.forward([targetGroup]),
     });
 
-    // Fargate Service
-    this.service = new ecs.FargateService(this, 'Service', {
+    // EC2 Service (替代 Fargate Service)
+    this.service = new ecs.Ec2Service(this, 'Service', {
       cluster: this.cluster,
       serviceName: `${props.stackName}-service`,
       taskDefinition,
-      desiredCount: ECS_CONFIG.desiredCount,
-      assignPublicIp: false,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-      },
-      securityGroups: [props.ecsSecurityGroup],
+      desiredCount: ECS_CONFIG.desiredCount,  // 1
+      capacityProviderStrategies: [
+        {
+          capacityProvider: capacityProvider.capacityProviderName,
+          weight: 1,
+        },
+      ],
       enableExecuteCommand: true,
       healthCheckGracePeriod: cdk.Duration.seconds(180),
-      minHealthyPercent: 100,
-      maxHealthyPercent: 200,
+      minHealthyPercent: 0,        // ⚠️ 单实例必须为0
+      maxHealthyPercent: 100,      // ⚠️ 单实例必须为100
     });
 
     // Attach to target group
     this.service.attachToApplicationTargetGroup(targetGroup);
 
-    // Auto Scaling
-    const scaling = this.service.autoScaleTaskCount({
-      minCapacity: ECS_CONFIG.minCapacity,
-      maxCapacity: ECS_CONFIG.maxCapacity,
-    });
-
-    scaling.scaleOnCpuUtilization('CpuScaling', {
-      targetUtilizationPercent: ECS_CONFIG.targetCpuUtilization,
-      scaleInCooldown: cdk.Duration.seconds(60),
-      scaleOutCooldown: cdk.Duration.seconds(60),
-    });
-
-    scaling.scaleOnMemoryUtilization('MemoryScaling', {
-      targetUtilizationPercent: ECS_CONFIG.targetMemoryUtilization,
-      scaleInCooldown: cdk.Duration.seconds(60),
-      scaleOutCooldown: cdk.Duration.seconds(60),
-    });
+    // ⚠️ Auto Scaling已删除（固定单实例不需要）
+    // Note: ASG会自动替换失败的实例，无需额外的CloudWatch alarm
 
     // Outputs
     new cdk.CfnOutput(this, 'ClusterName', {
