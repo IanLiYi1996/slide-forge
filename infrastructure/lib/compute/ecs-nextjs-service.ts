@@ -293,6 +293,12 @@ export class EcsNextjsServiceConstruct extends Construct {
       port: 3000,
       protocol: elbv2.ApplicationProtocol.HTTP,
       targetType: elbv2.TargetType.IP,
+
+      // Enable sticky sessions to ensure same sessionId routes to same ECS task
+      // This is critical for maintaining Agent conversation context across multiple requests
+      stickinessCookieDuration: cdk.Duration.minutes(30),
+      stickinessCookieName: 'SLIDE_FORGE_LB_SESSION',
+
       healthCheck: {
         enabled: true,
         healthyHttpCodes: '200',
