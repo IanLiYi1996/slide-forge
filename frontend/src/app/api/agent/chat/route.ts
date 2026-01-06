@@ -14,7 +14,6 @@
 import { auth } from "@/server/auth";
 import { agentService } from "@/lib/agent/agent-service";
 import { sessionManager } from "@/lib/agent/session-manager";
-import { sessionPoolManager } from "@/lib/agent/session-pool-manager";
 import { NextResponse } from "next/server";
 import type { ChatRequest, Message } from "@/lib/agent/types";
 
@@ -75,7 +74,6 @@ export async function POST(req: Request) {
         let fullResponse = "";
         let responseComplete = false;
         let heartbeatInterval: NodeJS.Timeout | null = null;
-        let pooledSession: Awaited<ReturnType<typeof sessionPoolManager.acquireSession>> | null = null;
 
         // 辅助函数：发送 SSE 消息
         const sendSSE = (type: string, data: any) => {
@@ -112,18 +110,17 @@ export async function POST(req: Request) {
             message: 'Preparing AI agent...'
           });
 
-          const startTime = Date.now();
-          pooledSession = await sessionPoolManager.acquireSession(agentConfig);
-          const agentSession = pooledSession.session;
-          const acquireTime = Date.now() - startTime;
+          // ✅ 使用 agentService 按数据库 sessionId 获取或创建 Agent
+          // 同一个 sessionId 会复用同一个 Agent instance（保留历史）
+          // 不同 sessionId 使用不同 Agent instance（完全隔离）
+          const agentSession = agentService.getOrCreateSession(sessionId, agentConfig);
 
-          console.log(`[Agent Chat] Acquired session ${pooledSession.id} in ${acquireTime}ms`);
+          console.log(`[Agent Chat] Using agent session for database sessionId: ${sessionId}`);
 
           // ✅ 步骤 4: 发送就绪状态
           sendSSE('status', {
             status: 'ready',
-            message: 'Agent ready, processing your request...',
-            timings: { acquire: acquireTime }
+            message: 'Agent ready, processing your request...'
           });
 
           // ✅ 步骤 5: 设置 Agent 监听器（保持原有逻辑）
@@ -191,10 +188,8 @@ export async function POST(req: Request) {
 
                     // ✅ 清理资源
                     if (heartbeatInterval) clearInterval(heartbeatInterval);
-                    if (pooledSession) {
-                      sessionPoolManager.releaseSession(pooledSession.id);
-                      console.log(`[Agent Chat] Released session ${pooledSession.id} back to pool`);
-                    }
+                    // Agent session 会一直保留给该 sessionId 使用（保留历史）
+                    console.log(`[Agent Chat] Removed listener from session ${sessionId}`);
 
                     controller.close();
                   })
@@ -203,9 +198,8 @@ export async function POST(req: Request) {
 
                     // ✅ 即使保存失败也要清理资源
                     if (heartbeatInterval) clearInterval(heartbeatInterval);
-                    if (pooledSession) {
-                      sessionPoolManager.releaseSession(pooledSession.id);
-                    }
+                    agentSession.removeListener(listener);
+                    console.log(`[Agent Chat] Removed listener from session ${sessionId} (error case)`);
 
                     controller.close();
                   });
@@ -219,9 +213,7 @@ export async function POST(req: Request) {
 
                 // ✅ 清理资源
                 if (heartbeatInterval) clearInterval(heartbeatInterval);
-                if (pooledSession) {
-                  sessionPoolManager.releaseSession(pooledSession.id);
-                }
+                console.log(`[Agent Chat] Removed listener from session ${sessionId} (agent error)`);
 
                 controller.close();
               }
@@ -247,9 +239,7 @@ export async function POST(req: Request) {
 
           // 仅在初始化失败时清理
           if (heartbeatInterval) clearInterval(heartbeatInterval);
-          if (pooledSession) {
-            sessionPoolManager.releaseSession(pooledSession.id);
-          }
+          console.log(`[Agent Chat] Initialization failed for session ${sessionId}`);
 
           controller.close();
         }

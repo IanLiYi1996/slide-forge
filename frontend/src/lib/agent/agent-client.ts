@@ -46,15 +46,21 @@ export class AgentSessionClientInstance {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let buffer = ""; // 缓冲区用于处理跨 chunk 的不完整行
 
       // 读取流
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
+        // 使用 stream: true 进行增量解码，避免多字节字符被错误分割
+        buffer += decoder.decode(value, { stream: true });
 
+        // 分割行，保留最后一个可能不完整的行
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // 未完成的行保留在 buffer
+
+        // 处理完整的行
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             try {
@@ -64,9 +70,21 @@ export class AgentSessionClientInstance {
                 listener(data);
               }
             } catch (e) {
-              console.error("Error parsing SSE data:", e);
+              console.error("Error parsing SSE data:", e, "Line:", line);
             }
           }
+        }
+      }
+
+      // 处理最后的缓冲区（可能还有未处理的行）
+      if (buffer.trim() && buffer.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(buffer.slice(6));
+          for (const listener of this.listeners) {
+            listener(data);
+          }
+        } catch (e) {
+          console.error("Error parsing final buffer:", e, "Buffer:", buffer);
         }
       }
     } catch (error) {

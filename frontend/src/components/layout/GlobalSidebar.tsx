@@ -30,7 +30,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export function GlobalSidebar() {
   const { data: session } = useSession();
@@ -40,6 +40,12 @@ export function GlobalSidebar() {
   const { theme, setTheme } = useTheme();
   const presentationId = params.id as string | undefined;
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // 确保只在客户端渲染主题相关内容（避免 SSR hydration 错误）
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Hide sidebar on auth pages and presentation view pages (but not agent pages)
   if (
@@ -152,13 +158,16 @@ export function GlobalSidebar() {
             size="icon"
             onClick={() => setTheme(isDark ? "light" : "dark")}
             className="h-8 w-8"
-            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            title={mounted ? (isDark ? "Switch to Light Mode" : "Switch to Dark Mode") : "Toggle Theme"}
+            suppressHydrationWarning
           >
-            {isDark ? (
-              <Sun className="h-3.5 w-3.5" />
-            ) : (
-              <Moon className="h-3.5 w-3.5" />
-            )}
+            {mounted ? (
+              isDark ? (
+                <Sun className="h-3.5 w-3.5" />
+              ) : (
+                <Moon className="h-3.5 w-3.5" />
+              )
+            ) : null}
           </Button>
 
           <Button

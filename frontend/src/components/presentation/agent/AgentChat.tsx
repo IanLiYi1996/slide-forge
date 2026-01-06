@@ -159,6 +159,17 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingMessage]);
 
+  // 自动调整 textarea 高度（仅在客户端执行，避免 SSR hydration 错误）
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // 重置高度以获取正确的 scrollHeight
+    textarea.style.height = 'auto';
+    // 设置新高度，最大 384px
+    textarea.style.height = Math.min(textarea.scrollHeight, 384) + 'px';
+  }, [inputValue]);
+
   // 从消息中提取所有幻灯片
   const extractedSlides = useMemo(
     () => extractSlidesFromMessages(messages),
@@ -608,12 +619,7 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
               <textarea
                 ref={textareaRef}
                 value={inputValue}
-                onChange={(e) => {
-                  setInputValue(e.target.value);
-                  // Auto-resize
-                  e.target.style.height = 'auto';
-                  e.target.style.height = Math.min(e.target.scrollHeight, 384) + 'px';
-                }}
+                onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="How can I help you today?"
                 disabled={isGenerating}
