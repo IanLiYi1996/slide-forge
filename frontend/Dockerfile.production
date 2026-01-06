@@ -73,6 +73,10 @@ COPY --from=builder /app/prisma ./prisma
 # Copy PDF.js worker file (required for document processing)
 COPY --from=builder /app/public/pdf.worker.min.mjs ./public/pdf.worker.min.mjs
 
+# Copy entrypoint script
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
 # Switch to non-root user
 USER nextjs
 
@@ -82,5 +86,5 @@ EXPOSE 3000
 # Note: PORT and HOSTNAME are set via ECS environment variables
 # Do not set them here to avoid URL generation issues
 
-# Start the application
-CMD ["node", "server.js"]
+# Start the application with entrypoint script
+CMD ["./docker-entrypoint.sh"]
