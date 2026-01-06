@@ -101,7 +101,15 @@ export class EcsNextjsServiceConstruct extends Construct {
                 'bedrock:InvokeModelWithResponseStream',
               ],
               resources: [
+                // 基础模型 (foundation-model)
                 `arn:aws:bedrock:${cdk.Aws.REGION}::foundation-model/anthropic.claude-*`,
+
+                // 推理配置文件 (inference-profile) - 同区域
+                `arn:aws:bedrock:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:inference-profile/anthropic.claude-*`,
+
+                // 跨区域推理配置文件 (cross-region inference profiles)
+                `arn:aws:bedrock:*::foundation-model/*`,
+                `arn:aws:bedrock:*:${cdk.Aws.ACCOUNT_ID}:inference-profile/*`,
               ],
             }),
           ],

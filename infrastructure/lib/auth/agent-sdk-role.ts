@@ -56,8 +56,11 @@ export class AgentSdkRole extends Construct {
           'bedrock:GetFoundationModel', // 获取模型信息
         ],
         resources: [
-          // Claude 3 系列模型
+          // 基础模型 (foundation-model)
           `arn:aws:bedrock:*::foundation-model/*`,
+
+          // 推理配置文件 (inference-profile) - 所有区域
+          `arn:aws:bedrock:*:${accountId}:inference-profile/*`,
         ],
       })
     );

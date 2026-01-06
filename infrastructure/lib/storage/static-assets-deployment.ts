@@ -54,6 +54,8 @@ export class StaticAssetsDeployment extends Construct {
       serverSideEncryption: s3deploy.ServerSideEncryption.AES_256,
       // Preserve existing files
       prune: false,
+      // Increase Lambda memory for faster deployment (default: 128 MB)
+      memoryLimit: 3008, // 3 GB - significantly speeds up large file uploads
     });
 
     // Deploy public assets (public/*)
@@ -67,6 +69,8 @@ export class StaticAssetsDeployment extends Construct {
       distributionPaths: ['/public/*'],
       serverSideEncryption: s3deploy.ServerSideEncryption.AES_256,
       prune: false,
+      // Increase Lambda memory for faster deployment
+      memoryLimit: 3008, // 3 GB
     });
 
     // Ensure deployment happens after distribution is created
