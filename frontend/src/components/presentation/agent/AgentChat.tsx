@@ -466,7 +466,7 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
 
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden bg-background">
-        <div className="w-full max-w-4xl mx-auto px-4 py-6 space-y-6">
+        <div className="w-full max-w-6xl mx-auto px-4 py-6 space-y-6">
           {messages.length === 0 && !streamingMessage && (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
               <div className="w-20 h-20 mb-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
