@@ -217,6 +217,7 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
       // 处理流式响应
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
+      let buffer = ""; // 添加缓冲区处理跨包的不完整行
 
       if (!reader) {
         throw new Error("No response body");
@@ -226,9 +227,14 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
+        // 使用 stream: true 进行增量解码（处理多字节 UTF-8）
+        buffer += decoder.decode(value, { stream: true });
 
+        // 按换行符分割，保留最后一个不完整的行在缓冲区
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // 保留不完整的行
+
+        // 只处理完整的行
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             const data = line.slice(6);
@@ -262,10 +268,23 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
                 toast.error(parsed.content || "An error occurred");
               }
             } catch (e) {
-              // 忽略解析错误
-              console.warn("Failed to parse chunk:", data);
+              // 只记录真正无法解析的数据（不是部分数据）
+              console.warn("Failed to parse SSE data:", data.substring(0, 100) + "...");
             }
           }
+        }
+      }
+
+      // 处理最后的缓冲区（如果包含完整数据）
+      if (buffer.trim() && buffer.startsWith("data: ")) {
+        try {
+          const data = buffer.slice(6);
+          const parsed = JSON.parse(data);
+          if (parsed.type === "assistant_message") {
+            appendToStreamingMessage(parsed.content);
+          }
+        } catch (e) {
+          console.warn("Failed to parse final buffer:", e);
         }
       }
 

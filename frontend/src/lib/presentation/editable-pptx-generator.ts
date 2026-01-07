@@ -973,93 +973,97 @@ export class EditablePPTXGenerator {
 
   <!-- Resource Loader -->
   <script>
-    const svgTextCache = new Map();
-    const pendingRequests = new Map();
+    (function() {
+      const svgTextCache = new Map();
+      const pendingRequests = new Map();
 
-    AntVInfographic.registerResourceLoader(async (config) => {
-      const { data, scene } = config;
+      AntVInfographic.registerResourceLoader(async (config) => {
+        const { data, scene } = config;
 
-      try {
-        const key = \`\${scene}::\${data}\`;
-        let svgText;
+        try {
+          const key = \`\${scene}::\${data}\`;
+          let svgText;
 
-        if (svgTextCache.has(key)) {
-          svgText = svgTextCache.get(key);
-        } else if (pendingRequests.has(key)) {
-          svgText = await pendingRequests.get(key);
-        } else {
-          const fetchPromise = (async () => {
+          if (svgTextCache.has(key)) {
+            svgText = svgTextCache.get(key);
+          } else if (pendingRequests.has(key)) {
+            svgText = await pendingRequests.get(key);
+          } else {
+            const fetchPromise = (async () => {
+              try {
+                let url;
+
+                if (scene === 'icon') {
+                  url = \`https://api.iconify.design/\${data}.svg\`;
+                } else if (scene === 'illus') {
+                  url = \`https://raw.githubusercontent.com/balazser/undraw-svg-collection/refs/heads/main/svgs/\${data}.svg\`;
+                } else return null;
+
+                const response = await fetch(url, { referrerPolicy: 'no-referrer' });
+
+                if (!response.ok) {
+                  console.error(\`HTTP \${response.status}: Failed to load \${url}\`);
+                  return null;
+                }
+
+                const text = await response.text();
+
+                if (!text || !text.trim().startsWith('<svg')) {
+                  console.error(\`Invalid SVG content from \${url}\`);
+                  return null;
+                }
+
+                svgTextCache.set(key, text);
+                return text;
+              } catch (fetchError) {
+                console.error(\`Failed to fetch resource \${key}:\`, fetchError);
+                return null;
+              }
+            })();
+
+            pendingRequests.set(key, fetchPromise);
+
             try {
-              let url;
-
-              if (scene === 'icon') {
-                url = \`https://api.iconify.design/\${data}.svg\`;
-              } else if (scene === 'illus') {
-                url = \`https://raw.githubusercontent.com/balazser/undraw-svg-collection/refs/heads/main/svgs/\${data}.svg\`;
-              } else return null;
-
-              const response = await fetch(url, { referrerPolicy: 'no-referrer' });
-
-              if (!response.ok) {
-                console.error(\`HTTP \${response.status}: Failed to load \${url}\`);
-                return null;
-              }
-
-              const text = await response.text();
-
-              if (!text || !text.trim().startsWith('<svg')) {
-                console.error(\`Invalid SVG content from \${url}\`);
-                return null;
-              }
-
-              svgTextCache.set(key, text);
-              return text;
-            } catch (fetchError) {
-              console.error(\`Failed to fetch resource \${key}:\`, fetchError);
-              return null;
+              svgText = await fetchPromise;
+            } finally {
+              pendingRequests.delete(key);
             }
-          })();
-
-          pendingRequests.set(key, fetchPromise);
-
-          try {
-            svgText = await fetchPromise;
-          } finally {
-            pendingRequests.delete(key);
           }
-        }
 
-        if (!svgText) return null;
+          if (!svgText) return null;
 
-        const resource = AntVInfographic.loadSVGResource(svgText);
+          const resource = AntVInfographic.loadSVGResource(svgText);
 
-        if (!resource) {
-          console.error(\`loadSVGResource returned null for \${key}\`);
-          svgTextCache.delete(key);
+          if (!resource) {
+            console.error(\`loadSVGResource returned null for \${key}\`);
+            svgTextCache.delete(key);
+            return null;
+          }
+
+          return resource;
+        } catch (error) {
+          console.error('Unexpected error in resource loader:', error);
           return null;
         }
-
-        return resource;
-      } catch (error) {
-        console.error('Unexpected error in resource loader:', error);
-        return null;
-      }
-    });
+      });
+    })();
   </script>
 
   <!-- Initialize Infographic -->
   ${dsl ? `<script>
-    try {
-      const infographic = new AntVInfographic.Infographic({
-        container: '#infographic-container',
-        width: '100%',
-        height: '100%',
-      });
+    (function() {
+      try {
+        const infographic = new AntVInfographic.Infographic({
+          container: '#infographic-container',
+          width: '100%',
+          height: '100%',
+        });
 
-      infographic.render(\`${dsl.replace(/`/g, '\\`')}\`);
-    } catch (error) {
-      console.error('Failed to render infographic:', error);
-    }
+        infographic.render(\`${dsl.replace(/`/g, '\\`')}\`);
+      } catch (error) {
+        console.error('Failed to render infographic:', error);
+      }
+    })();
   </script>` : '<!-- No DSL provided -->'}
 </body>
 </html>`;

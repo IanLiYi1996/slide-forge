@@ -8,7 +8,7 @@
 import { SlideHTMLRenderer } from "./slides/SlideHTMLRenderer";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Maximize2, Download, X } from "lucide-react";
 
 interface SlideHTMLPreviewProps {
@@ -121,6 +121,9 @@ export function SlideHTMLPreview({ content, slideNumber }: SlideHTMLPreviewProps
           <DialogTitle className="sr-only">
             Slide {slideNumber || ""} - Fullscreen Preview
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Full-screen preview of slide {slideNumber || ""} at original 1280x720 resolution
+          </DialogDescription>
 
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-muted border-b">
