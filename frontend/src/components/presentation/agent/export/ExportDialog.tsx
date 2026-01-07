@@ -16,14 +16,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { SlideData } from "@/lib/agent/types/workflow";
-import { Download, FileImage, FileText, Presentation, Loader2 } from "lucide-react";
+import { Download, FileImage, FileText, Presentation, Loader2, LayoutGrid, Code } from "lucide-react";
 import { downloadAllSlidesPNGZip } from "@/lib/presentation/export-to-png";
 import { downloadEditablePPTX } from "@/lib/presentation/export-editable-pptx";
 import { downloadImagePPTX } from "@/lib/presentation/export-to-pptx";
 import { downloadPDF } from "@/lib/presentation/export-to-pdf";
 import { downloadAllSlidesAsHTML } from "@/lib/presentation/export-simple";
+import { SlidesPreviewDialog } from "../SlidesPreviewDialog";
 import { toast } from "sonner";
-import { Code } from "lucide-react";
 
 interface ExportDialogProps {
   open: boolean;
@@ -116,10 +116,25 @@ export function ExportDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Export Presentation</DialogTitle>
-          <DialogDescription>
-            Choose your export format. {validSlidesCount} of {slides.length} slides are ready.
-          </DialogDescription>
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <DialogTitle>Export Presentation</DialogTitle>
+              <DialogDescription>
+                Choose your export format. {validSlidesCount} of {slides.length} slides are ready.
+              </DialogDescription>
+            </div>
+            {validSlidesCount > 0 && (
+              <SlidesPreviewDialog
+                slides={slides}
+                trigger={
+                  <Button variant="ghost" size="sm" className="gap-2 -mt-1">
+                    <LayoutGrid className="h-4 w-4" />
+                    Preview
+                  </Button>
+                }
+              />
+            )}
+          </div>
         </DialogHeader>
 
         {exporting ? (

@@ -25,6 +25,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Image,
+  Key,
+  BarChart3,
+  Zap,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useParams, useRouter, usePathname } from "next/navigation";
@@ -213,9 +216,17 @@ export function GlobalSidebar() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/settings")}>
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
+              <DropdownMenuItem onClick={() => router.push("/settings/api-config")}>
+                <Key className="mr-2 h-4 w-4" />
+                API Configuration
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/settings/usage")}>
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Usage Statistics
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/settings/quota")}>
+                <Zap className="mr-2 h-4 w-4" />
+                Quota Management
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

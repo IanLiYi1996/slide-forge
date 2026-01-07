@@ -9,7 +9,8 @@ import type { SlideData } from "@/lib/agent/types/workflow";
 import { SlideHTMLRenderer } from "../slides/SlideHTMLRenderer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle2, Clock } from "lucide-react";
+import { Loader2, CheckCircle2, Clock, LayoutGrid } from "lucide-react";
+import { SlidesPreviewDialog } from "../SlidesPreviewDialog";
 
 interface SlideGenerationStageProps {
   slides: SlideData[];
@@ -34,6 +35,8 @@ export function SlideGenerationStage({
     );
   }
 
+  const completedSlides = slides.filter((s) => s.html);
+
   return (
     <div className="space-y-4">
       {/* 进度信息 */}
@@ -41,9 +44,22 @@ export function SlideGenerationStage({
         <CardHeader>
           <CardTitle className="text-sm font-medium flex items-center justify-between">
             <span>Current Progress</span>
-            <Badge variant="outline">
-              Slide {currentIndex + 1} of {totalSlides}
-            </Badge>
+            <div className="flex items-center gap-2">
+              {completedSlides.length > 0 && (
+                <SlidesPreviewDialog
+                  slides={slides}
+                  trigger={
+                    <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
+                      <LayoutGrid className="h-3 w-3 mr-1" />
+                      Preview ({completedSlides.length})
+                    </Badge>
+                  }
+                />
+              )}
+              <Badge variant="outline">
+                Slide {currentIndex + 1} of {totalSlides}
+              </Badge>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>

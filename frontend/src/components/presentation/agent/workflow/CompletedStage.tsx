@@ -8,9 +8,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { SlideData } from "@/lib/agent/types/workflow";
-import { Download, CheckCircle2 } from "lucide-react";
+import { Download, CheckCircle2, LayoutGrid } from "lucide-react";
 import { SlideHTMLRenderer } from "../slides/SlideHTMLRenderer";
 import { ExportDialog } from "../export/ExportDialog";
+import { SlidesPreviewDialog } from "../SlidesPreviewDialog";
 import { useState } from "react";
 
 interface CompletedStageProps {
@@ -49,15 +50,24 @@ export function CompletedStage({ slides, sessionId }: CompletedStageProps) {
         </CardContent>
       </Card>
 
-      {/* 导出选项 */}
+      {/* 导出和预览选项 */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            Export Options
+            Actions
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
+          <SlidesPreviewDialog
+            slides={slides}
+            trigger={
+              <Button variant="outline" size="sm" className="gap-2">
+                <LayoutGrid className="h-4 w-4" />
+                Preview All Slides
+              </Button>
+            }
+          />
           <Button
             variant="default"
             size="sm"
@@ -68,7 +78,7 @@ export function CompletedStage({ slides, sessionId }: CompletedStageProps) {
             Export Presentation
           </Button>
           <p className="text-xs text-muted-foreground w-full mt-2">
-            Choose from PNG, PPTX, or PDF formats
+            Preview all slides or export to PNG, PPTX, or PDF formats
           </p>
         </CardContent>
       </Card>

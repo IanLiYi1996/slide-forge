@@ -11,6 +11,7 @@ import { OutlineStage } from "./OutlineStage";
 import { SlideGenerationStage } from "./SlideGenerationStage";
 import { CompletedStage } from "./CompletedStage";
 import { AgentChat } from "../AgentChat";
+import { SlidesPreviewDialog } from "../SlidesPreviewDialog";
 
 interface WorkflowContainerProps {
   sessionId: string;
@@ -42,7 +43,17 @@ export function WorkflowContainer({ sessionId }: WorkflowContainerProps) {
 
       {/* 右侧：工作流可视化 */}
       <div className="lg:w-1/2 h-1/2 lg:h-full flex flex-col">
-        <WorkflowProgress stage={workflowStage} />
+        <div className="flex items-center justify-between border-b">
+          <div className="flex-1">
+            <WorkflowProgress stage={workflowStage} />
+          </div>
+          {/* Preview Button - Show when slides exist */}
+          {slides.length > 0 && slides.some((s) => s.html) && (
+            <div className="px-4 py-2">
+              <SlidesPreviewDialog slides={slides} />
+            </div>
+          )}
+        </div>
 
         <div className="flex-1 overflow-auto p-6">
           {/* IDLE 状态 */}

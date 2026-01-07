@@ -7,9 +7,10 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Download, FileImage, FileText, Presentation, CheckCircle2 } from "lucide-react";
+import { Download, FileImage, FileText, Presentation, CheckCircle2, LayoutGrid } from "lucide-react";
 import { useState, useMemo } from "react";
 import { ExportDialog } from "./export/ExportDialog";
+import { SlidesPreviewDialog } from "./SlidesPreviewDialog";
 import type { SlideData } from "@/lib/agent/types/workflow";
 import { useAgentState } from "@/states/agent-state";
 
@@ -69,14 +70,25 @@ export function ExportToolbar({ slides, sessionId }: ExportToolbarProps) {
               </div>
             </div>
 
-            <Button
-              onClick={() => setExportDialogOpen(true)}
-              className="gap-2"
-              size="sm"
-            >
-              <Download className="h-4 w-4" />
-              Export Presentation
-            </Button>
+            <div className="flex gap-2">
+              <SlidesPreviewDialog
+                slides={slides}
+                trigger={
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <LayoutGrid className="h-4 w-4" />
+                    Preview
+                  </Button>
+                }
+              />
+              <Button
+                onClick={() => setExportDialogOpen(true)}
+                className="gap-2"
+                size="sm"
+              >
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
+            </div>
           </div>
 
           {/* Quick Export Options */}

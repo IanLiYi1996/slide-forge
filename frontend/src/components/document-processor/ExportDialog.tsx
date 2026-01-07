@@ -13,10 +13,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Download, FileArchive, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Download, FileArchive, Image as ImageIcon, Loader2, FileText } from "lucide-react";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { useToast } from "@/components/ui/use-toast";
+import { generatePDFFromImages } from "@/lib/pdf-generator";
+import { useUsageTracker } from "@/hooks/useUsageTracker";
 
 interface ExportDialogProps {
   open: boolean;
@@ -31,9 +33,11 @@ export function ExportDialog({
   images,
   processedImages,
 }: ExportDialogProps) {
-  const [exportFormat, setExportFormat] = useState<"zip" | "individual">("zip");
+  const [exportFormat, setExportFormat] = useState<"zip" | "pdf" | "individual">("zip");
   const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   const { toast } = useToast();
+  const { trackUsage } = useUsageTracker();
 
   const dataUrlToBlob = async (dataUrl: string): Promise<Blob> => {
     const response = await fetch(dataUrl);
@@ -42,8 +46,34 @@ export function ExportDialog({
 
   const handleExport = async () => {
     setIsExporting(true);
+    setExportProgress(0);
+
     try {
-      if (exportFormat === "zip") {
+      if (exportFormat === "pdf") {
+        // Export as PDF
+        const pdfBlob = await generatePDFFromImages(
+          images,
+          processedImages,
+          {
+            quality: 'medium',
+            orientation: 'portrait',
+            onProgress: (percent) => setExportProgress(percent),
+          }
+        );
+
+        saveAs(pdfBlob, `document_${Date.now()}.pdf`);
+
+        // Track PDF export usage
+        await trackUsage('EXPORT_PDF', 1, {
+          pageCount: images.length,
+          processedCount: processedImages.size,
+        });
+
+        toast({
+          title: "PDF export successful",
+          description: `${images.length} pages exported to PDF`,
+        });
+      } else if (exportFormat === "zip") {
         // Export as ZIP - mixed mode (processed + original)
         const zip = new JSZip();
 
@@ -91,6 +121,7 @@ export function ExportDialog({
       });
     } finally {
       setIsExporting(false);
+      setExportProgress(0);
     }
   };
 
@@ -105,7 +136,22 @@ export function ExportDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <RadioGroup value={exportFormat} onValueChange={(value) => setExportFormat(value as "zip" | "individual")}>
+          <RadioGroup value={exportFormat} onValueChange={(value) => setExportFormat(value as "zip" | "pdf" | "individual")}>
+            <div className="flex items-center space-x-3 rounded-lg border p-4 cursor-pointer hover:bg-accent">
+              <RadioGroupItem value="pdf" id="pdf" />
+              <Label htmlFor="pdf" className="flex-1 cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-medium">PDF Document</p>
+                    <p className="text-sm text-muted-foreground">
+                      Export all images as a single PDF file
+                    </p>
+                  </div>
+                </div>
+              </Label>
+            </div>
+
             <div className="flex items-center space-x-3 rounded-lg border p-4 cursor-pointer hover:bg-accent">
               <RadioGroupItem value="zip" id="zip" />
               <Label htmlFor="zip" className="flex-1 cursor-pointer">
@@ -136,6 +182,21 @@ export function ExportDialog({
               </Label>
             </div>
           </RadioGroup>
+
+          {isExporting && exportProgress > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Generating PDF...</span>
+                <span className="font-medium">{Math.round(exportProgress)}%</span>
+              </div>
+              <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-300"
+                  style={{ width: `${exportProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
