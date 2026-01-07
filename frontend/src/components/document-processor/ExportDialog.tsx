@@ -50,13 +50,13 @@ export function ExportDialog({
 
     try {
       if (exportFormat === "pdf") {
-        // Export as PDF
+        // Export as PDF (preserves original image dimensions)
         const pdfBlob = await generatePDFFromImages(
           images,
           processedImages,
           {
             quality: 'medium',
-            orientation: 'portrait',
+            preserveOriginalSize: true, // Keep original image dimensions
             onProgress: (percent) => setExportProgress(percent),
           }
         );

@@ -24,6 +24,7 @@ export interface PDFGenerationOptions {
   orientation?: 'portrait' | 'landscape';
   includePageNumbers?: boolean;
   onProgress?: (percent: number) => void;
+  preserveOriginalSize?: boolean; // Keep original image dimensions
 }
 
 /**
@@ -39,47 +40,89 @@ export async function generatePDFFromImages(
   processedImages: Map<number, string>,
   options: PDFGenerationOptions = {}
 ): Promise<Blob> {
-  const { quality = 'medium', orientation = 'portrait', onProgress } = options;
+  const { quality = 'medium', preserveOriginalSize = true, onProgress } = options;
 
-  // Create PDF document
-  const pdf = new jsPDF({
-    orientation,
-    unit: 'mm',
-    format: 'a4',
-    compress: quality === 'low',
-  });
-
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
+  // Initialize PDF (will be reconfigured for each page if preserveOriginalSize is true)
+  let pdf: jsPDF | null = null;
 
   // Process each image
   for (let i = 0; i < images.length; i++) {
     const image = images[i];
     const dataUrl = processedImages.get(image.pageNumber) || image.dataUrl;
 
-    // Add new page for subsequent images
-    if (i > 0) {
-      pdf.addPage();
-    }
-
     try {
       // Get image properties
-      const imgProps = pdf.getImageProperties(dataUrl);
+      const imgProps = pdf?.getImageProperties(dataUrl) || await getImageProperties(dataUrl);
+      const imgWidthPx = imgProps.width;
+      const imgHeightPx = imgProps.height;
 
-      // Calculate dimensions to fit page while maintaining aspect ratio
-      const imgWidth = imgProps.width;
-      const imgHeight = imgProps.height;
-      const ratio = Math.min(pageWidth / imgWidth, pageHeight / imgHeight);
+      if (preserveOriginalSize) {
+        // Convert pixels to mm (96 DPI standard: 1 inch = 25.4mm, 96px = 1 inch)
+        const pxToMm = 25.4 / 96;
+        const pageWidthMm = imgWidthPx * pxToMm;
+        const pageHeightMm = imgHeightPx * pxToMm;
 
-      const scaledWidth = imgWidth * ratio;
-      const scaledHeight = imgHeight * ratio;
+        if (i === 0) {
+          // Create PDF with first image size
+          pdf = new jsPDF({
+            orientation: imgWidthPx > imgHeightPx ? 'landscape' : 'portrait',
+            unit: 'mm',
+            format: [pageWidthMm, pageHeightMm],
+            compress: quality === 'low',
+          });
+        } else {
+          // Add page with this image's size
+          pdf!.addPage([pageWidthMm, pageHeightMm]);
+        }
 
-      // Center the image on the page
-      const x = (pageWidth - scaledWidth) / 2;
-      const y = (pageHeight - scaledHeight) / 2;
+        // Add image at full size (0, 0, full width, full height)
+        pdf!.addImage(
+          dataUrl,
+          'PNG',
+          0,
+          0,
+          pageWidthMm,
+          pageHeightMm,
+          undefined,
+          quality === 'high' ? 'FAST' : 'SLOW'
+        );
+      } else {
+        // Legacy mode: fit to A4 page
+        if (i === 0) {
+          pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4',
+            compress: quality === 'low',
+          });
+        } else {
+          pdf!.addPage();
+        }
 
-      // Add image to PDF
-      pdf.addImage(dataUrl, 'PNG', x, y, scaledWidth, scaledHeight, undefined, quality === 'high' ? 'FAST' : 'SLOW');
+        const pageWidth = pdf!.internal.pageSize.getWidth();
+        const pageHeight = pdf!.internal.pageSize.getHeight();
+
+        // Calculate dimensions to fit page while maintaining aspect ratio
+        const ratio = Math.min(pageWidth / imgWidthPx, pageHeight / imgHeightPx);
+        const scaledWidth = imgWidthPx * ratio;
+        const scaledHeight = imgHeightPx * ratio;
+
+        // Center the image on the page
+        const x = (pageWidth - scaledWidth) / 2;
+        const y = (pageHeight - scaledHeight) / 2;
+
+        // Add image to PDF
+        pdf!.addImage(
+          dataUrl,
+          'PNG',
+          x,
+          y,
+          scaledWidth,
+          scaledHeight,
+          undefined,
+          quality === 'high' ? 'FAST' : 'SLOW'
+        );
+      }
 
       // Report progress
       if (onProgress) {
@@ -97,7 +140,26 @@ export async function generatePDFFromImages(
   }
 
   // Generate and return blob
+  if (!pdf) {
+    throw new Error('Failed to generate PDF: no pages created');
+  }
   return pdf.output('blob');
+}
+
+/**
+ * Helper function to get image properties
+ */
+async function getImageProperties(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      resolve({ width: img.width, height: img.height });
+    };
+    img.onerror = () => {
+      reject(new Error('Failed to load image'));
+    };
+    img.src = dataUrl;
+  });
 }
 
 /**

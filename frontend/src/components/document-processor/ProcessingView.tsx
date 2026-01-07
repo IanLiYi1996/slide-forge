@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,10 +17,13 @@ import {
   RotateCcw,
   Sparkles,
   Home,
+  Circle,
+  Image as ImageIcon,
 } from "lucide-react";
 import { processImageWithYunwu } from "@/lib/document-processor/yunwu-api";
 import { useToast } from "@/components/ui/use-toast";
 import { ExportDialog } from "./ExportDialog";
+import { ImageAnnotationCanvas } from "./ImageAnnotationCanvas";
 
 interface ProcessingViewProps {
   images: PageImage[];
@@ -38,6 +42,8 @@ export function ProcessingView({
   const [instruction, setInstruction] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [annotationMode, setAnnotationMode] = useState(false);
+  const [annotatedImageUrl, setAnnotatedImageUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
   const currentPage = images[currentPageIndex];
@@ -63,9 +69,17 @@ export function ProcessingView({
 
     setIsProcessing(true);
     try {
+      // Use annotated image if available, otherwise use original
+      const imageToProcess = annotatedImageUrl || currentPage.dataUrl;
+
+      // Add instruction to remove annotations if annotated image is used
+      const finalInstruction = annotatedImageUrl
+        ? `${instruction.trim()}\n\nIMPORTANT: Remove any drawn shapes (circles, rectangles, arrows, lines) or annotations from the image.`
+        : instruction.trim();
+
       const result = await processImageWithYunwu({
-        imageDataUrl: currentPage.dataUrl,
-        instruction: instruction.trim(),
+        imageDataUrl: imageToProcess,
+        instruction: finalInstruction,
         apiKey: "", // API key is handled server-side
       });
 
@@ -97,6 +111,8 @@ export function ProcessingView({
     if (currentPageIndex < totalPages - 1) {
       setCurrentPageIndex(currentPageIndex + 1);
       setInstruction("");
+      setAnnotationMode(false);
+      setAnnotatedImageUrl(null);
     } else {
       // All pages processed
       toast({
@@ -104,6 +120,15 @@ export function ProcessingView({
         description: "You can now export the processed images",
       });
     }
+  };
+
+  const handleAnnotationComplete = (annotatedUrl: string) => {
+    setAnnotatedImageUrl(annotatedUrl);
+    setAnnotationMode(false);
+    toast({
+      title: "Annotation complete",
+      description: "The annotated image will be sent to AI for processing",
+    });
   };
 
   const handlePrevious = () => {
@@ -155,20 +180,69 @@ export function ProcessingView({
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Original Image */}
+            {/* Original Image with Annotation */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Original Image</CardTitle>
-                <CardDescription>Page {currentPage.pageNumber}</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Original Image</CardTitle>
+                    <CardDescription>Page {currentPage.pageNumber}</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    {annotatedImageUrl && (
+                      <Badge variant="secondary" className="gap-1">
+                        <Circle className="h-3 w-3" />
+                        Annotated
+                      </Badge>
+                    )}
+                    {!annotationMode && !currentProcessedImage && (
+                      <Button
+                        variant={annotatedImageUrl ? "secondary" : "outline"}
+                        size="sm"
+                        onClick={() => setAnnotationMode(true)}
+                      >
+                        <Circle className="h-4 w-4 mr-2" />
+                        {annotatedImageUrl ? "Re-annotate" : "Annotate"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="relative bg-muted rounded-lg overflow-hidden">
-                  <img
-                    src={currentPage.dataUrl}
-                    alt={`Page ${currentPage.pageNumber}`}
-                    className="w-full h-auto"
+                {annotationMode ? (
+                  <ImageAnnotationCanvas
+                    imageDataUrl={currentPage.dataUrl}
+                    onAnnotationComplete={handleAnnotationComplete}
+                    width={1200}
+                    height={Math.round((1200 * (currentPage.height || 800)) / (currentPage.width || 600))}
                   />
-                </div>
+                ) : (
+                  <div className="relative bg-muted rounded-lg overflow-hidden">
+                    <img
+                      src={annotatedImageUrl || currentPage.dataUrl}
+                      alt={`Page ${currentPage.pageNumber}`}
+                      className="w-full h-auto"
+                    />
+                    {annotatedImageUrl && !annotationMode && (
+                      <div className="absolute top-2 right-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setAnnotatedImageUrl(null);
+                            toast({
+                              title: "Annotation removed",
+                              description: "Using original image",
+                            });
+                          }}
+                        >
+                          <ImageIcon className="h-4 w-4 mr-2" />
+                          Use Original
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
