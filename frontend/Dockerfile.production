@@ -67,14 +67,15 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Standalone mode may not include all SDK files
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@anthropic-ai/claude-agent-sdk ./node_modules/@anthropic-ai/claude-agent-sdk
 
-# Copy Prisma schema (for migrations and introspection)
+# Copy Prisma client and schema
+# Note: Prisma client is included in standalone output
 COPY --from=builder /app/prisma ./prisma
 
 # Copy PDF.js worker file (required for document processing)
 COPY --from=builder /app/public/pdf.worker.min.mjs ./public/pdf.worker.min.mjs
 
-# Copy entrypoint script
-COPY docker-entrypoint.sh ./
+# Copy entrypoint script with proper ownership and permissions
+COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
 # Switch to non-root user

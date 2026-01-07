@@ -99,17 +99,19 @@ export class VpcConstruct extends Construct {
       allowAllOutbound: true,
     });
 
+    // EC2 bridge mode uses dynamic port mapping (ephemeral ports 32768-65535)
+    // Allow ALB to reach ECS on ephemeral port range
     this.ecsSecurityGroup.addIngressRule(
       this.albSecurityGroup,
-      ec2.Port.tcp(3000),
-      'From ALB',
+      ec2.Port.tcpRange(32768, 65535),
+      'From ALB (dynamic ports for bridge mode)',
     );
 
     // Allow ALB to reach ECS
     this.albSecurityGroup.addEgressRule(
       this.ecsSecurityGroup,
-      ec2.Port.tcp(3000),
-      'To ECS tasks',
+      ec2.Port.tcpRange(32768, 65535),
+      'To ECS tasks (dynamic ports)',
     );
 
     // 3. Aurora Security Group
