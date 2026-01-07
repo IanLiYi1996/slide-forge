@@ -43,7 +43,7 @@ export async function GET() {
             packages: [],
           };
         }
-        acc[pkg.quotaType].packages.push(pkg);
+        acc[pkg.quotaType]!.packages.push(pkg);
         return acc;
       },
       {} as Record<string, { type: UsageType; label: string; packages: typeof packages }>

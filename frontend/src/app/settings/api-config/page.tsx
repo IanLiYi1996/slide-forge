@@ -215,7 +215,7 @@ export default function ApiConfigPage() {
   // Group configs by category
   const configsByCategory = configs.reduce((acc, config) => {
     if (!acc[config.category]) acc[config.category] = [];
-    acc[config.category].push(config);
+    acc[config.category]!.push(config);
     return acc;
   }, {} as Record<string, ApiConfig[]>);
 
@@ -223,7 +223,7 @@ export default function ApiConfigPage() {
     .filter((c) => c.hasEnvValue)
     .reduce((acc, config) => {
       if (!acc[config.category]) acc[config.category] = [];
-      acc[config.category].push(config);
+      acc[config.category]!.push(config);
       return acc;
     }, {} as Record<string, SystemConfig[]>);
 
@@ -368,7 +368,7 @@ export default function ApiConfigPage() {
         {categories.map((category) => (
           <TabsContent key={category} value={category} className="space-y-6">
             {/* System Configs */}
-            {systemConfigsByCategory[category]?.length > 0 && (
+            {(systemConfigsByCategory[category]?.length ?? 0) > 0 && (
               <div className="space-y-4">
                 <div>
                   <h3 className="text-lg font-semibold">System Defaults</h3>
@@ -377,7 +377,7 @@ export default function ApiConfigPage() {
                   </p>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {systemConfigsByCategory[category].map((config) => (
+                  {systemConfigsByCategory[category]!.map((config) => (
                     <Card key={config.apiName} className="border-dashed border-2">
                       <CardHeader>
                         <div className="flex items-start justify-between">
@@ -434,9 +434,9 @@ export default function ApiConfigPage() {
                 </p>
               </div>
 
-              {configsByCategory[category]?.length > 0 ? (
+              {(configsByCategory[category]?.length ?? 0) > 0 ? (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {configsByCategory[category].map((config) => (
+                  {configsByCategory[category]!.map((config) => (
                     <Card key={config.id}>
                       <CardHeader>
                         <div className="flex items-start justify-between">
@@ -507,7 +507,7 @@ export default function ApiConfigPage() {
                       No custom keys for {categoryLabels[category]}
                     </h3>
                     <p className="text-sm text-muted-foreground text-center mb-4">
-                      {systemConfigsByCategory[category]?.length > 0
+                      {(systemConfigsByCategory[category]?.length ?? 0) > 0
                         ? 'Using system defaults. Add custom keys to override.'
                         : 'Add your first API key for this category'}
                     </p>

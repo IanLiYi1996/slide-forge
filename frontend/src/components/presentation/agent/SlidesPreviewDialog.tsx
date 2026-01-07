@@ -80,14 +80,7 @@ export function SlidesPreviewDialog({ slides, trigger }: SlidesPreviewDialogProp
                     <div className="w-full h-full">
                       <SlideHTMLRenderer
                         html={slide.html!}
-                        slideNumber={slideNumber}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          pointerEvents: 'none',
-                          transform: 'scale(1)',
-                          transformOrigin: 'center center',
-                        }}
+                        slideId={slide.id}
                       />
                     </div>
 
@@ -121,7 +114,7 @@ export function SlidesPreviewDialog({ slides, trigger }: SlidesPreviewDialogProp
       </Dialog>
 
       {/* Individual Slide View Dialog */}
-      {selectedSlideIndex !== null && (
+      {selectedSlideIndex !== null && validSlides[selectedSlideIndex] && (
         <Dialog
           open={true}
           onOpenChange={(open) => {
@@ -133,10 +126,10 @@ export function SlidesPreviewDialog({ slides, trigger }: SlidesPreviewDialogProp
             <div className="flex items-center justify-between p-4 border-b bg-muted/50">
               <div className="flex items-center gap-3">
                 <Badge variant="default">
-                  Slide {slides.indexOf(validSlides[selectedSlideIndex]) + 1}
+                  Slide {slides.indexOf(validSlides[selectedSlideIndex]!) + 1}
                 </Badge>
                 <span className="text-sm text-muted-foreground">
-                  {validSlides[selectedSlideIndex].outlineContent?.split('\n')[0]?.replace('#', '').trim()}
+                  {validSlides[selectedSlideIndex]!.outlineContent?.split('\n')[0]?.replace('#', '').trim()}
                 </span>
               </div>
               <span className="text-sm text-muted-foreground">
@@ -148,8 +141,9 @@ export function SlidesPreviewDialog({ slides, trigger }: SlidesPreviewDialogProp
             <div className="flex-1 overflow-auto p-6 bg-muted/30">
               <div className="max-w-5xl mx-auto">
                 <SlideHTMLRenderer
-                  html={validSlides[selectedSlideIndex].html!}
-                  slideNumber={slides.indexOf(validSlides[selectedSlideIndex]) + 1}
+                  html={validSlides[selectedSlideIndex]!.html!}
+                  slideId={validSlides[selectedSlideIndex]!.id}
+                  fixedSize={true}
                 />
               </div>
             </div>

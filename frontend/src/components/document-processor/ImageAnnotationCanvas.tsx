@@ -85,29 +85,42 @@ export function ImageAnnotationCanvas({
       switch (annotation.type) {
         case 'circle': {
           const [x, y, radius] = annotation.points;
-          ctx.beginPath();
-          ctx.arc(x, y, radius, 0, 2 * Math.PI);
-          ctx.stroke();
+          if (x !== undefined && y !== undefined && radius !== undefined) {
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            ctx.stroke();
+          }
           break;
         }
         case 'rectangle': {
           const [x1, y1, x2, y2] = annotation.points;
-          ctx.beginPath();
-          ctx.rect(x1, y1, x2 - x1, y2 - y1);
-          ctx.stroke();
+          if (x1 !== undefined && y1 !== undefined && x2 !== undefined && y2 !== undefined) {
+            ctx.beginPath();
+            ctx.rect(x1, y1, x2 - x1, y2 - y1);
+            ctx.stroke();
+          }
           break;
         }
         case 'arrow': {
           const [startX, startY, endX, endY] = annotation.points;
-          drawArrow(ctx, startX, startY, endX, endY);
+          if (startX !== undefined && startY !== undefined && endX !== undefined && endY !== undefined) {
+            drawArrow(ctx, startX, startY, endX, endY);
+          }
           break;
         }
         case 'pen': {
           if (annotation.points.length < 4) break;
+          const p0 = annotation.points[0];
+          const p1 = annotation.points[1];
+          if (p0 === undefined || p1 === undefined) break;
           ctx.beginPath();
-          ctx.moveTo(annotation.points[0], annotation.points[1]);
+          ctx.moveTo(p0, p1);
           for (let i = 2; i < annotation.points.length; i += 2) {
-            ctx.lineTo(annotation.points[i], annotation.points[i + 1]);
+            const px = annotation.points[i];
+            const py = annotation.points[i + 1];
+            if (px !== undefined && py !== undefined) {
+              ctx.lineTo(px, py);
+            }
           }
           ctx.stroke();
           break;
@@ -211,35 +224,49 @@ export function ImageAnnotationCanvas({
     switch (shapeType) {
       case 'circle': {
         const [startX, startY] = currentAnnotation.points;
-        const radius = Math.sqrt(
-          Math.pow(pos.x - startX, 2) + Math.pow(pos.y - startY, 2)
-        );
-        ctx.beginPath();
-        ctx.arc(startX, startY, radius, 0, 2 * Math.PI);
-        ctx.stroke();
+        if (startX !== undefined && startY !== undefined) {
+          const radius = Math.sqrt(
+            Math.pow(pos.x - startX, 2) + Math.pow(pos.y - startY, 2)
+          );
+          ctx.beginPath();
+          ctx.arc(startX, startY, radius, 0, 2 * Math.PI);
+          ctx.stroke();
+        }
         break;
       }
       case 'rectangle': {
         const [startX, startY] = currentAnnotation.points;
-        ctx.beginPath();
-        ctx.rect(startX, startY, pos.x - startX, pos.y - startY);
-        ctx.stroke();
+        if (startX !== undefined && startY !== undefined) {
+          ctx.beginPath();
+          ctx.rect(startX, startY, pos.x - startX, pos.y - startY);
+          ctx.stroke();
+        }
         break;
       }
       case 'arrow': {
         const [startX, startY] = currentAnnotation.points;
-        drawArrow(ctx, startX, startY, pos.x, pos.y);
+        if (startX !== undefined && startY !== undefined) {
+          drawArrow(ctx, startX, startY, pos.x, pos.y);
+        }
         break;
       }
       case 'pen': {
         const newPath = [...penPath, pos.x, pos.y];
         setPenPath(newPath);
-        ctx.beginPath();
-        ctx.moveTo(penPath[0], penPath[1]);
-        for (let i = 2; i < newPath.length; i += 2) {
-          ctx.lineTo(newPath[i], newPath[i + 1]);
+        const p0 = penPath[0];
+        const p1 = penPath[1];
+        if (p0 !== undefined && p1 !== undefined) {
+          ctx.beginPath();
+          ctx.moveTo(p0, p1);
+          for (let i = 2; i < newPath.length; i += 2) {
+            const px = newPath[i];
+            const py = newPath[i + 1];
+            if (px !== undefined && py !== undefined) {
+              ctx.lineTo(px, py);
+            }
+          }
+          ctx.stroke();
         }
-        ctx.stroke();
         break;
       }
     }
@@ -254,45 +281,51 @@ export function ImageAnnotationCanvas({
     switch (shapeType) {
       case 'circle': {
         const [startX, startY] = currentAnnotation.points;
-        const radius = Math.sqrt(
-          Math.pow(pos.x - startX, 2) + Math.pow(pos.y - startY, 2)
-        );
-        if (radius > 5) {
-          finalAnnotation = {
-            type: 'circle',
-            color,
-            lineWidth,
-            points: [startX, startY, radius],
-          };
+        if (startX !== undefined && startY !== undefined) {
+          const radius = Math.sqrt(
+            Math.pow(pos.x - startX, 2) + Math.pow(pos.y - startY, 2)
+          );
+          if (radius > 5) {
+            finalAnnotation = {
+              type: 'circle',
+              color,
+              lineWidth,
+              points: [startX, startY, radius],
+            };
+          }
         }
         break;
       }
       case 'rectangle': {
         const [startX, startY] = currentAnnotation.points;
-        const width = Math.abs(pos.x - startX);
-        const height = Math.abs(pos.y - startY);
-        if (width > 5 && height > 5) {
-          finalAnnotation = {
-            type: 'rectangle',
-            color,
-            lineWidth,
-            points: [startX, startY, pos.x, pos.y],
-          };
+        if (startX !== undefined && startY !== undefined) {
+          const width = Math.abs(pos.x - startX);
+          const height = Math.abs(pos.y - startY);
+          if (width > 5 && height > 5) {
+            finalAnnotation = {
+              type: 'rectangle',
+              color,
+              lineWidth,
+              points: [startX, startY, pos.x, pos.y],
+            };
+          }
         }
         break;
       }
       case 'arrow': {
         const [startX, startY] = currentAnnotation.points;
-        const length = Math.sqrt(
-          Math.pow(pos.x - startX, 2) + Math.pow(pos.y - startY, 2)
-        );
-        if (length > 10) {
-          finalAnnotation = {
-            type: 'arrow',
-            color,
-            lineWidth,
-            points: [startX, startY, pos.x, pos.y],
-          };
+        if (startX !== undefined && startY !== undefined) {
+          const length = Math.sqrt(
+            Math.pow(pos.x - startX, 2) + Math.pow(pos.y - startY, 2)
+          );
+          if (length > 10) {
+            finalAnnotation = {
+              type: 'arrow',
+              color,
+              lineWidth,
+              points: [startX, startY, pos.x, pos.y],
+            };
+          }
         }
         break;
       }

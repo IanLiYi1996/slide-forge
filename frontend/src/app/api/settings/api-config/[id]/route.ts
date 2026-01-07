@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -19,7 +19,7 @@ export async function DELETE(
     }
 
     const userId = session.user.id;
-    const configId = params.id;
+    const { id: configId } = await params;
 
     // Verify ownership before deleting
     const config = await db.apiConfiguration.findUnique({

@@ -48,6 +48,7 @@ export async function generatePDFFromImages(
   // Process each image
   for (let i = 0; i < images.length; i++) {
     const image = images[i];
+    if (!image) continue;
     const dataUrl = processedImages.get(image.pageNumber) || image.dataUrl;
 
     try {
@@ -201,6 +202,7 @@ export async function generatePDFFromSlides(
   // Process each slide
   for (let i = 0; i < validSlides.length; i++) {
     const slide = validSlides[i];
+    if (!slide) continue;
 
     // Add new page for subsequent slides
     if (i > 0) {
