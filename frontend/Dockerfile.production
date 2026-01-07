@@ -1,0 +1,91 @@
+# Slide-Forge Next.js Production Dockerfile
+# Multi-stage build for optimized Docker image
+
+FROM node:20-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+# Install pnpm
+RUN corepack enable pnpm
+
+# Copy dependency files and Prisma schema
+COPY package.json pnpm-lock.yaml* ./
+COPY prisma ./prisma
+
+# Install dependencies (prisma generate runs in postinstall)
+RUN pnpm install --frozen-lockfile
+
+# Build the application
+FROM base AS builder
+WORKDIR /app
+
+# Enable pnpm
+RUN corepack enable pnpm
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy all source files
+COPY . .
+
+# Disable telemetry and skip environment validation during build
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV SKIP_ENV_VALIDATION=1
+
+# Build Next.js application (outputs to .next directory)
+RUN pnpm run build
+
+# Production image, copy all the files and run next
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Install Claude Code CLI for Agent SDK
+# This provides the runtime required by @anthropic-ai/claude-agent-sdk
+RUN corepack enable pnpm && \
+    npm install -g @anthropic-ai/claude-code && \
+    ln -s /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js /usr/local/bin/claude-code && \
+    chmod +x /usr/local/bin/claude-code
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy public assets
+COPY --from=builder /app/public ./public
+
+# Copy standalone output (includes node_modules with Prisma client)
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy full Claude Agent SDK package to ensure CLI is available
+# Standalone mode may not include all SDK files
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@anthropic-ai/claude-agent-sdk ./node_modules/@anthropic-ai/claude-agent-sdk
+
+# Copy Prisma client and schema
+# Note: Prisma client is included in standalone output
+COPY --from=builder /app/prisma ./prisma
+
+# Copy PDF.js worker file (required for document processing)
+COPY --from=builder /app/public/pdf.worker.min.mjs ./public/pdf.worker.min.mjs
+
+# Copy entrypoint script with proper ownership and permissions
+COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
+# Switch to non-root user
+USER nextjs
+
+# Expose the port Next.js runs on
+EXPOSE 3000
+
+# Note: PORT and HOSTNAME are set via ECS environment variables
+# Do not set them here to avoid URL generation issues
+
+# Start the application with entrypoint script
+CMD ["./docker-entrypoint.sh"]

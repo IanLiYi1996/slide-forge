@@ -1,0 +1,23 @@
+{
+  "environment": "development",
+  "vpc": {
+    "maxAzs": 3,
+    "natGateways": 1
+  },
+  "aurora": {
+    "minCapacity": 0.5,
+    "maxCapacity": 2,
+    "autoPause": true,
+    "deletionProtection": false
+  },
+  "ecs": {
+    "cpu": 1024,
+    "memory": 2048,
+    "desiredCount": 1,
+    "minCapacity": 1,
+    "maxCapacity": 4
+  },
+  "cloudfront": {
+    "priceClass": "PRICE_CLASS_100"
+  }
+}

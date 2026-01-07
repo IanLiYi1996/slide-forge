@@ -1,0 +1,39 @@
+{
+  "name": "slide-forge-infrastructure",
+  "version": "1.0.0",
+  "description": "AWS CDK infrastructure for Slide-Forge",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "deploy": "./scripts/deploy.sh --non-interactive",
+    "deploy:interactive": "./scripts/deploy.sh",
+    "destroy": "./scripts/destroy.sh",
+    "diff": "cdk diff",
+    "configure": "./scripts/configure.sh",
+    "validate": "./scripts/validate.sh",
+    "status": "./scripts/status.sh",
+    "logs": "./scripts/logs.sh"
+  },
+  "keywords": [
+    "aws-cdk",
+    "infrastructure",
+    "slide-forge"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "aws-cdk": "^2.170.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.170.0",
+    "cdk-nag": "^2.30.0",
+    "constructs": "^10.4.2",
+    "dotenv": "^17.2.3"
+  }
+}

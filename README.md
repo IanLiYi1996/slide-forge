@@ -2,14 +2,32 @@
 
 An intelligent presentation creation platform powered by AI. Generate stunning, professional presentations from text input or file uploads in minutes.
 
+## 📁 Project Structure
+
+```
+slide-forge/
+├── frontend/              # Next.js application (main codebase)
+│   ├── src/              # Application source code
+│   ├── public/           # Static assets
+│   ├── prisma/           # Database schema
+│   └── package.json
+│
+├── infrastructure/        # AWS CDK deployment infrastructure
+│   ├── lib/              # CDK constructs (VPC, ECS, Aurora, etc.)
+│   ├── docker/           # Production Dockerfile
+│   └── README.md         # Deployment guide
+│
+└── resource/             # Reference architectures
+```
+
 ## ⚡ Quick Start (One Command!)
 
 ```bash
 # First time installation
-./install.sh
+./scripts/install.sh
 
 # Subsequent starts
-./start.sh
+./scripts/start.sh
 ```
 
 **That's it!** The script will automatically:
