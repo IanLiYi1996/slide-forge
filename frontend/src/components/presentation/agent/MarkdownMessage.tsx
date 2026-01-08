@@ -8,7 +8,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { SlideHTMLPreview } from "./SlideHTMLPreview";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface MarkdownMessageProps {
   content: string;
@@ -20,6 +21,62 @@ interface MarkdownMessageProps {
  */
 function hasHTMLSlide(content: string): boolean {
   return /```html-slide/i.test(content);
+}
+
+// ✅ 可折叠代码块组件
+function CollapsibleCodeBlock({ language, children }: { language?: string; children: React.ReactNode }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const codeText = String(children);
+  const lines = codeText.split("\n");
+  const shouldCollapse = lines.length > 5; // 超过5行才折叠
+
+  if (!shouldCollapse) {
+    // 短代码块不需要折叠
+    return (
+      <pre className="overflow-x-auto my-1 rounded bg-muted/50 border max-w-full">
+        <div className="flex items-center justify-between px-1.5 py-1 border-b bg-muted/30">
+          <span className="text-[10px] font-mono text-muted-foreground">{language || "code"}</span>
+        </div>
+        <code className="block p-1.5 text-[10px] font-mono whitespace-pre">
+          {children}
+        </code>
+      </pre>
+    );
+  }
+
+  const displayText = isExpanded ? codeText : lines.slice(0, 3).join("\n");
+
+  return (
+    <pre className="overflow-x-auto my-1 rounded bg-muted/50 border max-w-full">
+      <div className="flex items-center justify-between px-1.5 py-1 border-b bg-muted/30">
+        <span className="text-[10px] font-mono text-muted-foreground">{language || "code"}</span>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
+        >
+          {isExpanded ? (
+            <>
+              <ChevronUp className="h-3 w-3" />
+              Collapse
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-3 w-3" />
+              Expand ({lines.length} lines)
+            </>
+          )}
+        </button>
+      </div>
+      <code className="block p-1.5 text-[10px] font-mono whitespace-pre">
+        {displayText}
+        {!isExpanded && (
+          <span className="block mt-1 text-muted-foreground italic">
+            ... {lines.length - 3} more lines
+          </span>
+        )}
+      </code>
+    </pre>
+  );
 }
 
 export function MarkdownMessage({ content, className = "" }: MarkdownMessageProps) {
@@ -38,7 +95,7 @@ export function MarkdownMessage({ content, className = "" }: MarkdownMessageProp
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
-        // 自定义代码块样式
+        // ✅ 自定义代码块样式（支持折叠）
         code({ node, className, children, ...props }) {
           const match = /language-(\w+)/.exec(className || "");
           const language = match ? match[1] : "";
@@ -57,14 +114,9 @@ export function MarkdownMessage({ content, className = "" }: MarkdownMessageProp
               {children}
             </code>
           ) : (
-            <pre className="overflow-x-auto my-1 rounded bg-muted/50 border max-w-full">
-              <code
-                className="block p-1.5 text-[10px] font-mono whitespace-pre"
-                {...props}
-              >
-                {children}
-              </code>
-            </pre>
+            <CollapsibleCodeBlock language={language}>
+              {children}
+            </CollapsibleCodeBlock>
           );
         },
         // 自定义链接样式
