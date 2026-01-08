@@ -61,7 +61,22 @@ export function extractSlidesFromMessages(messages: Message[]): SlideData[] {
 
   for (const message of assistantMessages) {
     const html = extractHTMLFromMessage(message.content);
-    if (!html) continue;
+    if (!html) {
+      // ✅ 添加调试：记录为什么没有提取到 HTML
+      const hasSlideMarker = message.content.includes("SLIDE_START") || message.content.includes("SLIDE_END");
+      const hasCodeBlock = message.content.includes("```html-slide") || message.content.includes("```html");
+      if (hasSlideMarker || hasCodeBlock) {
+        console.warn(
+          `[Extract Slides] Message has markers but failed to extract HTML:`,
+          {
+            hasSlideMarker,
+            hasCodeBlock,
+            contentPreview: message.content.substring(0, 200),
+          }
+        );
+      }
+      continue;
+    }
 
     const slideNumber = extractSlideNumber(message.content);
     const slideIndex = slideNumber ? slideNumber - 1 : slidesMap.size;
