@@ -15,6 +15,29 @@ export function getResourceLoaderScript(): string {
   const svgTextCache = new Map();
   const pendingRequests = new Map();
 
+  // ✅ Polyfill: 添加旧 API 支持（向后兼容）
+  if (typeof AntVInfographic !== 'undefined' && !AntVInfographic.render) {
+    AntVInfographic.render = function(dsl, container) {
+      console.warn('[Infographic] Using deprecated API, please update to new AntVInfographic.Infographic() pattern');
+      const containerElement = typeof container === 'string'
+        ? document.querySelector(container) || document.getElementById(container.replace('#', ''))
+        : container;
+
+      if (!containerElement) {
+        console.error('[Infographic] Container not found:', container);
+        return null;
+      }
+
+      const infographic = new AntVInfographic.Infographic({
+        container: containerElement,
+        width: '100%',
+        height: '100%'
+      });
+      infographic.render(dsl);
+      return infographic;
+    };
+  }
+
   AntVInfographic.registerResourceLoader(async (config) => {
     const { data, scene } = config;
 

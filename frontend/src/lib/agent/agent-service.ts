@@ -352,7 +352,6 @@ Example HTML structure requirements:
 - Infographic container: 400px height if needed
 - Load @antv/infographic library from unpkg CDN
 - Register resource loader for icons from iconify.design
-- Render infographic with DSL using AntVInfographic.render()
 
 Key CSS classes to include:
 - .slide-container: 1280x720px, white background, 60px padding
@@ -360,11 +359,40 @@ Key CSS classes to include:
 - .slide-content: flexible height content area
 - #infographic-container: 400px height for charts
 
-For infographic integration:
-- Load script from: https://unpkg.com/@antv/infographic@latest/dist/infographic.min.js
-- Register icon loader using AntVInfographic.registerResourceLoader
-- Use iconify.design API for icons: https://api.iconify.design/{icon-name}.svg
-- Render with infographic.render() passing DSL as template string
+CRITICAL - Infographic API Usage (EXACT CODE):
+Step 1: Load library in head section
+  <script src="https://unpkg.com/@antv/infographic@latest/dist/infographic.min.js"></script>
+
+Step 2: Register resource loader (for icons from iconify)
+  <script>
+  AntVInfographic.registerResourceLoader(async (config) => {
+    const { data, scene } = config;
+    if (scene === 'icon') {
+      const url = 'https://api.iconify.design/' + data + '.svg';
+      const response = await fetch(url);
+      const text = await response.text();
+      return AntVInfographic.loadSVGResource(text);
+    }
+    return null;
+  });
+  </script>
+
+Step 3: Create instance and render (MUST use this exact pattern)
+  <script>
+  const infographic = new AntVInfographic.Infographic({
+    container: '#infographic-container',
+    width: '100%',
+    height: '100%'
+  });
+  infographic.render('your DSL here');
+  </script>
+
+WRONG API (DO NOT USE):
+  AntVInfographic.render(dsl, container); // This does NOT exist!
+
+CORRECT API (MUST USE):
+  const infographic = new AntVInfographic.Infographic({container: '#id', width, height});
+  infographic.render(dsl);
 
 # UNSPLASH IMAGES
 
