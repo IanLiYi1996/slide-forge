@@ -9,14 +9,14 @@ import type { SlideData } from "../types/workflow";
  * 从单条消息中提取 HTML slide
  */
 export function extractHTMLFromMessage(content: string): string | null {
-  // 匹配 ```html-slide ... ```
-  const match = content.match(/```html-slide\s*\n([\s\S]*?)\n```/);
+  // ✅ 匹配 ```html-slide ... ``` （宽松正则，与后端一致）
+  const match = content.match(/```html-slide\s*([\s\S]*?)\s*```/);
   if (match && match[1]) {
     return match[1].trim();
   }
 
-  // 兼容 ```html ... ``` (完整 HTML)
-  const htmlMatch = content.match(/```html\s*\n([\s\S]*?)\n```/);
+  // ✅ 兼容 ```html ... ``` (完整 HTML，同样使用宽松正则)
+  const htmlMatch = content.match(/```html\s*([\s\S]*?)\s*```/);
   if (htmlMatch && htmlMatch[1]) {
     const html = htmlMatch[1].trim();
     if (html.includes("<!DOCTYPE") || html.includes("<html")) {
