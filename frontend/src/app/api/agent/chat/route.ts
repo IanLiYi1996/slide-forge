@@ -311,37 +311,55 @@ export async function POST(req: Request) {
                         updatedMessages
                       );
 
-                      // ✅ 使用检测到的幻灯片数据（而不是从消息重新提取）
+                      // ✅ 使用检测到的幻灯片数据并合并到现有幻灯片
                       if (detectedSlides.size > 0) {
-                        // 转换为 SlideData 格式
-                        const slidesArray = Array.from(detectedSlides.entries())
-                          .sort((a, b) => a[0] - b[0])
-                          .map(([index, data]) => ({
+                        // ✅ 步骤1：获取数据库中现有的幻灯片
+                        const existingSlides = (updatedSession.slides as any) || [];
+                        const existingSlidesMap = new Map<number, any>();
+
+                        // 将现有幻灯片放入 Map
+                        if (Array.isArray(existingSlides)) {
+                          existingSlides.forEach((slide: any) => {
+                            if (slide && typeof slide.index === 'number') {
+                              existingSlidesMap.set(slide.index, slide);
+                            }
+                          });
+                        }
+
+                        // ✅ 步骤2：合并新检测到的幻灯片（覆盖同 index 的）
+                        detectedSlides.forEach((data, index) => {
+                          const existingSlide = existingSlidesMap.get(index);
+                          existingSlidesMap.set(index, {
                             id: `slide-${index}`,
                             index,
                             html: data.html,
                             status: "ready" as const,
-                            outlineContent: `Slide ${index + 1}`,
-                            modificationCount: 0,
-                            conversationHistory: [],
-                          }));
+                            outlineContent: existingSlide?.outlineContent || `Slide ${index + 1}`,
+                            modificationCount: (existingSlide?.modificationCount || 0) + (existingSlide ? 1 : 0),
+                            conversationHistory: existingSlide?.conversationHistory || [],
+                          });
+                        });
+
+                        // ✅ 步骤3：转换为数组并排序
+                        const mergedSlidesArray = Array.from(existingSlidesMap.values())
+                          .sort((a, b) => a.index - b.index);
 
                         const existingWorkflowState = updatedSession.workflowState as any;
                         const updatedWorkflowState = {
                           ...existingWorkflowState,
-                          slides: slidesArray,
-                          currentSlideIndex: slidesArray.length - 1,
-                          totalSlides: slidesArray.length,
+                          slides: mergedSlidesArray,
+                          currentSlideIndex: mergedSlidesArray.length - 1,
+                          totalSlides: mergedSlidesArray.length,
                           lastModifiedAt: new Date(),
                         };
 
                         await sessionManager.updateSession(sessionId, session.user.id, {
-                          slides: slidesArray as any,
+                          slides: mergedSlidesArray as any,
                           workflowState: updatedWorkflowState as any,
                         });
 
                         console.log(
-                          `[Agent Chat] Synced ${slidesArray.length} slides to database (background) - using detected slides`
+                          `[Agent Chat] Synced ${mergedSlidesArray.length} slides to database (${detectedSlides.size} new/updated) - using merge strategy`
                         );
                       } else {
                         // 回退：从消息提取（兼容旧逻辑）
