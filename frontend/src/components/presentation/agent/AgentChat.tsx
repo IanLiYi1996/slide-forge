@@ -12,6 +12,7 @@ import { Send, Loader2, Upload, X, User, Sparkles, FileText, FileCode, File as F
 import { useRef, useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import type { Message } from "@/lib/agent/types";
+import type { SlideData } from "@/lib/agent/types/workflow";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { ExportToolbar } from "./ExportToolbar";
 import { extractSlidesFromMessages, isPresentationComplete } from "@/lib/agent/utils/extract-slides";
@@ -54,6 +55,8 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [isSavingTitle, setIsSavingTitle] = useState(false);
+  const [dbSlides, setDbSlides] = useState<SlideData[] | null>(null);
+  const [isLoadingDbSlides, setIsLoadingDbSlides] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -154,6 +157,35 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     }
   }, [initialMessages, setMessages, clearMessages, sessionId]);
 
+  // ✅ 从数据库加载幻灯片（优先数据源）
+  useEffect(() => {
+    const loadDbSlides = async () => {
+      if (!sessionId) return;
+
+      setIsLoadingDbSlides(true);
+      try {
+        const response = await fetch(`/api/agent/session/${sessionId}`);
+        if (response.ok) {
+          const data = await response.json();
+          const slidesFromDb = data.session?.slides;
+
+          if (slidesFromDb && Array.isArray(slidesFromDb) && slidesFromDb.length > 0) {
+            setDbSlides(slidesFromDb as SlideData[]);
+            console.log(
+              `[AgentChat] Loaded ${slidesFromDb.length} slides from database for session ${sessionId}`
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load slides from database:", error);
+      } finally {
+        setIsLoadingDbSlides(false);
+      }
+    };
+
+    loadDbSlides();
+  }, [sessionId]);
+
   // 自动滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -170,11 +202,26 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     textarea.style.height = Math.min(textarea.scrollHeight, 384) + 'px';
   }, [inputValue]);
 
-  // 从消息中提取所有幻灯片
-  const extractedSlides = useMemo(
-    () => extractSlidesFromMessages(messages),
-    [messages],
-  );
+  // 从消息或数据库中提取所有幻灯片（优先使用数据库）
+  const extractedSlides = useMemo(() => {
+    // ✅ 优先级1: 数据库幻灯片（最可靠，已同步最新版本）
+    if (dbSlides && dbSlides.length > 0) {
+      console.log(
+        `[AgentChat] Using ${dbSlides.length} slides from database`
+      );
+      return dbSlides;
+    }
+
+    // ✅ 优先级2: 从消息提取（回退方案，使用修复后的逻辑）
+    const slidesFromMessages = extractSlidesFromMessages(messages);
+    if (slidesFromMessages.length > 0) {
+      console.log(
+        `[AgentChat] Using ${slidesFromMessages.length} slides extracted from messages`
+      );
+    }
+
+    return slidesFromMessages;
+  }, [dbSlides, messages]);
 
   // 检查演示文稿是否完成
   const presentationComplete = useMemo(
@@ -249,6 +296,23 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
               // 处理助手消息
               if (parsed.type === "assistant_message") {
                 appendToStreamingMessage(parsed.content);
+              }
+              // 🎯 处理流式幻灯片完成
+              else if (parsed.type === "slide_complete") {
+                const { slideIndex, html, timestamp } = parsed;
+
+                // 显示成功通知
+                toast.success(`Slide ${slideIndex} generated!`, {
+                  description: "Your slide is ready to view",
+                  duration: 2000,
+                });
+
+                // 在消息中添加提示（不显示完整HTML，避免界面混乱）
+                appendToStreamingMessage(
+                  `\n\n✅ **Slide ${slideIndex} completed** - View it in the preview below.\n\n`
+                );
+
+                console.log(`[AgentChat] Received slide ${slideIndex} with ${html.length} chars`);
               }
               // 处理工具使用
               else if (parsed.type === "tool_use") {

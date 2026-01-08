@@ -655,6 +655,13 @@ export class EditablePPTXGenerator {
     return blob as Blob;
   }
 
+  /**
+   * 获取导出过程中失败的图片列表
+   */
+  getFailedImages(): string[] {
+    return this.failedImages || [];
+  }
+
   // ========== 辅助函数 ==========
 
   /**
@@ -687,7 +694,7 @@ export class EditablePPTXGenerator {
   }
 
   /**
-   * 下载图片并转为 dataURL
+   * 下载图片并转为 dataURL（增强版：代理 + 重试 + 占位图）
    */
   private async downloadImageAsDataURL(url: string): Promise<string> {
     // 检查缓存
@@ -695,28 +702,101 @@ export class EditablePPTXGenerator {
       return this.imageCache.get(url)!;
     }
 
+    // 方案1：通过服务端代理下载（避免CORS）
     try {
-      const response = await fetch(url, {
-        mode: "cors",
-        referrerPolicy: "no-referrer",
-      });
+      const proxyUrl = `/api/images/proxy?url=${encodeURIComponent(url)}&retry=3`;
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: Failed to load ${url}`);
+      const response = await fetch(proxyUrl);
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const dataURL = await this.blobToDataURL(blob);
+
+        // 缓存
+        this.imageCache.set(url, dataURL);
+
+        console.log(`[PPTX Export] Successfully downloaded image via proxy: ${url}`);
+        return dataURL;
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          `Proxy failed: ${response.status} - ${errorData.error || response.statusText}`
+        );
+      }
+    } catch (proxyError) {
+      console.warn(
+        `[PPTX Export] Proxy download failed for ${url}:`,
+        proxyError instanceof Error ? proxyError.message : proxyError
+      );
+
+      // 方案2：尝试直接下载（可能受CORS限制）
+      try {
+        const response = await fetch(url, {
+          mode: "cors",
+          referrerPolicy: "no-referrer",
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const dataURL = await this.blobToDataURL(blob);
+
+          // 缓存
+          this.imageCache.set(url, dataURL);
+
+          console.log(
+            `[PPTX Export] Successfully downloaded image directly: ${url}`
+          );
+          return dataURL;
+        }
+      } catch (directError) {
+        console.warn(
+          `[PPTX Export] Direct download also failed:`,
+          directError instanceof Error ? directError.message : directError
+        );
       }
 
-      const blob = await response.blob();
-      const dataURL = await this.blobToDataURL(blob);
+      // 方案3：使用占位图（灰色矩形 + 错误文本）
+      console.error(
+        `[PPTX Export] All download attempts failed for ${url}, using placeholder`
+      );
 
-      // 缓存
-      this.imageCache.set(url, dataURL);
+      // 记录失败的图片URL（用于后续提示用户）
+      if (!this.failedImages) {
+        this.failedImages = [];
+      }
+      this.failedImages.push(url);
 
-      return dataURL;
-    } catch (error) {
-      console.error(`Failed to download image from ${url}:`, error);
-      throw error;
+      // 返回占位图 SVG
+      return this.createPlaceholderImage();
     }
   }
+
+  /**
+   * 创建占位图（当图片下载失败时使用）
+   */
+  private createPlaceholderImage(): string {
+    // SVG 占位图：灰色背景 + "Image not available" 文本
+    const svg = `
+      <svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100%" height="100%" fill="#e5e7eb"/>
+        <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="24"
+              fill="#6b7280" text-anchor="middle" dominant-baseline="middle">
+          Image not available
+        </text>
+        <text x="50%" y="55%" font-family="Arial, sans-serif" font-size="16"
+              fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">
+          Failed to download from source
+        </text>
+      </svg>
+    `.trim();
+
+    // 转换为 data URL
+    const base64 = btoa(unescape(encodeURIComponent(svg)));
+    return `data:image/svg+xml;base64,${base64}`;
+  }
+
+  // 失败图片记录（用于导出后提示用户）
+  private failedImages?: string[] = [];
 
   /**
    * Blob 转 dataURL

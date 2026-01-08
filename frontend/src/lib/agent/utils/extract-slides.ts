@@ -49,11 +49,12 @@ export function extractSlideNumber(content: string): number | null {
 }
 
 /**
- * 从所有消息中提取幻灯片数据
+ * 从所有消息中提取幻灯片数据（增强版：支持幻灯片更新）
+ * 使用 Map 存储，最后一次出现的幻灯片优先（覆盖旧版本）
  */
 export function extractSlidesFromMessages(messages: Message[]): SlideData[] {
-  const slides: SlideData[] = [];
-  const processedSlideNumbers = new Set<number>();
+  // ✅ 使用 Map 代替 Set，支持覆盖更新
+  const slidesMap = new Map<number, SlideData>();
 
   // 只处理 assistant 消息
   const assistantMessages = messages.filter((m) => m.role === "assistant");
@@ -63,38 +64,55 @@ export function extractSlidesFromMessages(messages: Message[]): SlideData[] {
     if (!html) continue;
 
     const slideNumber = extractSlideNumber(message.content);
-    const slideIndex = slideNumber ? slideNumber - 1 : slides.length;
-
-    // 避免重复
-    if (processedSlideNumbers.has(slideIndex)) {
-      continue;
-    }
+    const slideIndex = slideNumber ? slideNumber - 1 : slidesMap.size;
 
     // 提取大纲内容（如果有）
     const outlineMatch = message.content.match(/(?:Slide \d+:?\s*)(.+?)(?:\n|$)/);
     const outlineTitle = outlineMatch?.[1] || `Slide ${slideIndex + 1}`;
 
-    slides.push({
-      id: `slide-${slideIndex}`,
-      index: slideIndex,
-      outlineContent: outlineTitle,
-      html,
-      status: "ready",
-      modificationCount: 0,
-      conversationHistory: [
-        {
-          role: "assistant",
-          content: message.content,
-          timestamp: message.timestamp || new Date(),
-        },
-      ],
-    });
+    // 创建消息记录
+    const messageRecord = {
+      role: "assistant" as const,
+      content: message.content,
+      timestamp: message.timestamp || new Date(),
+    };
 
-    processedSlideNumbers.add(slideIndex);
+    // ✅ 检查是否已存在该幻灯片
+    if (slidesMap.has(slideIndex)) {
+      // 更新现有幻灯片（保留最新版本）
+      const existingSlide = slidesMap.get(slideIndex)!;
+      existingSlide.html = html;
+      existingSlide.outlineContent = outlineTitle;
+      existingSlide.modificationCount = (existingSlide.modificationCount || 0) + 1;
+      existingSlide.conversationHistory.push(messageRecord);
+
+      console.log(
+        `[Extract Slides] Updated slide ${slideIndex} (modification #${existingSlide.modificationCount})`
+      );
+    } else {
+      // 新增幻灯片
+      slidesMap.set(slideIndex, {
+        id: `slide-${slideIndex}`,
+        index: slideIndex,
+        outlineContent: outlineTitle,
+        html,
+        status: "ready",
+        modificationCount: 0,
+        conversationHistory: [messageRecord],
+      });
+
+      console.log(`[Extract Slides] Added new slide ${slideIndex}`);
+    }
   }
 
-  // 按 index 排序
-  slides.sort((a, b) => a.index - b.index);
+  // 转换为数组并按 index 排序
+  const slides = Array.from(slidesMap.values()).sort(
+    (a, b) => a.index - b.index
+  );
+
+  console.log(
+    `[Extract Slides] Extracted ${slides.length} slides from ${messages.length} messages`
+  );
 
   return slides;
 }

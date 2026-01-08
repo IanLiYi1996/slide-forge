@@ -16,6 +16,7 @@ import { agentService } from "@/lib/agent/agent-service";
 import { sessionManager } from "@/lib/agent/session-manager";
 import { NextResponse } from "next/server";
 import type { ChatRequest, Message } from "@/lib/agent/types";
+import { extractSlidesFromMessages } from "@/lib/agent/utils/extract-slides";
 
 // Configure route timeout for long-running agent operations
 export const maxDuration = 180; // 3 minutes (matches CloudFront timeout)
@@ -124,7 +125,10 @@ export async function POST(req: Request) {
             message: 'Agent ready, processing your request...'
           });
 
-          // ✅ 步骤 5: 设置 Agent 监听器（保持原有逻辑）
+          // ✅ 步骤 5: 设置 Agent 监听器（增强幻灯片流式检测）
+          // 幻灯片检测buffer
+          let slideBuffer = "";
+
           // 创建监听器
           const listener = (chunk: any) => {
             try {
@@ -134,7 +138,36 @@ export async function POST(req: Request) {
 
                 if (typeof content === "string") {
                   fullResponse += content;
-                  // 发送文本内容
+                  slideBuffer += content; // 累积到幻灯片buffer
+
+                  // 🎯 检测完整幻灯片（使用 emoji 标记）
+                  const slideRegex = /🎯SLIDE_START:(\d+)🎯([\s\S]*?)🎯SLIDE_END:\1🎯/g;
+                  let match;
+
+                  while ((match = slideRegex.exec(slideBuffer)) !== null) {
+                    const slideIndex = parseInt(match[1]!);
+                    const slideContent = match[2]!;
+
+                    // 从内容中提取 HTML（去除 ```html-slide 标记）
+                    const htmlMatch = slideContent.match(/```html-slide\s*([\s\S]*?)\s*```/);
+                    if (htmlMatch && htmlMatch[1]) {
+                      const slideHTML = htmlMatch[1].trim();
+
+                      // 📤 立即发送幻灯片完成事件
+                      sendSSE('slide_complete', {
+                        slideIndex,
+                        html: slideHTML,
+                        timestamp: Date.now(),
+                      });
+
+                      console.log(`[Agent Chat] Slide ${slideIndex} streamed successfully`);
+                    }
+
+                    // 清除已处理的幻灯片，保留后续内容
+                    slideBuffer = slideBuffer.substring(match.index + match[0].length);
+                  }
+
+                  // 发送文本内容（用于对话显示）
                   const data = JSON.stringify({
                     type: "assistant_message",
                     content,
@@ -145,6 +178,32 @@ export async function POST(req: Request) {
                   for (const block of content) {
                     if (block.type === "text") {
                       fullResponse += block.text;
+                      slideBuffer += block.text; // 累积到幻灯片buffer
+
+                      // 🎯 同样检测幻灯片
+                      const slideRegex = /🎯SLIDE_START:(\d+)🎯([\s\S]*?)🎯SLIDE_END:\1🎯/g;
+                      let match;
+
+                      while ((match = slideRegex.exec(slideBuffer)) !== null) {
+                        const slideIndex = parseInt(match[1]!);
+                        const slideContent = match[2]!;
+
+                        const htmlMatch = slideContent.match(/```html-slide\s*([\s\S]*?)\s*```/);
+                        if (htmlMatch && htmlMatch[1]) {
+                          const slideHTML = htmlMatch[1].trim();
+
+                          sendSSE('slide_complete', {
+                            slideIndex,
+                            html: slideHTML,
+                            timestamp: Date.now(),
+                          });
+
+                          console.log(`[Agent Chat] Slide ${slideIndex} streamed successfully`);
+                        }
+
+                        slideBuffer = slideBuffer.substring(match.index + match[0].length);
+                      }
+
                       const data = JSON.stringify({
                         type: "assistant_message",
                         content: block.text,
@@ -171,17 +230,49 @@ export async function POST(req: Request) {
                 responseComplete = true;
 
                 // 保存对话历史到数据库
+                const updatedMessages: Message[] = [
+                  ...sessionMessages,
+                  { role: "user" as const, content: message, timestamp: new Date() },
+                  {
+                    role: "assistant" as const,
+                    content: fullResponse,
+                    timestamp: new Date(),
+                  },
+                ];
+
                 sessionManager
-                  .updateMessages(sessionId, session.user.id, [
-                    ...sessionMessages,
-                    { role: "user", content: message, timestamp: new Date() },
-                    {
-                      role: "assistant",
-                      content: fullResponse,
-                      timestamp: new Date(),
-                    },
-                  ])
-                  .then(() => {
+                  .updateMessages(sessionId, session.user.id, updatedMessages)
+                  .then(async (updatedSession) => {
+                    // ✅ 提取幻灯片并同步到数据库
+                    try {
+                      const extractedSlides = extractSlidesFromMessages(updatedMessages);
+
+                      if (extractedSlides.length > 0) {
+                        // 准备 workflowState
+                        const existingWorkflowState = updatedSession.workflowState as any;
+                        const updatedWorkflowState = {
+                          ...existingWorkflowState,
+                          slides: extractedSlides,
+                          currentSlideIndex: extractedSlides.length - 1,
+                          totalSlides: extractedSlides.length,
+                          lastModifiedAt: new Date(),
+                        };
+
+                        // 同步到数据库的 slides 和 workflowState 字段
+                        await sessionManager.updateSession(sessionId, session.user.id, {
+                          slides: extractedSlides as any,
+                          workflowState: updatedWorkflowState as any,
+                        });
+
+                        console.log(
+                          `[Agent Chat] Synced ${extractedSlides.length} slides to database for session ${sessionId}`
+                        );
+                      }
+                    } catch (syncError) {
+                      console.error(`[Agent Chat] Failed to sync slides to database:`, syncError);
+                      // 继续执行，不影响主流程
+                    }
+
                     // 发送完成信号
                     controller.enqueue(encoder.encode("data: [DONE]\n\n"));
                     // 移除监听器
@@ -200,7 +291,9 @@ export async function POST(req: Request) {
                     // ✅ 即使保存失败也要清理资源
                     if (heartbeatInterval) clearInterval(heartbeatInterval);
                     agentSession.removeListener(listener);
-                    console.log(`[Agent Chat] Removed listener from session ${sessionId} (error case)`);
+                    console.log(
+                      `[Agent Chat] Removed listener from session ${sessionId} (error case)`
+                    );
 
                     controller.close();
                   });
