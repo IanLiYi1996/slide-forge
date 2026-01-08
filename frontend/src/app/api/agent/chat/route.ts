@@ -142,29 +142,47 @@ export async function POST(req: Request) {
 
                   // 🎯 检测完整幻灯片（使用 emoji 标记）
                   const slideRegex = /🎯SLIDE_START:(\d+)🎯([\s\S]*?)🎯SLIDE_END:\1🎯/g;
+                  const matches: Array<{
+                    slideIndex: number;
+                    slideContent: string;
+                    fullMatch: string;
+                    matchEnd: number;
+                  }> = [];
                   let match;
 
+                  // ✅ 先收集所有匹配，不修改 buffer
                   while ((match = slideRegex.exec(slideBuffer)) !== null) {
-                    const slideIndex = parseInt(match[1]!);
-                    const slideContent = match[2]!;
+                    matches.push({
+                      slideIndex: parseInt(match[1]!),
+                      slideContent: match[2]!,
+                      fullMatch: match[0],
+                      matchEnd: match.index + match[0].length,
+                    });
+                  }
 
+                  // ✅ 处理所有匹配的幻灯片
+                  for (const matchData of matches) {
                     // 从内容中提取 HTML（去除 ```html-slide 标记）
-                    const htmlMatch = slideContent.match(/```html-slide\s*([\s\S]*?)\s*```/);
+                    const htmlMatch = matchData.slideContent.match(/```html-slide\s*([\s\S]*?)\s*```/);
                     if (htmlMatch && htmlMatch[1]) {
                       const slideHTML = htmlMatch[1].trim();
 
                       // 📤 立即发送幻灯片完成事件
                       sendSSE('slide_complete', {
-                        slideIndex,
+                        slideIndex: matchData.slideIndex,
                         html: slideHTML,
                         timestamp: Date.now(),
                       });
 
-                      console.log(`[Agent Chat] Slide ${slideIndex} streamed successfully`);
+                      console.log(`[Agent Chat] Slide ${matchData.slideIndex} streamed successfully`);
                     }
+                  }
 
-                    // 清除已处理的幻灯片，保留后续内容
-                    slideBuffer = slideBuffer.substring(match.index + match[0].length);
+                  // ✅ 清除所有已处理的幻灯片（从最后一个匹配位置开始保留）
+                  if (matches.length > 0) {
+                    const lastMatchEnd = matches[matches.length - 1]!.matchEnd;
+                    slideBuffer = slideBuffer.substring(lastMatchEnd);
+                    console.log(`[Agent Chat] Processed ${matches.length} slides, buffer remaining: ${slideBuffer.length} chars`);
                   }
 
                   // 发送文本内容（用于对话显示）
@@ -180,28 +198,47 @@ export async function POST(req: Request) {
                       fullResponse += block.text;
                       slideBuffer += block.text; // 累积到幻灯片buffer
 
-                      // 🎯 同样检测幻灯片
+                      // 🎯 同样检测幻灯片（使用相同的逻辑）
                       const slideRegex = /🎯SLIDE_START:(\d+)🎯([\s\S]*?)🎯SLIDE_END:\1🎯/g;
+                      const matches: Array<{
+                        slideIndex: number;
+                        slideContent: string;
+                        fullMatch: string;
+                        matchEnd: number;
+                      }> = [];
                       let match;
 
+                      // ✅ 先收集所有匹配
                       while ((match = slideRegex.exec(slideBuffer)) !== null) {
-                        const slideIndex = parseInt(match[1]!);
-                        const slideContent = match[2]!;
+                        matches.push({
+                          slideIndex: parseInt(match[1]!),
+                          slideContent: match[2]!,
+                          fullMatch: match[0],
+                          matchEnd: match.index + match[0].length,
+                        });
+                      }
 
-                        const htmlMatch = slideContent.match(/```html-slide\s*([\s\S]*?)\s*```/);
+                      // ✅ 处理所有匹配的幻灯片
+                      for (const matchData of matches) {
+                        const htmlMatch = matchData.slideContent.match(/```html-slide\s*([\s\S]*?)\s*```/);
                         if (htmlMatch && htmlMatch[1]) {
                           const slideHTML = htmlMatch[1].trim();
 
                           sendSSE('slide_complete', {
-                            slideIndex,
+                            slideIndex: matchData.slideIndex,
                             html: slideHTML,
                             timestamp: Date.now(),
                           });
 
-                          console.log(`[Agent Chat] Slide ${slideIndex} streamed successfully`);
+                          console.log(`[Agent Chat] Slide ${matchData.slideIndex} streamed successfully`);
                         }
+                      }
 
-                        slideBuffer = slideBuffer.substring(match.index + match[0].length);
+                      // ✅ 清除所有已处理的幻灯片
+                      if (matches.length > 0) {
+                        const lastMatchEnd = matches[matches.length - 1]!.matchEnd;
+                        slideBuffer = slideBuffer.substring(lastMatchEnd);
+                        console.log(`[Agent Chat] Processed ${matches.length} slides from block, buffer remaining: ${slideBuffer.length} chars`);
                       }
 
                       const data = JSON.stringify({
