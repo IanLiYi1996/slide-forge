@@ -138,8 +138,9 @@ export function SlidesPreviewDialog({ slides, trigger }: SlidesPreviewDialogProp
             </div>
 
             {/* Slide Content */}
-            <div className="flex-1 overflow-auto p-6 bg-muted/30">
-              <div className="max-w-5xl mx-auto">
+            <div className="flex-1 overflow-auto p-6 bg-muted/30 flex items-center justify-center">
+              {/* ✅ 移除 max-w-5xl 限制，使用 w-fit 适配内容宽度 */}
+              <div className="w-fit mx-auto">
                 <SlideHTMLRenderer
                   html={validSlides[selectedSlideIndex]!.html!}
                   slideId={validSlides[selectedSlideIndex]!.id}

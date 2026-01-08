@@ -229,7 +229,15 @@ export async function POST(req: Request) {
                 controller.enqueue(encoder.encode(`data: ${data}\n\n`));
                 responseComplete = true;
 
-                // 保存对话历史到数据库
+                // ✅ 步骤1：立即发送 [DONE] 并关闭流（不等待数据库）
+                controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                agentSession.removeListener(listener);
+                if (heartbeatInterval) clearInterval(heartbeatInterval);
+                controller.close();
+
+                console.log(`[Agent Chat] SSE stream closed for session ${sessionId}`);
+
+                // ✅ 步骤2：数据库同步作为后台任务（不阻塞流）
                 const updatedMessages: Message[] = [
                   ...sessionMessages,
                   { role: "user" as const, content: message, timestamp: new Date() },
@@ -240,15 +248,21 @@ export async function POST(req: Request) {
                   },
                 ];
 
-                sessionManager
-                  .updateMessages(sessionId, session.user.id, updatedMessages)
-                  .then(async (updatedSession) => {
-                    // ✅ 提取幻灯片并同步到数据库
+                // 异步保存到数据库（带超时和错误处理）
+                Promise.race([
+                  // 主任务：保存消息和同步幻灯片
+                  (async () => {
                     try {
-                      const extractedSlides = extractSlidesFromMessages(updatedMessages);
+                      // 保存消息
+                      const updatedSession = await sessionManager.updateMessages(
+                        sessionId,
+                        session.user.id,
+                        updatedMessages
+                      );
 
+                      // 提取并同步幻灯片
+                      const extractedSlides = extractSlidesFromMessages(updatedMessages);
                       if (extractedSlides.length > 0) {
-                        // 准备 workflowState
                         const existingWorkflowState = updatedSession.workflowState as any;
                         const updatedWorkflowState = {
                           ...existingWorkflowState,
@@ -258,45 +272,29 @@ export async function POST(req: Request) {
                           lastModifiedAt: new Date(),
                         };
 
-                        // 同步到数据库的 slides 和 workflowState 字段
                         await sessionManager.updateSession(sessionId, session.user.id, {
                           slides: extractedSlides as any,
                           workflowState: updatedWorkflowState as any,
                         });
 
                         console.log(
-                          `[Agent Chat] Synced ${extractedSlides.length} slides to database for session ${sessionId}`
+                          `[Agent Chat] Synced ${extractedSlides.length} slides to database (background)`
                         );
                       }
                     } catch (syncError) {
-                      console.error(`[Agent Chat] Failed to sync slides to database:`, syncError);
-                      // 继续执行，不影响主流程
+                      console.error(`[Agent Chat] Background sync failed:`, syncError);
+                      // 不影响用户体验，静默失败
                     }
+                  })(),
 
-                    // 发送完成信号
-                    controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-                    // 移除监听器
-                    agentSession.removeListener(listener);
-
-                    // ✅ 清理资源
-                    if (heartbeatInterval) clearInterval(heartbeatInterval);
-                    // Agent session 会一直保留给该 sessionId 使用（保留历史）
-                    console.log(`[Agent Chat] Removed listener from session ${sessionId}`);
-
-                    controller.close();
-                  })
-                  .catch((error) => {
-                    console.error("Failed to save messages:", error);
-
-                    // ✅ 即使保存失败也要清理资源
-                    if (heartbeatInterval) clearInterval(heartbeatInterval);
-                    agentSession.removeListener(listener);
-                    console.log(
-                      `[Agent Chat] Removed listener from session ${sessionId} (error case)`
-                    );
-
-                    controller.close();
-                  });
+                  // 超时保护：10秒后放弃
+                  new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Database sync timeout")), 10000)
+                  ),
+                ]).catch((timeoutError) => {
+                  console.error(`[Agent Chat] Database sync timeout or failed:`, timeoutError);
+                  // 静默失败，不影响用户
+                });
               } else if (chunk.type === "error") {
                 const errorData = JSON.stringify({
                   type: "error",

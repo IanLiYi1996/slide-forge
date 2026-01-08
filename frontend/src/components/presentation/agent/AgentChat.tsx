@@ -37,6 +37,8 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     setGenerating,
     streamingMessage,
     appendToStreamingMessage,
+    appendToStreamingMessageInstant,
+    skipTypingAnimation,
     finalizeStreamingMessage,
     uploadedFiles,
     addFile,
@@ -157,13 +159,22 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     }
   }, [initialMessages, setMessages, clearMessages, sessionId]);
 
-  // ✅ 从数据库加载幻灯片（优先数据源）
+  // ✅ 从数据库加载幻灯片（优先数据源）- 添加防抖
   useEffect(() => {
     const loadDbSlides = async () => {
       if (!sessionId) return;
 
+      // ✅ 如果正在生成中，延迟加载（等待流式完成）
+      if (isGenerating) {
+        console.log("[AgentChat] Skipping db load - generation in progress");
+        return;
+      }
+
       setIsLoadingDbSlides(true);
       try {
+        // ✅ 添加小延迟，确保后台数据库同步已完成
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
         const response = await fetch(`/api/agent/session/${sessionId}`);
         if (response.ok) {
           const data = await response.json();
@@ -184,7 +195,7 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     };
 
     loadDbSlides();
-  }, [sessionId]);
+  }, [sessionId, isGenerating]); // ✅ 添加 isGenerating 依赖
 
   // 自动滚动到底部
   useEffect(() => {
@@ -308,7 +319,8 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
                 });
 
                 // 在消息中添加提示（不显示完整HTML，避免界面混乱）
-                appendToStreamingMessage(
+                // ✅ 使用立即显示，元信息不需要打字机效果
+                appendToStreamingMessageInstant(
                   `\n\n✅ **Slide ${slideIndex} completed** - View it in the preview below.\n\n`
                 );
 
@@ -317,7 +329,8 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
               // 处理工具使用
               else if (parsed.type === "tool_use") {
                 const toolMessage = `\n\n[Using tool: ${parsed.toolName}]\n\n`;
-                appendToStreamingMessage(toolMessage);
+                // ✅ 使用立即显示，元信息不需要打字机效果
+                appendToStreamingMessageInstant(toolMessage);
               }
               // 处理结果
               else if (parsed.type === "result") {
@@ -619,6 +632,39 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
             </div>
           ))}
 
+          {/* 等待动画 - Agent 思考中 */}
+          {isGenerating && !streamingMessage && (
+            <div className="flex items-start gap-4 animate-fade-in">
+              {/* 助手头像 */}
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-sm">
+                <Sparkles className="w-4 h-4 text-white animate-pulse" />
+              </div>
+
+              {/* 思考中动画 */}
+              <div className="flex-1 mr-12">
+                <div className="rounded-2xl p-4 shadow-sm bg-card border border-border">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span className="text-sm">Thinking</span>
+                    <span className="flex gap-1">
+                      <span
+                        className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <span
+                        className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <span
+                        className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 流式消息 */}
           {streamingMessage && (
             <div className="flex items-start gap-4 animate-fade-in">
@@ -629,9 +675,18 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
 
               {/* 消息内容 */}
               <div className="flex-1 mr-12">
-                <div className="rounded-2xl p-4 shadow-sm transition-shadow hover:shadow-md bg-card border border-border">
+                <div className="rounded-2xl p-4 shadow-sm transition-shadow hover:shadow-md bg-card border border-border relative">
                   <MarkdownMessage content={streamingMessage} />
                   <span className="inline-block w-0.5 h-4 ml-1 bg-primary animate-pulse align-middle" />
+
+                  {/* ✅ 跳过动画按钮 */}
+                  <button
+                    onClick={() => skipTypingAnimation()}
+                    className="absolute bottom-2 right-2 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded bg-muted/50 hover:bg-muted"
+                    title="Skip typing animation"
+                  >
+                    Skip ⏩
+                  </button>
                 </div>
               </div>
             </div>

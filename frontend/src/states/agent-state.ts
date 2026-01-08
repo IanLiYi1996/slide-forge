@@ -10,6 +10,7 @@ import type {
   WorkflowState,
   SlideData,
 } from "@/lib/agent/types/workflow";
+import { TypewriterManager } from "@/lib/agent/typewriter-manager";
 
 interface AgentState {
   // 当前会话信息
@@ -56,6 +57,8 @@ interface AgentState {
   addMessage: (message: Message) => void;
   setMessages: (messages: Message[]) => void;
   appendToStreamingMessage: (content: string) => void;
+  appendToStreamingMessageInstant: (content: string) => void; // 立即显示（用于特殊内容）
+  skipTypingAnimation: () => void; // 跳过打字动画
   finalizeStreamingMessage: () => void;
   clearMessages: () => void;
 
@@ -120,6 +123,16 @@ const initialState = {
   currentSlideIndex: 0,
 };
 
+// ✅ 全局打字机实例（所有会话共享）
+const globalTypewriter = new TypewriterManager(25); // 25ms/字符
+
+// ✅ 设置打字机回调（在 store 创建前）
+globalTypewriter.setCallback((char) => {
+  useAgentState.setState((state) => ({
+    streamingMessage: state.streamingMessage + char,
+  }));
+});
+
 export const useAgentState = create<AgentState>((set) => ({
   ...initialState,
 
@@ -138,13 +151,27 @@ export const useAgentState = create<AgentState>((set) => ({
 
   setMessages: (messages) => set({ messages }),
 
-  appendToStreamingMessage: (content) =>
+  // ✅ 使用打字机队列（流式效果）
+  appendToStreamingMessage: (content) => {
+    globalTypewriter.enqueue(content);
+  },
+
+  // ✅ 立即追加（绕过动画，用于工具调用通知等）
+  appendToStreamingMessageInstant: (content) =>
     set((state) => ({
       streamingMessage: state.streamingMessage + content,
     })),
 
+  // ✅ 跳过打字动画
+  skipTypingAnimation: () => {
+    globalTypewriter.skipAnimation();
+  },
+
   finalizeStreamingMessage: () =>
     set((state) => {
+      // 先清空打字机队列
+      globalTypewriter.clear();
+
       if (state.streamingMessage) {
         return {
           messages: [
