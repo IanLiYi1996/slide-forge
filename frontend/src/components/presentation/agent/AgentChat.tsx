@@ -184,8 +184,16 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
 
           if (slidesFromDb && Array.isArray(slidesFromDb) && slidesFromDb.length > 0) {
             setDbSlides(slidesFromDb as SlideData[]);
+
+            // ✅ 同时初始化 streamedSlides（页面刷新后需要）
+            const slidesMap = new Map<number, SlideData>();
+            slidesFromDb.forEach((slide: SlideData) => {
+              slidesMap.set(slide.index, slide);
+            });
+            setStreamedSlides(slidesMap);
+
             console.log(
-              `[AgentChat] Loaded ${slidesFromDb.length} slides from database for session ${sessionId}`
+              `[AgentChat] Loaded ${slidesFromDb.length} slides from database and initialized cache for session ${sessionId}`
             );
           }
         }
