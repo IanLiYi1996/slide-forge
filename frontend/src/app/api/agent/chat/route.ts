@@ -128,6 +128,8 @@ export async function POST(req: Request) {
           // ✅ 步骤 5: 设置 Agent 监听器（增强幻灯片流式检测）
           // 幻灯片检测buffer
           let slideBuffer = "";
+          // ✅ 收集所有检测到的幻灯片（用于数据库同步）
+          const detectedSlides = new Map<number, { index: number; html: string }>();
 
           // 创建监听器
           const listener = (chunk: any) => {
@@ -166,6 +168,12 @@ export async function POST(req: Request) {
                     const htmlMatch = matchData.slideContent.match(/```html-slide\s*([\s\S]*?)\s*```/);
                     if (htmlMatch && htmlMatch[1]) {
                       const slideHTML = htmlMatch[1].trim();
+
+                      // ✅ 收集到 detectedSlides（用于数据库同步）
+                      detectedSlides.set(matchData.slideIndex, {
+                        index: matchData.slideIndex,
+                        html: slideHTML,
+                      });
 
                       // 📤 立即发送幻灯片完成事件
                       sendSSE('slide_complete', {
@@ -223,6 +231,12 @@ export async function POST(req: Request) {
                         const htmlMatch = matchData.slideContent.match(/```html-slide\s*([\s\S]*?)\s*```/);
                         if (htmlMatch && htmlMatch[1]) {
                           const slideHTML = htmlMatch[1].trim();
+
+                          // ✅ 收集到 detectedSlides（用于数据库同步）
+                          detectedSlides.set(matchData.slideIndex, {
+                            index: matchData.slideIndex,
+                            html: slideHTML,
+                          });
 
                           sendSSE('slide_complete', {
                             slideIndex: matchData.slideIndex,
@@ -297,26 +311,60 @@ export async function POST(req: Request) {
                         updatedMessages
                       );
 
-                      // 提取并同步幻灯片
-                      const extractedSlides = extractSlidesFromMessages(updatedMessages);
-                      if (extractedSlides.length > 0) {
+                      // ✅ 使用检测到的幻灯片数据（而不是从消息重新提取）
+                      if (detectedSlides.size > 0) {
+                        // 转换为 SlideData 格式
+                        const slidesArray = Array.from(detectedSlides.entries())
+                          .sort((a, b) => a[0] - b[0])
+                          .map(([index, data]) => ({
+                            id: `slide-${index}`,
+                            index,
+                            html: data.html,
+                            status: "ready" as const,
+                            outlineContent: `Slide ${index + 1}`,
+                            modificationCount: 0,
+                            conversationHistory: [],
+                          }));
+
                         const existingWorkflowState = updatedSession.workflowState as any;
                         const updatedWorkflowState = {
                           ...existingWorkflowState,
-                          slides: extractedSlides,
-                          currentSlideIndex: extractedSlides.length - 1,
-                          totalSlides: extractedSlides.length,
+                          slides: slidesArray,
+                          currentSlideIndex: slidesArray.length - 1,
+                          totalSlides: slidesArray.length,
                           lastModifiedAt: new Date(),
                         };
 
                         await sessionManager.updateSession(sessionId, session.user.id, {
-                          slides: extractedSlides as any,
+                          slides: slidesArray as any,
                           workflowState: updatedWorkflowState as any,
                         });
 
                         console.log(
-                          `[Agent Chat] Synced ${extractedSlides.length} slides to database (background)`
+                          `[Agent Chat] Synced ${slidesArray.length} slides to database (background) - using detected slides`
                         );
+                      } else {
+                        // 回退：从消息提取（兼容旧逻辑）
+                        const extractedSlides = extractSlidesFromMessages(updatedMessages);
+                        if (extractedSlides.length > 0) {
+                          const existingWorkflowState = updatedSession.workflowState as any;
+                          const updatedWorkflowState = {
+                            ...existingWorkflowState,
+                            slides: extractedSlides,
+                            currentSlideIndex: extractedSlides.length - 1,
+                            totalSlides: extractedSlides.length,
+                            lastModifiedAt: new Date(),
+                          };
+
+                          await sessionManager.updateSession(sessionId, session.user.id, {
+                            slides: extractedSlides as any,
+                            workflowState: updatedWorkflowState as any,
+                          });
+
+                          console.log(
+                            `[Agent Chat] Synced ${extractedSlides.length} slides to database (background) - using message extraction`
+                          );
+                        }
                       }
                     } catch (syncError) {
                       console.error(`[Agent Chat] Background sync failed:`, syncError);
