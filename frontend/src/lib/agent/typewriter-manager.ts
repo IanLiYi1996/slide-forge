@@ -125,18 +125,12 @@ export class TypewriterManager {
 
   /**
    * 立即显示所有剩余内容（用户点击"跳过动画"）
+   * @returns 剩余的内容字符串
    */
-  skipAnimation() {
-    if (!this.callback) return;
-
+  skipAnimation(): string {
     // 取出队列中所有内容
     const remaining = this.queue.join("");
     this.queue = [];
-
-    // 一次性显示
-    if (remaining) {
-      this.callback(remaining);
-    }
 
     // 停止动画
     if (this.animationFrame) {
@@ -145,6 +139,13 @@ export class TypewriterManager {
     }
 
     this.isTyping = false;
+
+    // 一次性显示
+    if (remaining && this.callback) {
+      this.callback(remaining);
+    }
+
+    return remaining;
   }
 
   /**

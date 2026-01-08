@@ -38,7 +38,6 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     streamingMessage,
     appendToStreamingMessage,
     appendToStreamingMessageInstant,
-    skipTypingAnimation,
     finalizeStreamingMessage,
     uploadedFiles,
     addFile,
@@ -675,18 +674,9 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
 
               {/* 消息内容 */}
               <div className="flex-1 mr-12">
-                <div className="rounded-2xl p-4 shadow-sm transition-shadow hover:shadow-md bg-card border border-border relative">
+                <div className="rounded-2xl p-4 shadow-sm transition-shadow hover:shadow-md bg-card border border-border">
                   <MarkdownMessage content={streamingMessage} />
                   <span className="inline-block w-0.5 h-4 ml-1 bg-primary animate-pulse align-middle" />
-
-                  {/* ✅ 跳过动画按钮 */}
-                  <button
-                    onClick={() => skipTypingAnimation()}
-                    className="absolute bottom-2 right-2 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded bg-muted/50 hover:bg-muted"
-                    title="Skip typing animation"
-                  >
-                    Skip ⏩
-                  </button>
                 </div>
               </div>
             </div>

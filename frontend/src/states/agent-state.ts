@@ -165,21 +165,27 @@ export const useAgentState = create<AgentState>((set) => {
 
   // ✅ 跳过打字动画
   skipTypingAnimation: () => {
-    globalTypewriter.skipAnimation();
+    const remaining = globalTypewriter.skipAnimation();
+    console.log(`[Agent State] Skipped animation, remaining: ${remaining.length} chars`);
   },
 
   finalizeStreamingMessage: () =>
     set((state) => {
-      // 先清空打字机队列
-      globalTypewriter.clear();
+      // ✅ 先跳过动画，获取剩余内容
+      const remaining = globalTypewriter.skipAnimation();
 
-      if (state.streamingMessage) {
+      // ✅ 将剩余内容立即追加到当前消息
+      const finalMessage = state.streamingMessage + remaining;
+
+      console.log(`[Agent State] Finalizing message: ${finalMessage.length} chars (stream: ${state.streamingMessage.length}, remaining: ${remaining.length})`);
+
+      if (finalMessage) {
         return {
           messages: [
             ...state.messages,
             {
               role: "assistant" as const,
-              content: state.streamingMessage,
+              content: finalMessage,
               timestamp: new Date(),
             },
           ],
