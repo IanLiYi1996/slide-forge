@@ -126,15 +126,16 @@ const initialState = {
 // ✅ 全局打字机实例（所有会话共享）
 const globalTypewriter = new TypewriterManager(25); // 25ms/字符
 
-// ✅ 设置打字机回调（在 store 创建前）
-globalTypewriter.setCallback((char) => {
-  useAgentState.setState((state) => ({
-    streamingMessage: state.streamingMessage + char,
-  }));
-});
+export const useAgentState = create<AgentState>((set) => {
+  // ✅ 在 store 创建时立即设置打字机回调
+  globalTypewriter.setCallback((char) => {
+    set((state) => ({
+      streamingMessage: state.streamingMessage + char,
+    }));
+  });
 
-export const useAgentState = create<AgentState>((set) => ({
-  ...initialState,
+  return {
+    ...initialState,
 
   // 会话管理
   setCurrentSession: (sessionId, title) =>
@@ -273,4 +274,5 @@ export const useAgentState = create<AgentState>((set) => ({
 
   // 重置
   reset: () => set(initialState),
-}));
+  };
+});

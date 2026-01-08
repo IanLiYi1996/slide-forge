@@ -57,7 +57,8 @@ export class TypewriterManager {
     if (this.isTyping) return;
 
     this.isTyping = true;
-    this.lastTypedTime = performance.now();
+    // ✅ 设置为较早的时间，让第一个字符立即显示
+    this.lastTypedTime = performance.now() - this.speed;
     this.type();
   }
 
