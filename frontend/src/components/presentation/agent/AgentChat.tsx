@@ -58,6 +58,7 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
   const [isSavingTitle, setIsSavingTitle] = useState(false);
   const [dbSlides, setDbSlides] = useState<SlideData[] | null>(null);
   const [isLoadingDbSlides, setIsLoadingDbSlides] = useState(false);
+  const [streamedSlides, setStreamedSlides] = useState<Map<number, SlideData>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -144,6 +145,8 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     if (prevSessionIdRef.current !== sessionId) {
       // sessionId 改变了，重置所有状态
       reset();
+      setStreamedSlides(new Map()); // ✅ 清空流式缓存
+      setDbSlides(null); // ✅ 清空数据库缓存
       prevSessionIdRef.current = sessionId;
     }
   }, [sessionId, reset]);
@@ -212,9 +215,18 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     textarea.style.height = Math.min(textarea.scrollHeight, 384) + 'px';
   }, [inputValue]);
 
-  // 从消息或数据库中提取所有幻灯片（优先使用数据库）
+  // 从消息或数据库中提取所有幻灯片（优先使用流式缓存）
   const extractedSlides = useMemo(() => {
-    // ✅ 优先级1: 数据库幻灯片（最可靠，已同步最新版本）
+    // ✅ 优先级1: 流式缓存（最新，来自 SSE 事件）
+    if (streamedSlides.size > 0) {
+      const slides = Array.from(streamedSlides.values()).sort((a, b) => a.index - b.index);
+      console.log(
+        `[AgentChat] Using ${slides.length} slides from streamed cache`
+      );
+      return slides;
+    }
+
+    // ✅ 优先级2: 数据库幻灯片（刷新后可用）
     if (dbSlides && dbSlides.length > 0) {
       console.log(
         `[AgentChat] Using ${dbSlides.length} slides from database`
@@ -222,7 +234,7 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
       return dbSlides;
     }
 
-    // ✅ 优先级2: 从消息提取（回退方案，使用修复后的逻辑）
+    // ✅ 优先级3: 从消息提取（回退方案）
     const slidesFromMessages = extractSlidesFromMessages(messages);
     if (slidesFromMessages.length > 0) {
       console.log(
@@ -231,7 +243,7 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     }
 
     return slidesFromMessages;
-  }, [dbSlides, messages]);
+  }, [streamedSlides, dbSlides, messages]);
 
   // 检查演示文稿是否完成
   const presentationComplete = useMemo(
@@ -310,6 +322,22 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
               // 🎯 处理流式幻灯片完成
               else if (parsed.type === "slide_complete") {
                 const { slideIndex, html, timestamp } = parsed;
+
+                // ✅ 立即保存幻灯片数据到流式缓存
+                setStreamedSlides((prev) => {
+                  const updated = new Map(prev);
+                  updated.set(slideIndex, {
+                    id: `slide-${slideIndex}`,
+                    index: slideIndex,
+                    html,
+                    status: "ready",
+                    outlineContent: `Slide ${slideIndex}`,
+                    modificationCount: 0,
+                    conversationHistory: [],
+                  });
+                  console.log(`[AgentChat] Saved slide ${slideIndex} to streamed cache (${updated.size} total)`);
+                  return updated;
+                });
 
                 // 显示成功通知
                 toast.success(`Slide ${slideIndex} generated!`, {
