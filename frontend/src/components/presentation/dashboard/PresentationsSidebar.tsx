@@ -216,5 +216,6 @@ export function PresentationsSidebar({
         </ScrollArea>
       </SheetContent>
     </Sheet>
+    </>
   );
 }

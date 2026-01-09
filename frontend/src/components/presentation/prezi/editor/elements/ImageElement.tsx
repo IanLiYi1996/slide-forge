@@ -80,7 +80,7 @@ const ImageElement: React.FC<ImageElementProps> = React.memo(({ element }) => {
       onDrag: ({ offset: [x, y], dragging }) => {
         if (mode !== "select" || !isSelected || element.locked) return;
 
-        setIsDragging(dragging);
+        setIsDragging(dragging ?? false);
 
         if (dragging && groupRef.current) {
           // Convert screen drag to world coordinates

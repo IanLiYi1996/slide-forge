@@ -129,7 +129,7 @@ export const usePreziEditorStore = create<PreziEditorState>()(
         state.canvasData.elements[id] = {
           ...state.canvasData.elements[id]!,
           ...updates,
-        };
+        } as typeof state.canvasData.elements[typeof id];
         state.history.future = [];
       });
     },

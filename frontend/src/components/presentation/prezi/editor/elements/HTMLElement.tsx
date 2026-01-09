@@ -76,7 +76,7 @@ const HTMLElement: React.FC<HTMLElementProps> = React.memo(({ element }) => {
       onDrag: ({ offset: [x, y], dragging }) => {
         if (mode !== "select" || !isSelected || element.locked) return;
 
-        setIsDragging(dragging);
+        setIsDragging(dragging ?? false);
 
         if (dragging && groupRef.current) {
           const dragScale = camera.position.z / 1000;

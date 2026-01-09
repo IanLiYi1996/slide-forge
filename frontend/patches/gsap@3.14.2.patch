@@ -1,0 +1,49 @@
+diff --git a/types/utils/velocity-tracker.d.ts b/types/utils/velocity-tracker.d.ts
+index 14fd0c97ddfe9558b2e80e8f9e6707bf8d21affc..0774294b217095ef998ffa7b22f3f1c1d840690a 100644
+--- a/types/utils/velocity-tracker.d.ts
++++ b/types/utils/velocity-tracker.d.ts
+@@ -8,26 +8,28 @@ declare namespace gsap {
+ 
+   interface VelocityTrackerInstance {
+     readonly target: object;
++    readonly _props: any;
+     add(property: string, type?: VelocityType): void;
+     kill(shallow?: boolean): void;
+     remove(property: string): void;
+     getAll(): VelocityMap;
+     get(property: string): number;
++    isTracking(property: string): boolean;
+   }
+ 
+   interface VelocityTrackerStatic {
+-    getByTarget(target: TweenTarget): VelocityTrackerInstance;
++    getByTarget(target: TweenTarget): VelocityTrackerInstance | undefined;
+     getVelocity(target: TweenTarget, property: string): number;
+     isTracking(target: TweenTarget, property?: string): boolean;
+     track(target: TweenTarget, properties: string, type?: VelocityType): VelocityTrackerInstance[];
+     untrack(target: TweenTarget, properties?: string): void;
++    register(core: typeof gsap): void;
+   }
+ 
+-  interface VelocityTracker extends VelocityTrackerStatic {
++  type VelocityTracker = VelocityTrackerStatic & {
+     new(target: TweenTarget, properties?: string, type?: VelocityType, next?: VelocityTrackerInstance): VelocityTrackerInstance;
+     prototype: VelocityTrackerInstance;
+-    register(core: typeof gsap): void;
+-  }
++  };
+ }
+ 
+ declare const VelocityTracker: gsap.VelocityTracker;
+diff --git a/utils/VelocityTracker.js b/utils/VelocityTracker.js
+index 9c22cd46ef323205540e70ad5e98efa74e907f34..f2e7c752796c245de02720ef79b7edddd791889d 100644
+--- a/utils/VelocityTracker.js
++++ b/utils/VelocityTracker.js
+@@ -7,6 +7,7 @@
+  * @author: Jack Doyle, jack@greensock.com
+ */
+ 
++// @ts-nocheck
+ /* eslint-disable */
+ var gsap,
+     _coreInitted,

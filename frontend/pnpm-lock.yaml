@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  gsap@3.14.2:
+    hash: c38975bc40fcdd050fac67a637ef1bcdab904358f2cf3843d1dbc97ee7843aef
+    path: patches/gsap@3.14.2.patch
+
 importers:
 
   .:
@@ -298,7 +303,7 @@ importers:
         version: 0.2.0
       gsap:
         specifier: ^3.14.2
-        version: 3.14.2
+        version: 3.14.2(patch_hash=c38975bc40fcdd050fac67a637ef1bcdab904358f2cf3843d1dbc97ee7843aef)
       html2canvas-pro:
         specifier: ^1.5.11
         version: 1.5.11
@@ -8903,7 +8908,7 @@ snapshots:
 
   graceful-fs@4.2.11: {}
 
-  gsap@3.14.2: {}
+  gsap@3.14.2(patch_hash=c38975bc40fcdd050fac67a637ef1bcdab904358f2cf3843d1dbc97ee7843aef): {}
 
   hachure-fill@0.5.2: {}
 
