@@ -33,6 +33,12 @@ export class StaticAssetsDeployment extends Construct {
   constructor(scope: Construct, id: string, props: StaticAssetsDeploymentProps) {
     super(scope, id);
 
+    // IMPORTANT: This deployment reads from frontend/.next/static
+    // The Docker build also reads from the same directory.
+    // To prevent build mismatches (403 errors), ensure:
+    // 1. Frontend is built BEFORE running 'cdk deploy'
+    // 2. No rebuilds occur between 'cdk deploy' start and completion
+    // 3. prune: true is set to remove old chunk files
     const frontendPath = path.join(__dirname, '../../../frontend');
     const nextStaticPath = path.join(frontendPath, '.next/static');
     const publicPath = path.join(frontendPath, 'public');
@@ -52,8 +58,10 @@ export class StaticAssetsDeployment extends Construct {
       distributionPaths: ['/_next/static/*'],
       // Use server-side encryption
       serverSideEncryption: s3deploy.ServerSideEncryption.AES_256,
-      // Preserve existing files
-      prune: false,
+      // CRITICAL: Delete old files to prevent build mismatches
+      // Each Next.js build generates unique chunk hashes. Old files must be removed
+      // to ensure S3 contains only files from the current build.
+      prune: true,
       // Increase Lambda memory for faster deployment (default: 128 MB)
       memoryLimit: 3008, // 3 GB - significantly speeds up large file uploads
     });
@@ -68,7 +76,8 @@ export class StaticAssetsDeployment extends Construct {
       distribution: props.distribution,
       distributionPaths: ['/public/*'],
       serverSideEncryption: s3deploy.ServerSideEncryption.AES_256,
-      prune: false,
+      // Clean up old public assets (e.g., fonts, images that may change)
+      prune: true,
       // Increase Lambda memory for faster deployment
       memoryLimit: 3008, // 3 GB
     });
