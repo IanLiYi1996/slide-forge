@@ -179,24 +179,25 @@ export function PresentationsSidebar({
   };
 
   return (
-    <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-      <SheetContent
-        overlay={false}
-        side={side}
-        className="absolute flex h-full w-[400px] flex-col border p-0"
-      >
-        <div className="p-6">
-          <SheetHeader className="space-y-4">
-            <SheetTitle className="flex items-center justify-between">
-              <span>Your Presentations</span>
-            </SheetTitle>
+    <>
+      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+        <SheetContent
+          overlay={false}
+          side={side}
+          className="absolute flex h-full w-[400px] flex-col border p-0"
+        >
+          <div className="p-6">
+            <SheetHeader className="space-y-4">
+              <SheetTitle className="flex items-center justify-between">
+                <span>Your Presentations</span>
+              </SheetTitle>
 
-            {!isSelecting && (
-              <Button onClick={handleCreateNew} className="w-full">
-                <Plus className="mr-2 h-4 w-4" />
-                Create New Presentation
-              </Button>
-            )}
+              {!isSelecting && (
+                <Button onClick={handleCreateNew} className="w-full">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create New Presentation
+                </Button>
+              )}
             <div className="flex items-center justify-end">
               <SelectionControls
                 isSelecting={isSelecting}

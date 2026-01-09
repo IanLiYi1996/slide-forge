@@ -2,6 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { createPresentation } from "@/app/_actions/presentation/presentationActions";
+import { createInitialCanvasData } from "@/states/prezi-editor-state";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,11 +14,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ExportButton } from "@/components/presentation/presentation-page/buttons/ExportButton";
 import { RecentPresentationsSidebar } from "./RecentPresentationsSidebar";
+import { RecentPreziSidebar } from "./RecentPreziSidebar";
 import { RecentAgentSessions } from "./RecentAgentSessions";
 import { RecentDocumentSessions } from "./RecentDocumentSessions";
+import { CreatePreziDialog } from "@/components/presentation/prezi/CreatePreziDialog";
+import { useToast } from "@/components/ui/use-toast";
 import {
   LogOut,
-  Settings,
   User,
   FileText,
   Moon,
@@ -28,6 +32,7 @@ import {
   Key,
   BarChart3,
   Zap,
+  Presentation as PresentationIcon,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useParams, useRouter, usePathname } from "next/navigation";
@@ -41,14 +46,57 @@ export function GlobalSidebar() {
   const params = useParams();
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
+  const { toast } = useToast();
   const presentationId = params.id as string | undefined;
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   // 确保只在客户端渲染主题相关内容（避免 SSR hydration 错误）
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Handle create new Prezi (show dialog)
+  const handleCreatePrezi = () => {
+    setShowCreateDialog(true);
+  };
+
+  // Handle confirm create (from dialog)
+  const handleConfirmCreate = async (data: { title: string; description?: string }) => {
+    try {
+      const newCanvasData = createInitialCanvasData();
+      const result = await createPresentation({
+        title: data.title,
+        mode: "PREZI",
+        content: newCanvasData as any,
+        theme: "mystique",
+        language: "en-US",
+      });
+
+      if (result.success && result.presentation) {
+        // Navigate to the new Prezi editor
+        router.push(`/presentation/prezi-edit/${result.presentation.id}`);
+        toast({
+          title: "Prezi Created",
+          description: `"${data.title}" is ready to edit!`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to create Prezi presentation",
+        });
+      }
+    } catch (error) {
+      console.error("Create Prezi error:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create Prezi presentation",
+      });
+    }
+  };
 
   // Hide sidebar on auth pages and presentation view pages (but not agent pages)
   if (
@@ -58,11 +106,29 @@ export function GlobalSidebar() {
     return null;
   }
 
+  // Debug session data
+  useEffect(() => {
+    if (session?.user && process.env.NODE_ENV === "development") {
+      console.log("[GlobalSidebar] Session user:", {
+        name: session.user.name,
+        email: session.user.email,
+        image: session.user.image,
+      });
+    }
+  }, [session]);
+
+  // Calculate user initials with better fallback
+  const userName = session?.user?.name || session?.user?.email?.split("@")[0] || "User";
   const userInitials = session?.user?.name
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase() || "U";
+    ? session.user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2) // Max 2 letters
+    : session?.user?.email
+    ? session.user.email[0]?.toUpperCase()
+    : "U";
 
   const isDark = theme === "dark";
 
@@ -130,6 +196,23 @@ export function GlobalSidebar() {
               {!isCollapsed && "Document Processor"}
             </Button>
 
+            <Button
+              variant="ghost"
+              className={`w-full h-10 ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'}`}
+              onClick={handleCreatePrezi}
+              title={isCollapsed ? "Create Prezi" : undefined}
+            >
+              <PresentationIcon className="h-4 w-4" />
+              {!isCollapsed && (
+                <>
+                  <span className="flex-1 text-left">Create Prezi</span>
+                  <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-1.5 py-0.5 rounded-full font-medium">
+                    NEW
+                  </span>
+                </>
+              )}
+            </Button>
+
             {/* Export Button - Only show when viewing a presentation */}
             {presentationId && !isCollapsed && (
               <ExportButton
@@ -138,12 +221,13 @@ export function GlobalSidebar() {
               />
             )}
           </div>
-
-          {!isCollapsed && <Separator />}
         </div>
 
         {/* Recent Presentations - Only show when expanded */}
         {!isCollapsed && <RecentPresentationsSidebar />}
+
+        {/* Recent Prezi - Only show when expanded */}
+        {!isCollapsed && <RecentPreziSidebar />}
 
         {/* Recent Agent Sessions - Only show when expanded */}
         {!isCollapsed && <RecentAgentSessions />}
@@ -152,67 +236,35 @@ export function GlobalSidebar() {
         {!isCollapsed && <RecentDocumentSessions />}
       </div>
 
-      {/* Bottom Section - Theme Toggle & User Profile */}
-      <div className="p-4 border-t space-y-3">
-        {/* Theme Toggle & Collapse Button */}
-        <div className="flex items-center justify-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            className="h-8 w-8"
-            title={mounted ? (isDark ? "Switch to Light Mode" : "Switch to Dark Mode") : "Toggle Theme"}
-            suppressHydrationWarning
-          >
-            {mounted ? (
-              isDark ? (
-                <Sun className="h-3.5 w-3.5" />
-              ) : (
-                <Moon className="h-3.5 w-3.5" />
-              )
-            ) : null}
-          </Button>
-
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="h-8 w-8"
-            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          >
-            {isCollapsed ? (
-              <ChevronRight className="h-3.5 w-3.5" />
-            ) : (
-              <ChevronLeft className="h-3.5 w-3.5" />
-            )}
-          </Button>
-        </div>
-
+      {/* Bottom Section - User Profile & Controls */}
+      <div className="p-3 border-t bg-gradient-to-t from-muted/30 to-transparent">
         {session?.user ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className={`w-full h-auto py-3 ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3 px-3'}`}
-              >
-                <Avatar className="h-9 w-9">
-                  <AvatarImage src={session.user?.image || undefined} />
-                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                    {userInitials}
-                  </AvatarFallback>
-                </Avatar>
-                {!isCollapsed && (
-                  <div className="flex-1 text-left overflow-hidden">
-                    <p className="font-medium text-sm truncate">
-                      {session.user?.name || "User"}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {session.user?.email}
-                    </p>
-                  </div>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
+          <div className="space-y-2">
+            {/* User Profile Card */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className={`w-full h-auto py-2.5 hover:bg-accent/50 rounded-lg transition-all ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3 px-3'}`}
+                >
+                  <Avatar className="h-8 w-8 ring-2 ring-primary/20">
+                    <AvatarImage src={session.user?.image || undefined} />
+                    <AvatarFallback className="bg-gradient-to-br from-primary to-primary/70 text-primary-foreground font-semibold text-xs">
+                      {userInitials}
+                    </AvatarFallback>
+                  </Avatar>
+                  {!isCollapsed && (
+                    <div className="flex-1 text-left overflow-hidden">
+                      <p className="font-semibold text-sm truncate">
+                        {userName}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {session.user?.email || "No email"}
+                      </p>
+                    </div>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -238,6 +290,53 @@ export function GlobalSidebar() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+            {/* Quick Controls Bar */}
+            {!isCollapsed && (
+              <div className="flex items-center justify-between gap-2 px-1">
+                {/* Theme Toggle */}
+                <button
+                  onClick={() => setTheme(isDark ? "light" : "dark")}
+                  className="flex-1 flex items-center justify-center gap-2 h-9 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  title={mounted ? (isDark ? "Switch to Light Mode" : "Switch to Dark Mode") : "Toggle Theme"}
+                  suppressHydrationWarning
+                >
+                  {mounted && (
+                    <>
+                      {isDark ? (
+                        <Sun className="h-4 w-4 text-yellow-500" />
+                      ) : (
+                        <Moon className="h-4 w-4 text-blue-500" />
+                      )}
+                      <span className="text-xs font-medium">
+                        {isDark ? "Light" : "Dark"}
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {/* Collapse Button */}
+                <button
+                  onClick={() => setIsCollapsed(!isCollapsed)}
+                  className="flex items-center justify-center h-9 w-9 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  title="Collapse Sidebar"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Collapse Button (when collapsed) */}
+            {isCollapsed && (
+              <button
+                onClick={() => setIsCollapsed(false)}
+                className="w-full flex items-center justify-center h-9 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                title="Expand Sidebar"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         ) : (
           <Button
             variant="outline"
@@ -249,6 +348,13 @@ export function GlobalSidebar() {
           </Button>
         )}
       </div>
+
+      {/* Create Prezi Dialog */}
+      <CreatePreziDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        onConfirm={handleConfirmCreate}
+      />
     </aside>
   );
 }

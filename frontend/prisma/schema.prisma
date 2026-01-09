@@ -89,6 +89,11 @@ enum DocumentType {
     PRESENTATION
 }
 
+enum PresentationMode {
+    TRADITIONAL // Traditional linear slide mode
+    PREZI       // Prezi-style canvas mode with zoom paths
+}
+
 model BaseDocument {
     id           String        @id @default(cuid())
     title        String
@@ -108,13 +113,14 @@ model BaseDocument {
 }
 
 model Presentation {
-    id                String       @id @default(cuid())
-    content           Json // Presentation content including slides, theme, etc.
-    theme             String       @default("default")
-    imageSource       String       @default("ai") // The image model used for generating images
+    id                String           @id @default(cuid())
+    presentationMode  PresentationMode @default(TRADITIONAL) // Presentation mode: traditional slides or Prezi canvas
+    content           Json // For TRADITIONAL: {slides: PlateSlide[]}, For PREZI: PreziCanvasData
+    theme             String           @default("default")
+    imageSource       String           @default("ai") // The image model used for generating images
     prompt            String? // The prompt used for generating the presentation
     presentationStyle String? // The style of the presentation
-    language          String?      @default("en-US") // The language of the presentation
+    language          String?          @default("en-US") // The language of the presentation
     outline           String[] // Store the presentation outline
     searchResults     Json? // Store the search results
     slideImages       Json? // Store slide image generation history with URLs (slideId -> {imageUrl, conversationHistory})
