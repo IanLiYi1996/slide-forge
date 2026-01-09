@@ -18,6 +18,7 @@ export type ImageModelConfig = {
 interface PresentationState {
   currentPresentationId: string | null;
   currentPresentationTitle: string | null;
+  presentationMode: "TRADITIONAL" | "PREZI"; // 🆕 Presentation mode
   isGridView: boolean;
   isSheetOpen: boolean;
   numSlides: number;
@@ -105,6 +106,7 @@ interface PresentationState {
   failSlideImageGeneration: (slideId: string, error: string) => void;
   clearSlideImageGeneration: (slideId: string) => void;
   setCurrentPresentation: (id: string | null, title: string | null) => void;
+  setPresentationMode: (mode: "TRADITIONAL" | "PREZI") => void; // 🆕 Set presentation mode
   setIsGridView: (isGrid: boolean) => void;
   setIsSheetOpen: (isOpen: boolean) => void;
   setNumSlides: (num: number) => void;
@@ -168,6 +170,7 @@ interface PresentationState {
 export const usePresentationState = create<PresentationState>((set) => ({
   currentPresentationId: null,
   currentPresentationTitle: null,
+  presentationMode: "TRADITIONAL", // 🆕 Default mode
   isGridView: true,
   isSheetOpen: false,
   shouldShowExitHeader: false,
@@ -309,6 +312,7 @@ export const usePresentationState = create<PresentationState>((set) => ({
     }),
   setCurrentPresentation: (id, title) =>
     set({ currentPresentationId: id, currentPresentationTitle: title }),
+  setPresentationMode: (mode) => set({ presentationMode: mode }), // 🆕 Set presentation mode
   setIsGridView: (isGrid) => set({ isGridView: isGrid }),
   setIsSheetOpen: (isOpen) => set({ isSheetOpen: isOpen }),
   setNumSlides: (num) => set({ numSlides: num }),

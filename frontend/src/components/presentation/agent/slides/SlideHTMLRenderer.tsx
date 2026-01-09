@@ -29,13 +29,10 @@ export function SlideHTMLRenderer({
     if (!iframeRef.current || !html) return;
 
     const iframe = iframeRef.current;
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
 
-    if (doc) {
-      doc.open();
-      doc.write(html);
-      doc.close();
-    }
+    // 使用 srcdoc 而不是 document.write，这样每次都会完全重新加载 iframe
+    // 避免在同一个文档上下文中重复声明变量的问题
+    iframe.srcdoc = html;
   }, [html]);
 
   // 计算zoom比例（仅在非固定尺寸模式）

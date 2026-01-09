@@ -10,6 +10,7 @@ import type {
   WorkflowState,
   SlideData,
 } from "@/lib/agent/types/workflow";
+import { TypewriterManager } from "@/lib/agent/typewriter-manager";
 
 interface AgentState {
   // 当前会话信息
@@ -56,6 +57,8 @@ interface AgentState {
   addMessage: (message: Message) => void;
   setMessages: (messages: Message[]) => void;
   appendToStreamingMessage: (content: string) => void;
+  appendToStreamingMessageInstant: (content: string) => void; // 立即显示（用于特殊内容）
+  skipTypingAnimation: () => void; // 跳过打字动画
   finalizeStreamingMessage: () => void;
   clearMessages: () => void;
 
@@ -120,8 +123,19 @@ const initialState = {
   currentSlideIndex: 0,
 };
 
-export const useAgentState = create<AgentState>((set) => ({
-  ...initialState,
+// ✅ 全局打字机实例（所有会话共享）
+const globalTypewriter = new TypewriterManager(25); // 25ms/字符
+
+export const useAgentState = create<AgentState>((set) => {
+  // ✅ 在 store 创建时立即设置打字机回调
+  globalTypewriter.setCallback((char) => {
+    set((state) => ({
+      streamingMessage: state.streamingMessage + char,
+    }));
+  });
+
+  return {
+    ...initialState,
 
   // 会话管理
   setCurrentSession: (sessionId, title) =>
@@ -138,20 +152,40 @@ export const useAgentState = create<AgentState>((set) => ({
 
   setMessages: (messages) => set({ messages }),
 
-  appendToStreamingMessage: (content) =>
+  // ✅ 使用打字机队列（流式效果）
+  appendToStreamingMessage: (content) => {
+    globalTypewriter.enqueue(content);
+  },
+
+  // ✅ 立即追加（绕过动画，用于工具调用通知等）
+  appendToStreamingMessageInstant: (content) =>
     set((state) => ({
       streamingMessage: state.streamingMessage + content,
     })),
 
+  // ✅ 跳过打字动画
+  skipTypingAnimation: () => {
+    const remaining = globalTypewriter.skipAnimation();
+    console.log(`[Agent State] Skipped animation, remaining: ${remaining.length} chars`);
+  },
+
   finalizeStreamingMessage: () =>
     set((state) => {
-      if (state.streamingMessage) {
+      // ✅ 先跳过动画，获取剩余内容
+      const remaining = globalTypewriter.skipAnimation();
+
+      // ✅ 将剩余内容立即追加到当前消息
+      const finalMessage = state.streamingMessage + remaining;
+
+      console.log(`[Agent State] Finalizing message: ${finalMessage.length} chars (stream: ${state.streamingMessage.length}, remaining: ${remaining.length})`);
+
+      if (finalMessage) {
         return {
           messages: [
             ...state.messages,
             {
               role: "assistant" as const,
-              content: state.streamingMessage,
+              content: finalMessage,
               timestamp: new Date(),
             },
           ],
@@ -246,4 +280,5 @@ export const useAgentState = create<AgentState>((set) => ({
 
   // 重置
   reset: () => set(initialState),
-}));
+  };
+});

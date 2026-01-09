@@ -8,7 +8,7 @@
 import { SlideHTMLRenderer } from "./slides/SlideHTMLRenderer";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Maximize2, Download, X } from "lucide-react";
 
 interface SlideHTMLPreviewProps {
@@ -20,14 +20,14 @@ interface SlideHTMLPreviewProps {
  * 从 markdown 内容中提取 HTML
  */
 function extractHTMLFromContent(content: string): string | null {
-  // 匹配 ```html-slide ... ```
-  const match = content.match(/```html-slide\s*\n([\s\S]*?)\n```/);
+  // ✅ 匹配 ```html-slide ... ``` （宽松正则，与后端一致）
+  const match = content.match(/```html-slide\s*([\s\S]*?)\s*```/);
   if (match && match[1]) {
     return match[1].trim();
   }
 
-  // 兼容旧格式 ```html ... ```
-  const htmlMatch = content.match(/```html\s*\n([\s\S]*?)\n```/);
+  // ✅ 兼容旧格式 ```html ... ``` （同样使用宽松正则）
+  const htmlMatch = content.match(/```html\s*([\s\S]*?)\s*```/);
   if (htmlMatch && htmlMatch[1]) {
     // 检查是否是完整的 HTML（包含 DOCTYPE 和 html 标签）
     const html = htmlMatch[1].trim();
@@ -121,6 +121,9 @@ export function SlideHTMLPreview({ content, slideNumber }: SlideHTMLPreviewProps
           <DialogTitle className="sr-only">
             Slide {slideNumber || ""} - Fullscreen Preview
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Full-screen preview of slide {slideNumber || ""} at original 1280x720 resolution
+          </DialogDescription>
 
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-muted border-b">

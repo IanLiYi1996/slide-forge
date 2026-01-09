@@ -441,6 +441,8 @@ export const themes: Record<ThemeName, ThemeProperties> = {
 };
 
 // Function to set CSS variables for a theme
+import { updatePreziUIVariables } from "./prezi/theme-utils";
+
 export function setThemeVariables(theme: ThemeProperties, isDark: boolean) {
   const colors = isDark ? theme.colors.dark : theme.colors.light;
   const shadows = isDark ? theme.shadows.dark : theme.shadows.light;
@@ -498,4 +500,7 @@ export function setThemeVariables(theme: ThemeProperties, isDark: boolean) {
     "--presentation-button-shadow",
     shadows.button,
   );
+
+  // 🆕 Update Prezi Editor UI variables
+  updatePreziUIVariables(colors);
 }

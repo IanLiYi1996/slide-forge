@@ -11,6 +11,7 @@ import { Check, Loader2, RefreshCw, Sparkles, X, ArrowLeft, Save } from "lucide-
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useUsageTracker } from "@/hooks/useUsageTracker";
 
 interface SlideBySlideGeneratorProps {
   outline: string[]; // Array of outline topics
@@ -29,6 +30,7 @@ export function SlideBySlideGenerator({
 }: SlideBySlideGeneratorProps) {
   const router = useRouter();
   const { customThemePrompt, imageModel } = usePresentationState();
+  const { trackUsage } = useUsageTracker();
   const [slides, setSlides] = useState<SlideImage[]>(() =>
     outline.map((content, index) => ({
       id: `slide-${index}`,
@@ -91,6 +93,13 @@ export function SlideBySlideGenerator({
       } else {
         toast.success(`Slide ${currentSlideIndex + 1} generated!`);
       }
+
+      // Track slide generation usage
+      await trackUsage('SLIDE_GENERATION', 1, {
+        slideIndex: currentSlideIndex,
+        isModification,
+        templateId,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to generate";
 

@@ -12,6 +12,7 @@ import { Send, Loader2, Upload, X, User, Sparkles, FileText, FileCode, File as F
 import { useRef, useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import type { Message } from "@/lib/agent/types";
+import type { SlideData } from "@/lib/agent/types/workflow";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { ExportToolbar } from "./ExportToolbar";
 import { extractSlidesFromMessages, isPresentationComplete } from "@/lib/agent/utils/extract-slides";
@@ -36,6 +37,7 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     setGenerating,
     streamingMessage,
     appendToStreamingMessage,
+    appendToStreamingMessageInstant,
     finalizeStreamingMessage,
     uploadedFiles,
     addFile,
@@ -54,6 +56,9 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [isSavingTitle, setIsSavingTitle] = useState(false);
+  const [dbSlides, setDbSlides] = useState<SlideData[] | null>(null);
+  const [isLoadingDbSlides, setIsLoadingDbSlides] = useState(false);
+  const [streamedSlides, setStreamedSlides] = useState<Map<number, SlideData>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +145,8 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     if (prevSessionIdRef.current !== sessionId) {
       // sessionId 改变了，重置所有状态
       reset();
+      setStreamedSlides(new Map()); // ✅ 清空流式缓存
+      setDbSlides(null); // ✅ 清空数据库缓存
       prevSessionIdRef.current = sessionId;
     }
   }, [sessionId, reset]);
@@ -153,6 +160,52 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
       clearMessages();
     }
   }, [initialMessages, setMessages, clearMessages, sessionId]);
+
+  // ✅ 从数据库加载幻灯片（优先数据源）- 添加防抖
+  useEffect(() => {
+    const loadDbSlides = async () => {
+      if (!sessionId) return;
+
+      // ✅ 如果正在生成中，延迟加载（等待流式完成）
+      if (isGenerating) {
+        console.log("[AgentChat] Skipping db load - generation in progress");
+        return;
+      }
+
+      setIsLoadingDbSlides(true);
+      try {
+        // ✅ 添加小延迟，确保后台数据库同步已完成
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        const response = await fetch(`/api/agent/session/${sessionId}`);
+        if (response.ok) {
+          const data = await response.json();
+          const slidesFromDb = data.session?.slides;
+
+          if (slidesFromDb && Array.isArray(slidesFromDb) && slidesFromDb.length > 0) {
+            setDbSlides(slidesFromDb as SlideData[]);
+
+            // ✅ 同时初始化 streamedSlides（页面刷新后需要）
+            const slidesMap = new Map<number, SlideData>();
+            slidesFromDb.forEach((slide: SlideData) => {
+              slidesMap.set(slide.index, slide);
+            });
+            setStreamedSlides(slidesMap);
+
+            console.log(
+              `[AgentChat] Loaded ${slidesFromDb.length} slides from database and initialized cache for session ${sessionId}`
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load slides from database:", error);
+      } finally {
+        setIsLoadingDbSlides(false);
+      }
+    };
+
+    loadDbSlides();
+  }, [sessionId, isGenerating]); // ✅ 添加 isGenerating 依赖
 
   // 自动滚动到底部
   useEffect(() => {
@@ -170,11 +223,35 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
     textarea.style.height = Math.min(textarea.scrollHeight, 384) + 'px';
   }, [inputValue]);
 
-  // 从消息中提取所有幻灯片
-  const extractedSlides = useMemo(
-    () => extractSlidesFromMessages(messages),
-    [messages],
-  );
+  // 从消息或数据库中提取所有幻灯片（优先使用流式缓存）
+  const extractedSlides = useMemo(() => {
+    // ✅ 优先级1: 流式缓存（最新，来自 SSE 事件）
+    if (streamedSlides.size > 0) {
+      const slides = Array.from(streamedSlides.values()).sort((a, b) => a.index - b.index);
+      console.log(
+        `[AgentChat] Using ${slides.length} slides from streamed cache`
+      );
+      return slides;
+    }
+
+    // ✅ 优先级2: 数据库幻灯片（刷新后可用）
+    if (dbSlides && dbSlides.length > 0) {
+      console.log(
+        `[AgentChat] Using ${dbSlides.length} slides from database`
+      );
+      return dbSlides;
+    }
+
+    // ✅ 优先级3: 从消息提取（回退方案）
+    const slidesFromMessages = extractSlidesFromMessages(messages);
+    if (slidesFromMessages.length > 0) {
+      console.log(
+        `[AgentChat] Using ${slidesFromMessages.length} slides extracted from messages`
+      );
+    }
+
+    return slidesFromMessages;
+  }, [streamedSlides, dbSlides, messages]);
 
   // 检查演示文稿是否完成
   const presentationComplete = useMemo(
@@ -217,6 +294,7 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
       // 处理流式响应
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
+      let buffer = ""; // 添加缓冲区处理跨包的不完整行
 
       if (!reader) {
         throw new Error("No response body");
@@ -226,9 +304,14 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
+        // 使用 stream: true 进行增量解码（处理多字节 UTF-8）
+        buffer += decoder.decode(value, { stream: true });
 
+        // 按换行符分割，保留最后一个不完整的行在缓冲区
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // 保留不完整的行
+
+        // 只处理完整的行
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             const data = line.slice(6);
@@ -244,10 +327,45 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
               if (parsed.type === "assistant_message") {
                 appendToStreamingMessage(parsed.content);
               }
+              // 🎯 处理流式幻灯片完成
+              else if (parsed.type === "slide_complete") {
+                const { slideIndex, html, timestamp } = parsed;
+
+                // ✅ 立即保存幻灯片数据到流式缓存
+                setStreamedSlides((prev) => {
+                  const updated = new Map(prev);
+                  updated.set(slideIndex, {
+                    id: `slide-${slideIndex}`,
+                    index: slideIndex,
+                    html,
+                    status: "ready",
+                    outlineContent: `Slide ${slideIndex}`,
+                    modificationCount: 0,
+                    conversationHistory: [],
+                  });
+                  console.log(`[AgentChat] Saved slide ${slideIndex} to streamed cache (${updated.size} total)`);
+                  return updated;
+                });
+
+                // 显示成功通知
+                toast.success(`Slide ${slideIndex} generated!`, {
+                  description: "Your slide is ready to view",
+                  duration: 2000,
+                });
+
+                // 在消息中添加提示（不显示完整HTML，避免界面混乱）
+                // ✅ 使用立即显示，元信息不需要打字机效果
+                appendToStreamingMessageInstant(
+                  `\n\n✅ **Slide ${slideIndex} completed** - View it in the preview below.\n\n`
+                );
+
+                console.log(`[AgentChat] Received slide ${slideIndex} with ${html.length} chars`);
+              }
               // 处理工具使用
               else if (parsed.type === "tool_use") {
                 const toolMessage = `\n\n[Using tool: ${parsed.toolName}]\n\n`;
-                appendToStreamingMessage(toolMessage);
+                // ✅ 使用立即显示，元信息不需要打字机效果
+                appendToStreamingMessageInstant(toolMessage);
               }
               // 处理结果
               else if (parsed.type === "result") {
@@ -262,10 +380,23 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
                 toast.error(parsed.content || "An error occurred");
               }
             } catch (e) {
-              // 忽略解析错误
-              console.warn("Failed to parse chunk:", data);
+              // 只记录真正无法解析的数据（不是部分数据）
+              console.warn("Failed to parse SSE data:", data.substring(0, 100) + "...");
             }
           }
+        }
+      }
+
+      // 处理最后的缓冲区（如果包含完整数据）
+      if (buffer.trim() && buffer.startsWith("data: ")) {
+        try {
+          const data = buffer.slice(6);
+          const parsed = JSON.parse(data);
+          if (parsed.type === "assistant_message") {
+            appendToStreamingMessage(parsed.content);
+          }
+        } catch (e) {
+          console.warn("Failed to parse final buffer:", e);
         }
       }
 
@@ -535,6 +666,39 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
               )}
             </div>
           ))}
+
+          {/* 等待动画 - Agent 思考中 */}
+          {isGenerating && !streamingMessage && (
+            <div className="flex items-start gap-4 animate-fade-in">
+              {/* 助手头像 */}
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-sm">
+                <Sparkles className="w-4 h-4 text-white animate-pulse" />
+              </div>
+
+              {/* 思考中动画 */}
+              <div className="flex-1 mr-12">
+                <div className="rounded-2xl p-4 shadow-sm bg-card border border-border">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span className="text-sm">Thinking</span>
+                    <span className="flex gap-1">
+                      <span
+                        className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <span
+                        className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <span
+                        className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 流式消息 */}
           {streamingMessage && (
