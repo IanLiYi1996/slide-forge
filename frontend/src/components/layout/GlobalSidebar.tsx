@@ -12,7 +12,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ExportButton } from "@/components/presentation/presentation-page/buttons/ExportButton";
 import { RecentPresentationsSidebar } from "./RecentPresentationsSidebar";
 import { RecentPreziSidebar } from "./RecentPreziSidebar";
 import { RecentAgentSessions } from "./RecentAgentSessions";
@@ -43,11 +42,9 @@ import { useState, useEffect } from "react";
 export function GlobalSidebar() {
   const { data: session } = useSession();
   const router = useRouter();
-  const params = useParams();
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
-  const presentationId = params.id as string | undefined;
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -212,14 +209,6 @@ export function GlobalSidebar() {
                 </>
               )}
             </Button>
-
-            {/* Export Button - Only show when viewing a presentation */}
-            {presentationId && !isCollapsed && (
-              <ExportButton
-                presentationId={presentationId}
-                fileName={session?.user?.name || "presentation"}
-              />
-            )}
           </div>
         </div>
 
