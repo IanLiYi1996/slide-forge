@@ -96,6 +96,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       clientId: env.COGNITO_CLIENT_ID,
       clientSecret: env.COGNITO_CLIENT_SECRET,
       issuer: env.COGNITO_ISSUER,
+      checks:
+        process.env.NODE_ENV !== 'development' ? ['pkce', 'nonce'] : ['none'],
     }),
   ],
 });
