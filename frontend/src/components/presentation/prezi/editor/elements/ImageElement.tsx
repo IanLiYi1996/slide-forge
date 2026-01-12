@@ -6,12 +6,13 @@
 
 "use client";
 
-import React, { useRef, useState, useMemo } from "react";
+import React, { useRef, useState, useMemo, useEffect } from "react";
 import { useTexture } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { useGesture } from "@use-gesture/react";
 import { usePreziEditorStore } from "@/states/prezi-editor-state";
 import { type PreziImageElement } from "@/types/prezi-types";
+import { elementRefManager } from "@/lib/presentation/prezi/element-ref-manager";
 import * as THREE from "three";
 
 interface ImageElementProps {
@@ -37,9 +38,22 @@ const ImageElement: React.FC<ImageElementProps> = React.memo(({ element }) => {
 
   const isSelected = selectedElements.includes(element.id);
 
+  // ✨ Check visibility (must check AFTER hooks)
+  const isVisible = element.visible !== false;
+
   // Load texture (must be called unconditionally per React Hooks rules)
   // useTexture will suspend if image is loading - handled by Suspense in PreziCanvas
   const texture = useTexture(element.url || "/placeholder-image.png");
+
+  // ✨ Register Three.js object to ElementRefManager for animations
+  useEffect(() => {
+    if (groupRef.current) {
+      elementRefManager.register(element.id, groupRef.current);
+    }
+    return () => {
+      elementRefManager.unregister(element.id);
+    };
+  }, [element.id]);
 
   // Handle click (selection)
   const handleClick = (e: any) => {
@@ -135,6 +149,11 @@ const ImageElement: React.FC<ImageElementProps> = React.memo(({ element }) => {
     return mat;
   }, [texture, element.opacity, isSelected, isHovered]);
 
+  // ✨ Don't render if not visible
+  if (!isVisible) {
+    return null;
+  }
+
   return (
     <group
       ref={groupRef}
@@ -154,20 +173,36 @@ const ImageElement: React.FC<ImageElementProps> = React.memo(({ element }) => {
         <planeGeometry args={[element.size.width, element.size.height]} />
       </mesh>
 
-      {/* Selection outline */}
+      {/* ✨ 增强的选中轮廓 */}
       {isSelected && (
-        <lineSegments>
-          <edgesGeometry
-            attach="geometry"
-            args={[
-              new THREE.PlaneGeometry(
-                element.size.width,
-                element.size.height
-              ),
-            ]}
-          />
-          <lineBasicMaterial attach="material" color="#3b82f6" linewidth={2} />
-        </lineSegments>
+        <>
+          {/* 主轮廓 */}
+          <lineSegments>
+            <edgesGeometry
+              attach="geometry"
+              args={[
+                new THREE.PlaneGeometry(
+                  element.size.width + 10,
+                  element.size.height + 10
+                ),
+              ]}
+            />
+            <lineBasicMaterial attach="material" color="#3b82f6" linewidth={3} />
+          </lineSegments>
+          {/* 内轮廓 */}
+          <lineSegments>
+            <edgesGeometry
+              attach="geometry"
+              args={[
+                new THREE.PlaneGeometry(
+                  element.size.width + 5,
+                  element.size.height + 5
+                ),
+              ]}
+            />
+            <lineBasicMaterial attach="material" color="#60a5fa" linewidth={2} opacity={0.5} transparent />
+          </lineSegments>
+        </>
       )}
 
       {/* Hover outline */}
@@ -177,12 +212,12 @@ const ImageElement: React.FC<ImageElementProps> = React.memo(({ element }) => {
             attach="geometry"
             args={[
               new THREE.PlaneGeometry(
-                element.size.width,
-                element.size.height
+                element.size.width + 5,
+                element.size.height + 5
               ),
             ]}
           />
-          <lineBasicMaterial attach="material" color="#60a5fa" linewidth={1} />
+          <lineBasicMaterial attach="material" color="#60a5fa" linewidth={2} />
         </lineSegments>
       )}
     </group>

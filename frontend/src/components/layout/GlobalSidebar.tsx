@@ -2,8 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { createPresentation } from "@/app/_actions/presentation/presentationActions";
-import { createInitialCanvasData } from "@/states/prezi-editor-state";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +14,6 @@ import { RecentPresentationsSidebar } from "./RecentPresentationsSidebar";
 import { RecentPreziSidebar } from "./RecentPreziSidebar";
 import { RecentAgentSessions } from "./RecentAgentSessions";
 import { RecentDocumentSessions } from "./RecentDocumentSessions";
-import { CreatePreziDialog } from "@/components/presentation/prezi/CreatePreziDialog";
 import { useToast } from "@/components/ui/use-toast";
 import {
   LogOut,
@@ -47,7 +44,6 @@ export function GlobalSidebar() {
   const { toast } = useToast();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
 
   // 确保只在客户端渲染主题相关内容（避免 SSR hydration 错误）
@@ -66,59 +62,22 @@ export function GlobalSidebar() {
     }
   }, [session]);
 
-  // Handle create new Prezi (show dialog)
+  // ✨ Handle create new Prezi - navigate to choice page (consistent with homepage)
   const handleCreatePrezi = () => {
-    setShowCreateDialog(true);
+    router.push("/presentation/prezi-new");
   };
 
-  // Handle confirm create (from dialog)
-  const handleConfirmCreate = async (data: { title: string; description?: string }) => {
-    try {
-      const newCanvasData = createInitialCanvasData();
-      const result = await createPresentation({
-        title: data.title,
-        mode: "PREZI",
-        content: newCanvasData as any,
-        theme: "mystique",
-        language: "en-US",
-      });
-
-      if (result.success && result.presentation) {
-        // Navigate to the new Prezi editor
-        router.push(`/presentation/prezi-edit/${result.presentation.id}`);
-        toast({
-          title: "Prezi Created",
-          description: `"${data.title}" is ready to edit!`,
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to create Prezi presentation",
-        });
-      }
-    } catch (error) {
-      console.error("Create Prezi error:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to create Prezi presentation",
-      });
-    }
-  };
-
-  const isHomePage = pathname === "/";
-
-  // Hide sidebar completely on auth pages and presentation view pages
+  // ✨ 只在 auth 页面和纯 ID 的 presentation 查看页面隐藏侧边栏
+  // 允许 /presentation/prezi-new, /presentation/prezi-create-ai 等有意义的路径显示侧边栏
   if (
     pathname?.startsWith("/auth") ||
-    (pathname?.match(/^\/presentation\/[^/]+$/) && !pathname?.includes("/agent"))
+    (pathname?.match(/^\/presentation\/[a-f0-9-]{36}$/) && !pathname?.includes("/agent"))
   ) {
     return null;
   }
 
-  // On homepage, show floating trigger button
-  if (isHomePage && !isOverlayOpen) {
+  // ✨ 所有页面都使用浮动按钮 + overlay 模式（统一为首页样式）
+  if (!isOverlayOpen) {
     return (
       <button
         onClick={() => setIsOverlayOpen(true)}
@@ -145,54 +104,29 @@ export function GlobalSidebar() {
 
   const isDark = theme === "dark";
 
-  // Homepage overlay mode
-  if (isHomePage) {
-    return (
-      <>
-        {/* Backdrop */}
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-in fade-in duration-200"
-          onClick={() => setIsOverlayOpen(false)}
-        />
-
-        {/* Sidebar Drawer */}
-        <aside className="fixed left-0 top-0 h-screen w-64 z-50 border-r bg-gradient-to-b from-card to-card/50 flex flex-col shadow-2xl animate-in slide-in-from-left duration-300">
-          {/* Close Button */}
-          <button
-            onClick={() => setIsOverlayOpen(false)}
-            className="absolute -right-10 top-6 flex items-center justify-center w-8 h-8 rounded-full bg-card border shadow-lg hover:bg-accent transition-colors"
-            title="Close Menu"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-
-          {/* Same content as regular sidebar */}
-          {renderSidebarContent(true)}
-        </aside>
-
-        {/* Create Prezi Dialog */}
-        <CreatePreziDialog
-          open={showCreateDialog}
-          onOpenChange={setShowCreateDialog}
-          onConfirm={handleConfirmCreate}
-        />
-      </>
-    );
-  }
-
-  // Regular sidebar for other pages
+  // ✨ 统一使用 overlay 模式（所有页面都像首页）
   return (
     <>
-      <aside className={`border-r bg-gradient-to-b from-card to-card/50 flex flex-col h-screen shadow-sm transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'}`}>
-        {renderSidebarContent()}
-      </aside>
-
-      {/* Create Prezi Dialog */}
-      <CreatePreziDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-        onConfirm={handleConfirmCreate}
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-in fade-in duration-200"
+        onClick={() => setIsOverlayOpen(false)}
       />
+
+      {/* Sidebar Drawer */}
+      <aside className="fixed left-0 top-0 h-screen w-64 z-50 border-r bg-gradient-to-b from-card to-card/50 flex flex-col shadow-2xl animate-in slide-in-from-left duration-300">
+        {/* Close Button */}
+        <button
+          onClick={() => setIsOverlayOpen(false)}
+          className="absolute -right-10 top-6 flex items-center justify-center w-8 h-8 rounded-full bg-card border shadow-lg hover:bg-accent transition-colors"
+          title="Close Menu"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+
+        {/* Sidebar content */}
+        {renderSidebarContent(true)}
+      </aside>
     </>
   );
 

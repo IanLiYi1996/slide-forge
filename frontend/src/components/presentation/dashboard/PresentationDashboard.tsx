@@ -67,8 +67,8 @@ export function PresentationDashboard() {
 
   return (
     <div className="notebook-section relative h-full w-full overflow-auto">
-      {/* Main Content - Centered considering sidebar width (256px / 2 = 128px offset) */}
-      <div className="min-h-full flex items-center justify-center" style={{ marginLeft: '-128px' }}>
+      {/* ✨ Main Content - 完全居中（侧边栏现在是 overlay，不占空间） */}
+      <div className="min-h-full flex items-center justify-center">
         <div className="w-full max-w-3xl space-y-10 px-8 py-16">
           {/* Main Input Section */}
           <div className="space-y-6">

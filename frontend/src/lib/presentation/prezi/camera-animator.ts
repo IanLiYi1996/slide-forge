@@ -1,96 +1,129 @@
 /**
- * CameraAnimator
+ * CameraAnimator (重构版)
  *
- * Handles camera animation for Prezi path playback using GSAP.
- * Provides smooth transitions between keyframes with various easing functions.
+ * 核心改进：
+ * 1. 虚拟相机对象 - GSAP 直接驱动相机属性
+ * 2. 预创建模式 - 消除播放启动延迟
+ * 3. 扩展缓动函数 - 20+ 种高级缓动
+ * 4. 单关键帧支持 - 自动飞入动画
  */
 
 import gsap from "gsap";
-import { type CameraState, type PathKeyframe, type PresentationPath } from "@/types/prezi-types";
+import { type CameraState, type PresentationPath } from "@/types/prezi-types";
 
 /**
- * Camera animator class
+ * Camera Animator Class
  */
 export class CameraAnimator {
   private timeline: gsap.core.Timeline | null = null;
-  private currentKeyframeIndex: number = 0;
+  private isReady: boolean = false;
   private isPlaying: boolean = false;
   private isPaused: boolean = false;
 
+  // ✨ 虚拟相机对象（GSAP 直接操作这些属性）
+  private virtualCamera = {
+    px: 0,
+    py: 0,
+    pz: 1000,
+    tx: 0,
+    ty: 0,
+    tz: 0,
+    zoom: 1,
+    keyframeIndex: 0,
+  };
+
   /**
-   * Create animation timeline from path
+   * ✨ 预创建 Timeline（path 变化时调用，不是播放时）
+   *
+   * 关键优化：Timeline 在 path 加载时立即创建（paused状态）
+   * 当用户点击播放时，只需调用 play()，无需等待创建
    */
-  createTimeline(
+  prepareTimeline(
     path: PresentationPath,
-    onUpdate?: (keyframeIndex: number, progress: number) => void,
-    onComplete?: () => void
-  ): gsap.core.Timeline {
-    // Kill existing timeline
+    callbacks: {
+      onKeyframeChange?: (index: number) => void;
+      onProgress?: (index: number, progress: number) => void;
+      onComplete?: () => void;
+    } = {}
+  ): void {
+    // 清理旧 timeline
     if (this.timeline) {
       this.timeline.kill();
+      this.timeline = null;
     }
 
-    // Create new timeline
+    if (!path || path.keyframes.length === 0) {
+      console.warn("[CameraAnimator] Path is empty, cannot prepare timeline");
+      this.isReady = false;
+      return;
+    }
+
+    // 设置初始虚拟相机状态
+    const firstKf = path.keyframes[0];
+    if (!firstKf) return;
+
+    this.virtualCamera.px = firstKf.camera.position.x;
+    this.virtualCamera.py = firstKf.camera.position.y;
+    this.virtualCamera.pz = firstKf.camera.position.z;
+    this.virtualCamera.tx = firstKf.camera.target.x;
+    this.virtualCamera.ty = firstKf.camera.target.y;
+    this.virtualCamera.tz = firstKf.camera.target.z;
+    this.virtualCamera.zoom = firstKf.camera.zoom;
+    this.virtualCamera.keyframeIndex = 0;
+
+    // ✨ 特殊处理：单关键帧自动飞入
+    if (path.keyframes.length === 1) {
+      this.prepareSingleKeyframeTimeline(path, callbacks);
+      return;
+    }
+
+    // 创建新 timeline（paused 状态）
     this.timeline = gsap.timeline({
       paused: true,
       onComplete: () => {
-        this.isPlaying = false;
-        this.currentKeyframeIndex = 0;
-        if (onComplete) onComplete();
+        if (callbacks.onComplete) callbacks.onComplete();
       },
     });
 
-    // Build timeline from keyframes
-    path.keyframes.forEach((keyframe, index) => {
-      const nextKeyframe = path.keyframes[index + 1];
+    // 构建关键帧动画
+    path.keyframes.forEach((kf, i) => {
+      const next = path.keyframes[i + 1];
+      if (!next) return;
 
-      if (nextKeyframe) {
-        // Add transition to next keyframe
-        const duration = keyframe.transition?.duration || 1;
-        const ease = this.getEase(keyframe.transition?.type || "ease-in-out");
-
-        this.timeline!.to(
-          {},
-          {
-            duration,
-            ease,
-            onStart: () => {
-              this.currentKeyframeIndex = index;
-              if (onUpdate) onUpdate(index, 0);
-            },
-            onUpdate: () => {
-              const progress = this.timeline!.progress();
-              if (onUpdate) onUpdate(index, progress);
-            },
+      // ✨ GSAP 直接驱动虚拟相机属性（不再动画空对象！）
+      this.timeline!.to(
+        this.virtualCamera,
+        {
+          px: next.camera.position.x,
+          py: next.camera.position.y,
+          pz: next.camera.position.z,
+          tx: next.camera.target.x,
+          ty: next.camera.target.y,
+          tz: next.camera.target.z,
+          zoom: next.camera.zoom,
+          keyframeIndex: i + 1,
+          duration: kf.transition?.duration || 1,
+          ease: this.getEase(kf.transition?.type || "ease-in-out"),
+          onStart: () => {
+            if (callbacks.onKeyframeChange) {
+              callbacks.onKeyframeChange(i + 1);
+            }
           },
-          `>` // Start after previous animation
-        );
+          onUpdate: () => {
+            if (callbacks.onProgress) {
+              callbacks.onProgress(
+                Math.floor(this.virtualCamera.keyframeIndex),
+                this.timeline!.progress()
+              );
+            }
+          },
+        },
+        ">" // Sequential
+      );
 
-        // Add pause at keyframe
-        if (keyframe.duration > 0) {
-          this.timeline!.to(
-            {},
-            {
-              duration: keyframe.duration,
-            },
-            `>`
-          );
-        }
-      } else {
-        // Last keyframe - just pause
-        if (keyframe.duration > 0) {
-          this.timeline!.to(
-            {},
-            {
-              duration: keyframe.duration,
-              onStart: () => {
-                this.currentKeyframeIndex = index;
-                if (onUpdate) onUpdate(index, 1);
-              },
-            },
-            `>`
-          );
-        }
+      // 停留时间
+      if (kf.duration > 0) {
+        this.timeline!.to({}, { duration: kf.duration }, ">");
       }
     });
 
@@ -99,145 +132,167 @@ export class CameraAnimator {
       this.timeline.repeat(-1);
     }
 
-    return this.timeline;
+    this.isReady = true;
+    console.log(`[CameraAnimator] Timeline prepared with ${path.keyframes.length} keyframes`);
   }
 
   /**
-   * Get GSAP easing function
+   * ✨ 单关键帧特殊处理：从远景飞入
    */
-  private getEase(type: string): string {
-    switch (type) {
-      case "linear":
-        return "none";
-      case "ease":
-        return "power1.inOut";
-      case "ease-in":
-        return "power2.in";
-      case "ease-out":
-        return "power2.out";
-      case "ease-in-out":
-        return "power2.inOut";
-      default:
-        return "power2.inOut";
+  private prepareSingleKeyframeTimeline(
+    path: PresentationPath,
+    callbacks: {
+      onKeyframeChange?: (index: number) => void;
+      onProgress?: (index: number, progress: number) => void;
+      onComplete?: () => void;
     }
+  ): void {
+    const kf = path.keyframes[0];
+    if (!kf) return;
+
+    // 从远景起点
+    this.virtualCamera.px = 0;
+    this.virtualCamera.py = 0;
+    this.virtualCamera.pz = 3000;
+    this.virtualCamera.tx = 0;
+    this.virtualCamera.ty = 0;
+    this.virtualCamera.tz = 0;
+
+    this.timeline = gsap.timeline({
+      paused: true,
+      onComplete: callbacks.onComplete,
+    });
+
+    // 飞入动画（2秒）
+    this.timeline.to(this.virtualCamera, {
+      px: kf.camera.position.x,
+      py: kf.camera.position.y,
+      pz: kf.camera.position.z,
+      tx: kf.camera.target.x,
+      ty: kf.camera.target.y,
+      tz: kf.camera.target.z,
+      zoom: kf.camera.zoom,
+      keyframeIndex: 0,
+      duration: 2,
+      ease: "power2.inOut",
+      onStart: () => {
+        if (callbacks.onKeyframeChange) callbacks.onKeyframeChange(0);
+      },
+      onUpdate: () => {
+        if (callbacks.onProgress) {
+          callbacks.onProgress(0, this.timeline!.progress());
+        }
+      },
+    });
+
+    // 停留
+    if (kf.duration > 0) {
+      this.timeline.to({}, { duration: kf.duration });
+    }
+
+    this.isReady = true;
+    console.log("[CameraAnimator] Single keyframe timeline prepared with fly-in animation");
   }
 
   /**
-   * Interpolate camera state between two keyframes
+   * ✨ 获取当前虚拟相机状态（PreziCamera 直接读取）
    */
-  interpolateCameraState(
-    from: CameraState,
-    to: CameraState,
-    progress: number
-  ): CameraState {
+  getVirtualCameraState(): CameraState {
     return {
       position: {
-        x: from.position.x + (to.position.x - from.position.x) * progress,
-        y: from.position.y + (to.position.y - from.position.y) * progress,
-        z: from.position.z + (to.position.z - from.position.z) * progress,
+        x: this.virtualCamera.px,
+        y: this.virtualCamera.py,
+        z: this.virtualCamera.pz,
       },
       target: {
-        x: from.target.x + (to.target.x - from.target.x) * progress,
-        y: from.target.y + (to.target.y - from.target.y) * progress,
-        z: from.target.z + (to.target.z - from.target.z) * progress,
+        x: this.virtualCamera.tx,
+        y: this.virtualCamera.ty,
+        z: this.virtualCamera.tz,
       },
-      zoom: from.zoom + (to.zoom - from.zoom) * progress,
-      rotation: from.rotation && to.rotation ? {
-        x: from.rotation.x + (to.rotation.x - from.rotation.x) * progress,
-        y: from.rotation.y + (to.rotation.y - from.rotation.y) * progress,
-        z: from.rotation.z + (to.rotation.z - from.rotation.z) * progress,
-      } : undefined,
+      zoom: this.virtualCamera.zoom,
     };
   }
 
   /**
-   * Play animation
+   * Get current keyframe index
    */
-  play(): void {
-    if (this.timeline) {
-      this.timeline.play();
-      this.isPlaying = true;
-      this.isPaused = false;
-    }
+  getCurrentKeyframeIndex(): number {
+    return Math.floor(this.virtualCamera.keyframeIndex);
   }
 
   /**
-   * Pause animation
+   * ✨ 即时播放（无延迟）
+   */
+  play(): boolean {
+    if (!this.isReady || !this.timeline) {
+      console.warn("[CameraAnimator] Timeline not ready, cannot play");
+      return false;
+    }
+
+    this.timeline.play();
+    this.isPlaying = true;
+    this.isPaused = false;
+    return true;
+  }
+
+  /**
+   * Pause playback
    */
   pause(): void {
     if (this.timeline) {
       this.timeline.pause();
-      this.isPlaying = false;
       this.isPaused = true;
+      this.isPlaying = false;
     }
   }
 
   /**
-   * Stop animation (reset to start)
+   * Stop playback (pause + reset to start)
    */
   stop(): void {
     if (this.timeline) {
       this.timeline.pause();
       this.timeline.progress(0);
-      this.isPlaying = false;
       this.isPaused = false;
-      this.currentKeyframeIndex = 0;
+      this.isPlaying = false;
     }
   }
 
   /**
-   * Resume animation
+   * Resume playback
    */
   resume(): void {
     if (this.timeline && this.isPaused) {
-      this.timeline.play();
+      this.timeline.resume();
       this.isPlaying = true;
       this.isPaused = false;
     }
   }
 
   /**
-   * Jump to specific keyframe
+   * ✨ 跳转到指定关键帧（支持逐帧切换）
    */
   jumpToKeyframe(index: number, path: PresentationPath): void {
     if (!this.timeline || index < 0 || index >= path.keyframes.length) {
+      console.warn(`[CameraAnimator] Cannot jump to keyframe ${index}`);
       return;
     }
 
-    // Calculate time position for this keyframe
-    let time = 0;
+    // 计算该关键帧在 timeline 中的时间点
+    let targetTime = 0;
     for (let i = 0; i < index; i++) {
-      const keyframe = path.keyframes[i]!;
-      const nextKeyframe = path.keyframes[i + 1];
-
-      if (nextKeyframe) {
-        time += (keyframe.transition?.duration || 1) + keyframe.duration;
-      } else {
-        time += keyframe.duration;
+      const kf = path.keyframes[i];
+      const next = path.keyframes[i + 1];
+      if (kf && next) {
+        targetTime += (kf.transition?.duration || 1) + kf.duration;
       }
     }
 
-    this.timeline.seek(time);
-    this.currentKeyframeIndex = index;
-  }
+    // 跳转到该时间点
+    this.timeline.seek(targetTime);
+    this.virtualCamera.keyframeIndex = index;
 
-  /**
-   * Go to next keyframe
-   */
-  nextKeyframe(path: PresentationPath): void {
-    const nextIndex = Math.min(
-      this.currentKeyframeIndex + 1,
-      path.keyframes.length - 1
-    );
-    this.jumpToKeyframe(nextIndex, path);
-  }
-
-  /**
-   * Go to previous keyframe
-   */
-  previousKeyframe(path: PresentationPath): void {
-    const prevIndex = Math.max(this.currentKeyframeIndex - 1, 0);
-    this.jumpToKeyframe(prevIndex, path);
+    console.log(`[CameraAnimator] Jumped to keyframe ${index} at time ${targetTime}s`);
   }
 
   /**
@@ -247,31 +302,66 @@ export class CameraAnimator {
     return {
       isPlaying: this.isPlaying,
       isPaused: this.isPaused,
-      currentKeyframeIndex: this.currentKeyframeIndex,
       progress: this.timeline?.progress() || 0,
       duration: this.timeline?.duration() || 0,
+      currentTime: this.timeline?.time() || 0,
+      currentKeyframeIndex: this.getCurrentKeyframeIndex(),
     };
   }
 
   /**
-   * Destroy animator (cleanup)
+   * ✨ 扩展缓动函数（20+ 种）
    */
-  destroy(): void {
-    if (this.timeline) {
-      this.timeline.kill();
-      this.timeline = null;
-    }
-    this.isPlaying = false;
-    this.isPaused = false;
-    this.currentKeyframeIndex = 0;
+  private getEase(type: string): string {
+    const easings: Record<string, string> = {
+      // 基础
+      linear: "none",
+      ease: "power1.inOut",
+      "ease-in": "power2.in",
+      "ease-out": "power2.out",
+      "ease-in-out": "power2.inOut",
+
+      // ✨ 高级缓动
+      "elastic-in": "elastic.in(1, 0.3)",
+      "elastic-out": "elastic.out(1, 0.3)",
+      "elastic-in-out": "elastic.inOut(1, 0.3)",
+      "back-in": "back.in(1.7)",
+      "back-out": "back.out(1.7)",
+      "back-in-out": "back.inOut(1.7)",
+      "bounce-in": "bounce.in",
+      "bounce-out": "bounce.out",
+      "bounce-in-out": "bounce.inOut",
+      "circ-in": "circ.in",
+      "circ-out": "circ.out",
+      "circ-in-out": "circ.inOut",
+      "expo-in": "expo.in",
+      "expo-out": "expo.out",
+      "expo-in-out": "expo.inOut",
+      "sine-in": "sine.in",
+      "sine-out": "sine.out",
+      "sine-in-out": "sine.inOut",
+      "power3-in": "power3.in",
+      "power3-out": "power3.out",
+      "power3-in-out": "power3.inOut",
+      "power4-in": "power4.in",
+      "power4-out": "power4.out",
+      "power4-in-out": "power4.inOut",
+
+      // Prezi 特色
+      "prezi-signature": "power2.inOut",
+    };
+
+    return easings[type] || "power2.inOut";
   }
 }
 
-/**
- * Create global camera animator instance
- */
+// ==================== Global Singleton ====================
+
 let globalAnimator: CameraAnimator | null = null;
 
+/**
+ * Get global camera animator instance (singleton)
+ */
 export function getCameraAnimator(): CameraAnimator {
   if (!globalAnimator) {
     globalAnimator = new CameraAnimator();
@@ -279,9 +369,12 @@ export function getCameraAnimator(): CameraAnimator {
   return globalAnimator;
 }
 
+/**
+ * Reset global animator (useful for cleanup/testing)
+ */
 export function resetCameraAnimator(): void {
   if (globalAnimator) {
-    globalAnimator.destroy();
+    globalAnimator.stop();
     globalAnimator = null;
   }
 }

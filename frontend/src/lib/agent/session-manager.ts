@@ -25,6 +25,21 @@ export class SessionManager {
   }
 
   /**
+   * ✨ 创建新会话（使用自定义 sessionId）
+   */
+  async createSessionWithId(sessionId: string, userId: string, title?: string) {
+    return await db.agentSession.create({
+      data: {
+        userId,
+        sessionId,
+        title: title || "New Agent Session",
+        messages: [],
+        lastActivityAt: new Date(),
+      },
+    });
+  }
+
+  /**
    * 获取用户的所有会话
    */
   async getUserSessions(userId: string) {

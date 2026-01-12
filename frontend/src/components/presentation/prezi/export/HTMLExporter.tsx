@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { FileCode, Loader2 } from "lucide-react";
 import { type PreziHTMLExportOptions } from "@/types/prezi-types";
+import { generateStandaloneHTML as generatePlayerHTML } from "@/lib/presentation/prezi/html-player-template";
 
 interface HTMLExporterProps {
   presentationTitle?: string;
@@ -43,14 +44,8 @@ const HTMLExporter: React.FC<HTMLExporterProps> = ({
     setIsExporting(true);
 
     try {
-      // Generate standalone HTML
-      const html = generateStandaloneHTML({
-        title: presentationTitle,
-        canvasData,
-        includeControls,
-        autoPlay,
-        theme,
-      });
+      // ✨ Generate standalone HTML with embedded Three.js player
+      const html = generatePlayerHTML(canvasData, presentationTitle);
 
       // Create blob and download
       const blob = new Blob([html], { type: "text/html" });

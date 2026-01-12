@@ -69,7 +69,7 @@ const CanvasClickHandler: React.FC<{
         position: { x: pos.x, y: pos.y, z: 0 },
         rotation: { x: 0, y: 0, z: 0 },
         scale: 1,
-        size: { width: 300, height: 100 },
+        size: { width: 1400, height: 500 }, // ✨ 大尺寸：1400x500
         zIndex: 1,
         opacity: 1,
         locked: false,
@@ -80,7 +80,7 @@ const CanvasClickHandler: React.FC<{
           },
         ],
         backgroundColor: "#ffffff",
-        padding: 16,
+        padding: 30, // ✨ 更大的内边距
       };
       addElement(newTextElement);
     } else if (mode === "draw") {
@@ -94,7 +94,7 @@ const CanvasClickHandler: React.FC<{
         position: { x: pos.x, y: pos.y, z: 0 },
         rotation: { x: 0, y: 0, z: 0 },
         scale: 1,
-        size: { width: 400, height: 300 },
+        size: { width: 1400, height: 500 }, // ✨ 大尺寸：1400x500
         zIndex: 2,
         opacity: 1,
         locked: false,
@@ -160,7 +160,7 @@ const PreziCanvas: React.FC<PreziCanvasProps> = ({
         position: { x: pendingImagePosition.x, y: pendingImagePosition.y, z: 0 },
         rotation: { x: 0, y: 0, z: 0 },
         scale: 1,
-        size: { width: 400, height: 300 },
+        size: { width: 1200, height: 900 }, // ✨ 大尺寸：1200x900
         zIndex: 0,
         opacity: 1,
         locked: false,
@@ -205,18 +205,16 @@ const PreziCanvas: React.FC<PreziCanvasProps> = ({
     );
   }
 
-  // Use theme background color if available, otherwise use canvas data color
-  const backgroundColor = themeColors?.background || canvasData.canvas.backgroundColor;
+  // ✨ Use canvas data background color (not theme background)
+  // Theme background is for the UI, canvas background is for the 3D scene
+  const backgroundColor = canvasData.canvas.backgroundColor;
   const gridSize = canvasData.canvas.gridSize;
   const gridEnabled = showGrid && canvasData.canvas.gridEnabled;
 
-  // Calculate grid colors based on theme
-  const gridCellColor = themeColors?.muted
-    ? adjustColorOpacity(themeColors.muted, 0.2)
-    : "#e0e0e0";
-  const gridSectionColor = themeColors?.muted
-    ? adjustColorOpacity(themeColors.muted, 0.4)
-    : "#bdbdbd";
+  // Calculate grid colors based on background lightness
+  const isLightBackground = isColorLight(backgroundColor);
+  const gridCellColor = isLightBackground ? "#e0e0e0" : "#333333";
+  const gridSectionColor = isLightBackground ? "#bdbdbd" : "#555555";
 
   return (
     <div
@@ -236,8 +234,8 @@ const PreziCanvas: React.FC<PreziCanvasProps> = ({
             PREZI_DEFAULTS.CAMERA.POSITION.z,
           ],
           fov: 50,
-          near: 0.1,
-          far: 10000,
+          near: 1, // ✨ Improved from 0.1 for better depth precision
+          far: 20000, // ✨ Expanded from 10000 for wider view range
         }}
         style={{
           background: backgroundColor,
@@ -249,38 +247,55 @@ const PreziCanvas: React.FC<PreziCanvasProps> = ({
         }}
       >
         <Suspense fallback={null}>
+          {/* ✨ Set Three.js scene background color */}
+          <color attach="background" args={[backgroundColor]} />
+
           {/* Canvas click handler for adding elements */}
           <CanvasClickHandler onRequestImageUrl={handleRequestImageUrl} />
 
           {/* Camera controls */}
           <PreziCamera />
 
-          {/* Ambient light */}
-          <ambientLight intensity={0.6} />
+          {/* ✨ Enhanced lighting for better visibility */}
+          <ambientLight intensity={1.2} /> {/* ✨ 进一步增加到 1.2 */}
 
           {/* Directional light for depth perception */}
           <directionalLight
             position={[10, 10, 5]}
-            intensity={0.4}
-            castShadow
+            intensity={0.6} // ✨ 从 0.4 增加到 0.6
           />
 
-          {/* Grid helper (optional) */}
+          {/* ✨ 添加额外的补光（从另一侧） */}
+          <directionalLight
+            position={[-10, -10, -5]}
+            intensity={0.3}
+            color="#ffffff"
+          />
+
+          {/* ✨ 环境光晕（增加空间感） */}
+          <hemisphereLight
+            args={["#87CEEB", "#f0f0f0", 0.3]}
+          />
+
+          {/* ✨ 增强的网格（更美观） */}
           {gridEnabled && (
             <Grid
-              args={[10000, 10000]} // size, divisions
+              args={[10000, 10000]}
               cellSize={gridSize}
-              cellThickness={0.5}
+              cellThickness={1} // ✨ 从 0.5 增加到 1
               cellColor={gridCellColor}
               sectionSize={gridSize * 5}
-              sectionThickness={1}
+              sectionThickness={1.5} // ✨ 从 1 增加到 1.5
               sectionColor={gridSectionColor}
-              fadeDistance={5000}
+              fadeDistance={6000} // ✨ 从 5000 增加到 6000
               fadeStrength={1}
               followCamera={false}
               infiniteGrid={true}
             />
           )}
+
+          {/* ✨ 添加大气雾效果（增加空间深度感） */}
+          <fog attach="fog" args={[isLightBackground ? "#f0f0f0" : "#1a1a1a", 3000, 8000]} />
 
           {/* Render all elements */}
           {Object.values(canvasData.elements).map((element) => (
@@ -343,6 +358,30 @@ function adjustColorOpacity(color: string, opacity: number): string {
   }
 
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+/**
+ * Helper function to check if a color is light or dark
+ */
+function isColorLight(color: string): boolean {
+  let r = 0, g = 0, b = 0;
+
+  if (color.startsWith("#")) {
+    const hex = color.substring(1);
+    if (hex.length === 6) {
+      r = parseInt(hex.substring(0, 2), 16);
+      g = parseInt(hex.substring(2, 4), 16);
+      b = parseInt(hex.substring(4, 6), 16);
+    } else if (hex.length === 3) {
+      r = parseInt(hex[0]! + hex[0], 16);
+      g = parseInt(hex[1]! + hex[1], 16);
+      b = parseInt(hex[2]! + hex[2], 16);
+    }
+  }
+
+  // Calculate relative luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5;
 }
 
 export default PreziCanvas;

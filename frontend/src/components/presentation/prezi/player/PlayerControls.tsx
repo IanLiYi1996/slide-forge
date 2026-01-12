@@ -15,6 +15,8 @@ import { usePreziTheme } from "@/hooks/usePreziTheme";
 import { Play, Pause, Square, SkipBack, SkipForward } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getCameraAnimator } from "@/lib/presentation/prezi/camera-animator";
+import { getElementAnimator } from "@/lib/presentation/prezi/element-animator";
+import { elementRefManager } from "@/lib/presentation/prezi/element-ref-manager";
 
 interface PlayerControlsProps {
   className?: string;
@@ -29,6 +31,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({ className }) => {
   const stopPlaying = usePreziEditorStore((state) => state.stopPlaying);
   const setCurrentKeyframeIndex = usePreziEditorStore((state) => state.setCurrentKeyframeIndex);
   const activePath = useActivePath();
+  const canvasData = usePreziEditorStore((state) => state.canvasData);
   const currentKeyframeIndex = usePreziEditorStore(
     (state) => state.currentKeyframeIndex
   );
@@ -79,21 +82,65 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({ className }) => {
     stopPlaying();
   };
 
-  // Handle previous keyframe
+  // ✨ Handle previous keyframe (with element animation trigger)
   const handlePrevious = () => {
     if (activePath && currentKeyframeIndex > 0) {
       const newIndex = currentKeyframeIndex - 1;
-      setCurrentKeyframeIndex(newIndex);
+
+      // Jump camera to keyframe
       animator.jumpToKeyframe(newIndex, activePath);
+
+      // ✨ Trigger element animations for this keyframe (if any)
+      const keyframe = activePath.keyframes[newIndex];
+      if (keyframe?.elementAnimations && canvasData) {
+        const elementAnimator = getElementAnimator();
+
+        for (const [elementId, action] of Object.entries(keyframe.elementAnimations)) {
+          const element = canvasData.elements[elementId];
+          const elementRef = elementRefManager.get(elementId);
+
+          if (element && elementRef) {
+            if (action === "enter") {
+              elementAnimator.playEnterAnimation(element, elementRef as any);
+            } else if (action === "exit") {
+              elementAnimator.playExitAnimation(element, elementRef as any);
+            }
+          }
+        }
+      }
+
+      setCurrentKeyframeIndex(newIndex);
     }
   };
 
-  // Handle next keyframe
+  // ✨ Handle next keyframe (with element animation trigger)
   const handleNext = () => {
     if (activePath && currentKeyframeIndex < activePath.keyframes.length - 1) {
       const newIndex = currentKeyframeIndex + 1;
-      setCurrentKeyframeIndex(newIndex);
+
+      // Jump camera to keyframe
       animator.jumpToKeyframe(newIndex, activePath);
+
+      // ✨ Trigger element animations for this keyframe (if any)
+      const keyframe = activePath.keyframes[newIndex];
+      if (keyframe?.elementAnimations && canvasData) {
+        const elementAnimator = getElementAnimator();
+
+        for (const [elementId, action] of Object.entries(keyframe.elementAnimations)) {
+          const element = canvasData.elements[elementId];
+          const elementRef = elementRefManager.get(elementId);
+
+          if (element && elementRef) {
+            if (action === "enter") {
+              elementAnimator.playEnterAnimation(element, elementRef as any);
+            } else if (action === "exit") {
+              elementAnimator.playExitAnimation(element, elementRef as any);
+            }
+          }
+        }
+      }
+
+      setCurrentKeyframeIndex(newIndex);
     }
   };
 

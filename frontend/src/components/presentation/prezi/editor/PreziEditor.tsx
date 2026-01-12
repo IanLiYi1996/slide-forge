@@ -25,8 +25,10 @@ import PathPlayer from "../player/PathPlayer";
 import PlayerControls from "../player/PlayerControls";
 import ExportPanel from "../export/ExportPanel";
 import { CreatePreziDialog } from "../CreatePreziDialog";
+import { PreziChatPanel } from "../ai/PreziChatPanel";
 import { Button } from "@/components/ui/button";
-import { Pencil, Route, Download, Presentation, Minimize2, Save, Loader2, Plus } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Pencil, Route, Download, Presentation, Minimize2, Save, Loader2, Plus, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { createPresentation } from "@/app/_actions/presentation/presentationActions";
@@ -93,18 +95,16 @@ const PreziEditor: React.FC<PreziEditorProps> = ({
     }
   }, [presentationId, canvasData]);
 
-  // Auto-save every 30 seconds
-  useEffect(() => {
-    if (!presentationId) return;
-
-    const autoSaveInterval = setInterval(() => {
-      if (canvasData && !isSaving) {
-        handleSave();
-      }
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(autoSaveInterval);
-  }, [presentationId, canvasData, isSaving, handleSave]);
+  // ✨ Auto-save disabled per user request
+  // useEffect(() => {
+  //   if (!presentationId) return;
+  //   const autoSaveInterval = setInterval(() => {
+  //     if (canvasData && !isSaving) {
+  //       handleSave();
+  //     }
+  //   }, 30000);
+  //   return () => clearInterval(autoSaveInterval);
+  // }, [presentationId, canvasData, isSaving, handleSave]);
 
   // Create new Prezi presentation (show dialog)
   const handleNew = () => {
@@ -254,8 +254,19 @@ const PreziEditor: React.FC<PreziEditorProps> = ({
         }
       }
 
-      // Delete selected elements (only in edit mode)
+      // Delete selected elements (only in edit mode and NOT in input fields)
       if (!isPresentMode && (e.key === "Delete" || e.key === "Backspace")) {
+        // ✨ Check if user is typing in an input field
+        const activeElement = document.activeElement;
+        const isTyping =
+          activeElement?.tagName === "INPUT" ||
+          activeElement?.tagName === "TEXTAREA" ||
+          activeElement?.getAttribute("contenteditable") === "true";
+
+        if (isTyping) {
+          return; // Don't delete elements when typing
+        }
+
         const selectedElements = usePreziEditorStore.getState().selectedElements;
         if (selectedElements.length > 0) {
           e.preventDefault();
@@ -604,7 +615,7 @@ const PreziEditor: React.FC<PreziEditorProps> = ({
 
           {/* Right sidebar - Conditional panel */}
           <div
-            className="w-80 border-l p-4 flex flex-col"
+            className="w-80 border-l flex flex-col"
             style={{
               backgroundColor: themeColors.background,
               borderColor: adjustColorOpacity(themeColors.muted, 0.2),
@@ -612,7 +623,7 @@ const PreziEditor: React.FC<PreziEditorProps> = ({
           >
             {/* Debug indicator */}
             <div
-              className="mb-4 rounded px-2 py-1 text-xs font-mono"
+              className="px-4 pt-4 pb-2 rounded px-2 py-1 text-xs font-mono"
               style={{
                 backgroundColor: adjustColorOpacity(themeColors.primary, 0.1),
                 color: themeColors.primary,
@@ -621,12 +632,33 @@ const PreziEditor: React.FC<PreziEditorProps> = ({
               Mode: {editorMode}
             </div>
 
+            {/* ✨ Edit mode with tabs for Properties and AI Chat */}
             {editorMode === "edit" ? (
-              <ElementProperties />
+              <Tabs defaultValue="properties" className="flex flex-col flex-1">
+                <TabsList className="mx-4 mt-2">
+                  <TabsTrigger value="properties" className="flex-1">
+                    Properties
+                  </TabsTrigger>
+                  <TabsTrigger value="ai" className="flex-1">
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    AI Chat
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="properties" className="flex-1 p-4 mt-0">
+                  <ElementProperties />
+                </TabsContent>
+                <TabsContent value="ai" className="flex-1 mt-0 h-full">
+                  <PreziChatPanel />
+                </TabsContent>
+              </Tabs>
             ) : editorMode === "path" ? (
-              <PathEditor />
+              <div className="p-4 flex-1">
+                <PathEditor />
+              </div>
             ) : (
-              <ExportPanel presentationTitle={initialData?.title || "Prezi Presentation"} />
+              <div className="p-4 flex-1">
+                <ExportPanel presentationTitle={initialData?.title || "Prezi Presentation"} />
+              </div>
             )}
           </div>
         </div>

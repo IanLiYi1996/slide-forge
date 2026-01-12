@@ -72,10 +72,11 @@ const LayerPanel: React.FC = () => {
     }
   };
 
-  // Toggle visibility (placeholder)
-  const handleToggleVisibility = (id: string) => {
-    // TODO: Add visibility property to element type
-    console.log("Toggle visibility:", id);
+  // ✨ Toggle visibility
+  const handleToggleVisibility = (id: string, currentVisible: boolean) => {
+    const newVisible = !currentVisible;
+    updateElement(id, { visible: newVisible });
+    console.log(`[LayerPanel] Element ${id} visibility: ${currentVisible} → ${newVisible}`);
   };
 
   // Toggle lock
@@ -138,7 +139,10 @@ const LayerPanel: React.FC = () => {
 
                 {/* Element info */}
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">
+                  <div className="truncate font-medium" style={{
+                    opacity: element.visible === false ? 0.5 : 1,
+                    textDecoration: element.visible === false ? "line-through" : "none"
+                  }}>
                     {element.type === "text"
                       ? "Text Element"
                       : element.type === "image"
@@ -150,24 +154,29 @@ const LayerPanel: React.FC = () => {
                   </div>
                   <div className="text-xs" style={{ color: themeColors.muted }}>
                     z: {element.zIndex}
+                    {element.visible === false && " • Hidden"}
+                    {element.locked && " • Locked"}
                   </div>
                 </div>
 
                 {/* Actions */}
                 <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  {/* Visibility toggle (placeholder) */}
+                  {/* ✨ Visibility toggle */}
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-6 w-6 p-0"
-                    style={{ color: themeColors.muted }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleToggleVisibility(element.id);
+                      handleToggleVisibility(element.id, element.visible !== false);
                     }}
-                    title="Toggle visibility"
+                    title={element.visible === false ? "Show" : "Hide"}
                   >
-                    <Eye className="h-3 w-3" />
+                    {element.visible === false ? (
+                      <EyeOff className="h-3 w-3" style={{ color: "#9ca3af" }} />
+                    ) : (
+                      <Eye className="h-3 w-3" style={{ color: themeColors.muted }} />
+                    )}
                   </Button>
 
                   {/* Lock toggle */}

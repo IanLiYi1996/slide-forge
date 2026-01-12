@@ -239,7 +239,7 @@ export function HomePage() {
                   "w-full h-11 bg-gradient-to-r from-green-500/10 to-emerald-500/10 hover:from-green-500/20 hover:to-emerald-500/20 hover:bg-transparent transition-all border-0",
                   isDark ? "text-white" : "text-foreground"
                 )}
-                onClick={() => router.push("/presentation/prezi-edit/new")}
+                onClick={() => router.push("/presentation/prezi-new")}
               >
                 Create Prezi
                 <ArrowRight className="ml-2 h-4 w-4" />

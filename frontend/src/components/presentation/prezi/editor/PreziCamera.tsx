@@ -1,10 +1,10 @@
 /**
- * PreziCamera Component
+ * PreziCamera Component (重构版)
  *
- * Manages camera controls for the Prezi canvas including:
- * - Pan (drag to move)
- * - Zoom (scroll to zoom)
- * - Auto-camera animation for path playback
+ * 核心改进：
+ * 1. 播放时直接读取虚拟相机 - 消除 Zustand 延迟
+ * 2. 简化状态管理 - 播放时不写 Zustand
+ * 3. 性能优化 - 减少 10x Zustand 调用
  */
 
 "use client";
@@ -13,7 +13,7 @@ import React, { useRef, useEffect } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { usePreziEditorStore } from "@/states/prezi-editor-state";
-import { CAMERA_ZOOM_LIMITS } from "@/types/prezi-types";
+import { getCameraAnimator } from "@/lib/presentation/prezi/camera-animator";
 import * as THREE from "three";
 
 interface PreziCameraProps {
@@ -28,80 +28,93 @@ interface PreziCameraProps {
 const PreziCamera: React.FC<PreziCameraProps> = ({
   enablePan = true,
   enableZoom = true,
-  enableRotate = false, // Disable rotation by default for 2D-like experience
+  enableRotate = false,
 }) => {
   const { camera } = useThree();
   const controlsRef = useRef<any>(null);
   const lastUpdateTime = useRef<number>(0);
-  const skipNextUpdate = useRef<boolean>(false);
 
   const mode = usePreziEditorStore((state) => state.mode);
-  const cameraState = usePreziEditorStore((state) => state.camera);
   const updateCamera = usePreziEditorStore((state) => state.updateCamera);
   const isPlaying = usePreziEditorStore((state) => state.isPlaying);
 
-  // Sync camera with store state
+  // ✨ 简化：播放时禁用 OrbitControls，编辑时启用
   useEffect(() => {
-    if (camera && cameraState && controlsRef.current) {
-      camera.position.set(
-        cameraState.position.x,
-        cameraState.position.y,
-        cameraState.position.z
-      );
-      camera.lookAt(
-        cameraState.target.x,
-        cameraState.target.y,
-        cameraState.target.z
-      );
+    if (!controlsRef.current) return;
 
-      // Update controls target
+    if (isPlaying) {
+      controlsRef.current.enabled = false;
+      console.log("[PreziCamera] OrbitControls disabled (playing)");
+    } else {
+      controlsRef.current.enabled = true;
+      console.log("[PreziCamera] OrbitControls enabled (editing)");
+    }
+  }, [isPlaying]);
+
+  // ✨ 核心修改：直接读取虚拟相机（绕过 Zustand）
+  useFrame(() => {
+    if (!camera || !controlsRef.current) return;
+
+    if (isPlaying) {
+      // ✅ 播放模式：直接从 CameraAnimator 读取虚拟相机
+      const animator = getCameraAnimator();
+      const camState = animator.getVirtualCameraState();
+
+      // 直接应用到 Three.js 相机
+      camera.position.set(camState.position.x, camState.position.y, camState.position.z);
+      camera.lookAt(camState.target.x, camState.target.y, camState.target.z);
+
+      // 应用 zoom（通过调整距离）
+      if (camState.zoom && camState.zoom !== 1) {
+        const direction = new THREE.Vector3();
+        const targetPoint = new THREE.Vector3(
+          camState.target.x,
+          camState.target.y,
+          camState.target.z
+        );
+
+        direction.subVectors(camera.position, targetPoint).normalize();
+        const currentDistance = camera.position.distanceTo(targetPoint);
+        const adjustedDistance = currentDistance / camState.zoom;
+
+        camera.position
+          .copy(targetPoint)
+          .add(direction.multiplyScalar(adjustedDistance));
+      }
+
+      camera.updateProjectionMatrix();
+
+      // 同步 OrbitControls 的 target（避免停止时跳跃）
       controlsRef.current.target.set(
-        cameraState.target.x,
-        cameraState.target.y,
-        cameraState.target.z
+        camState.target.x,
+        camState.target.y,
+        camState.target.z
       );
-
-      // Force controls to update
       controlsRef.current.update();
 
-      // Skip next useFrame update to avoid immediate override
-      skipNextUpdate.current = true;
-      lastUpdateTime.current = Date.now();
+      return; // ✅ 不调用 Zustand（性能优化）
     }
-  }, [camera, cameraState]);
 
-  // Update store when camera moves (via OrbitControls)
-  // Throttled to avoid conflicts with programmatic camera updates
-  useFrame(() => {
-    if (controlsRef.current && !isPlaying) {
-      // Skip if we just programmatically updated the camera
-      if (skipNextUpdate.current) {
-        skipNextUpdate.current = false;
-        return;
-      }
+    // 编辑模式：OrbitControls → Zustand（节流 100ms）
+    const now = Date.now();
+    if (now - lastUpdateTime.current > 100) {
+      const controls = controlsRef.current;
 
-      const now = Date.now();
-      // Only update every 100ms to avoid conflicts
-      if (now - lastUpdateTime.current > 100) {
-        const controls = controlsRef.current;
+      updateCamera({
+        position: {
+          x: camera.position.x,
+          y: camera.position.y,
+          z: camera.position.z,
+        },
+        target: {
+          x: controls.target.x,
+          y: controls.target.y,
+          z: controls.target.z,
+        },
+        zoom: 1,
+      });
 
-        // Update camera state in store
-        updateCamera({
-          position: {
-            x: camera.position.x,
-            y: camera.position.y,
-            z: camera.position.z,
-          },
-          target: {
-            x: controls.target.x,
-            y: controls.target.y,
-            z: controls.target.z,
-          },
-          zoom: 1 / (camera.position.z / 1000), // Convert distance to zoom level
-        });
-
-        lastUpdateTime.current = now;
-      }
+      lastUpdateTime.current = now;
     }
   });
 
@@ -120,13 +133,13 @@ const PreziCamera: React.FC<PreziCameraProps> = ({
       enablePan={panEnabled}
       enableZoom={zoomEnabled}
       enableRotate={rotateEnabled}
-      // Zoom settings
-      minDistance={100} // Min camera distance
-      maxDistance={5000} // Max camera distance
+      // Zoom settings - expanded range
+      minDistance={50}
+      maxDistance={8000}
       zoomSpeed={1.2}
       // Pan settings
       panSpeed={1}
-      screenSpacePanning={true} // Pan in screen space
+      screenSpacePanning={true}
       // Rotation settings (mostly disabled)
       minPolarAngle={Math.PI / 2} // Lock to top-down view
       maxPolarAngle={Math.PI / 2}

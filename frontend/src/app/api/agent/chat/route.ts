@@ -39,13 +39,22 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. 获取会话数据
-    const dbSession = await sessionManager.getSession(
+    // 3. 获取或创建会话数据
+    let dbSession = await sessionManager.getSession(
       sessionId,
       session.user.id,
     );
+
+    // ✨ 如果 session 不存在，自动创建（特别是 Prezi 模式）
     if (!dbSession) {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+      console.log(`[Agent Chat] Session ${sessionId} not found, creating new session`);
+
+      // 使用自定义 sessionId 创建 session
+      dbSession = await sessionManager.createSessionWithId(
+        sessionId,
+        session.user.id,
+        sessionId.startsWith("prezi-") ? "Prezi Edit Session" : "New Agent Session"
+      );
     }
 
     // 4. 构造完整的消息（包含文件内容）

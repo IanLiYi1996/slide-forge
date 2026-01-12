@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Video, Loader2 } from "lucide-react";
 import { getCameraAnimator } from "@/lib/presentation/prezi/camera-animator";
+import { calculatePathDuration } from "@/lib/presentation/prezi/export-utils";
 import GIF from "gif.js";
 
 interface VideoExporterProps {
@@ -61,69 +62,115 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     }
   };
 
-  // Export as GIF
+  // ✨ Export as GIF (重构版 - RAF 同步捕获)
   const exportAsGIF = async (): Promise<void> => {
-    const canvasElement = document.querySelector("canvas");
-    if (!canvasElement || !activePath) return;
+    const canvasElement = document.querySelector("canvas") as HTMLCanvasElement;
+    if (!canvasElement || !activePath) {
+      alert("Canvas or path not found");
+      return;
+    }
 
-    // Create GIF encoder
-    const gif = new GIF({
-      workers: 2,
-      quality: 10,
-      width: 1280,
-      height: 720,
-      workerScript: "/gif.worker.js", // Need to add this to public folder
-    });
+    try {
+      // ✨ 使用 public 文件夹中的 worker（需要手动复制）
+      // 或者使用绝对 CDN 路径作为备用
+      const workerScript = "/gif.worker.js"; // 将在后续设置中复制到 public
 
-    // Play path and capture frames
-    playPath(activePath.id);
+      // Create GIF encoder
+      const gif = new GIF({
+        workers: 2,
+        quality: 10,
+        width: canvasElement.width,
+        height: canvasElement.height,
+        workerScript, // ✨ 使用 public 路径
+      });
 
-    const fps = 30;
-    const frameDelay = 1000 / fps;
-    const animator = getCameraAnimator();
-    const state = animator.getState();
-    const totalDuration = state.duration * 1000; // Convert to ms
-    const totalFrames = Math.floor(totalDuration / frameDelay);
+      // 计算总时长和帧数
+      const fps = 30;
+      const frameDuration = 1000 / fps; // ms per frame
+      const totalDuration = calculatePathDuration(activePath.keyframes) * 1000; // ms
+      const totalFrames = Math.ceil(totalDuration / frameDuration);
 
-    let capturedFrames = 0;
+      console.log(
+        `[GIF Export] Duration: ${(totalDuration / 1000).toFixed(1)}s, Frames: ${totalFrames}`
+      );
 
-    const captureInterval = setInterval(async () => {
-      if (capturedFrames >= totalFrames) {
-        clearInterval(captureInterval);
-        stopPlaying();
+      // 启动播放
+      playPath(activePath.id);
 
-        // Render GIF
-        gif.on("progress", (p) => {
-          setProgress(Math.round(p * 100));
-        });
+      // 等待 Timeline 准备好（小延迟）
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
-        gif.on("finished", (blob) => {
-          // Download GIF
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `${presentationTitle.replace(/[^a-z0-9]/gi, "_")}_${Date.now()}.gif`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
+      let capturedFrames = 0;
+      let lastFrameTime = performance.now();
 
-          alert(`GIF exported successfully: ${a.download}`);
-        });
+      // ✨ 使用 requestAnimationFrame 同步捕获
+      const captureFrame = (timestamp: number) => {
+        const elapsed = timestamp - lastFrameTime;
 
-        gif.render();
-        return;
-      }
+        // 达到帧间隔时捕获
+        if (elapsed >= frameDuration - 5) {
+          // -5ms tolerance
+          const context = canvasElement.getContext("2d", {
+            willReadFrequently: true,
+          });
 
-      // Capture frame
-      const context = canvasElement.getContext("2d", { willReadFrequently: true });
-      if (context) {
-        gif.addFrame(context, { delay: frameDelay, copy: true });
-      }
+          if (context) {
+            gif.addFrame(context, { delay: frameDuration, copy: true });
+            capturedFrames++;
+            setProgress(Math.round((capturedFrames / totalFrames) * 90)); // 0-90%
+            lastFrameTime = timestamp;
 
-      capturedFrames++;
-      setProgress(Math.round((capturedFrames / totalFrames) * 100));
-    }, frameDelay);
+            if (capturedFrames % 10 === 0) {
+              console.log(`[GIF Export] Captured ${capturedFrames}/${totalFrames} frames`);
+            }
+          }
+        }
+
+        // 继续捕获或完成
+        const animator = getCameraAnimator();
+        if (
+          capturedFrames < totalFrames &&
+          animator.getState().isPlaying
+        ) {
+          requestAnimationFrame(captureFrame);
+        } else {
+          // 捕获完成，停止播放
+          stopPlaying();
+          console.log(`[GIF Export] Capture complete: ${capturedFrames} frames`);
+
+          // 渲染 GIF
+          setProgress(90);
+
+          gif.on("progress", (p) => {
+            setProgress(90 + Math.round(p * 10)); // 90-100%
+          });
+
+          gif.on("finished", (blob: Blob) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${presentationTitle.replace(/[^a-z0-9]/gi, "_")}_${Date.now()}.gif`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            alert(`GIF exported successfully: ${capturedFrames} frames, ${a.download}`);
+            setProgress(0);
+          });
+
+          gif.render();
+        }
+      };
+
+      // 开始捕获
+      requestAnimationFrame(captureFrame);
+    } catch (error) {
+      console.error("[GIF Export] Error:", error);
+      alert("Failed to export GIF: " + (error instanceof Error ? error.message : "Unknown error"));
+      stopPlaying();
+      setProgress(0);
+    }
   };
 
   // Export as video (MP4/WebM)

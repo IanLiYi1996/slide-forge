@@ -7,12 +7,13 @@
 
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Html } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { useGesture } from "@use-gesture/react";
 import { usePreziEditorStore } from "@/states/prezi-editor-state";
 import { type PreziHTMLElement } from "@/types/prezi-types";
+import { elementRefManager } from "@/lib/presentation/prezi/element-ref-manager";
 import * as THREE from "three";
 
 interface HTMLElementProps {
@@ -37,6 +38,21 @@ const HTMLElement: React.FC<HTMLElementProps> = React.memo(({ element }) => {
   const mode = usePreziEditorStore((state) => state.mode);
 
   const isSelected = selectedElements.includes(element.id);
+
+  // ✨ Check visibility
+  if (element.visible === false) {
+    return null; // Don't render if hidden
+  }
+
+  // ✨ Register Three.js object to ElementRefManager for animations
+  useEffect(() => {
+    if (groupRef.current) {
+      elementRefManager.register(element.id, groupRef.current);
+    }
+    return () => {
+      elementRefManager.unregister(element.id);
+    };
+  }, [element.id]);
 
   // Handle click (selection)
   const handleClick = (e: any) => {
@@ -138,6 +154,7 @@ const HTMLElement: React.FC<HTMLElementProps> = React.memo(({ element }) => {
       <Html
         transform
         occlude={false}
+        zIndexRange={[100, 0]} // ✨ Ensure HTML renders on top
         position={[0, 0, 0.1]}
         style={{
           width: `${element.size.width}px`,
@@ -148,13 +165,13 @@ const HTMLElement: React.FC<HTMLElementProps> = React.memo(({ element }) => {
         <div
           className="relative h-full w-full overflow-hidden rounded"
           style={{
-            backgroundColor: element.backgroundColor || "transparent",
+            backgroundColor: element.backgroundColor || "#ffffff", // ✨ Default to white
             opacity: element.opacity,
             border: isSelected
               ? "2px solid #3b82f6"
               : isHovered
               ? "2px solid #60a5fa"
-              : "none",
+              : "1px solid #e5e7eb", // ✨ Add subtle border
             boxShadow: isSelected
               ? "0 0 0 3px rgba(59, 130, 246, 0.2)"
               : "none",

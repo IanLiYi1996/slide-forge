@@ -36,5 +36,9 @@ yarn-error.log*
 next-env.d.ts
 resource/# PDF.js worker file (auto-generated)
 /public/pdf.worker.min.mjs
+
+# GIF.js worker file (auto-copied)
+/public/gif.worker.js
+
 frontend/node_modules
 frontend/.next/

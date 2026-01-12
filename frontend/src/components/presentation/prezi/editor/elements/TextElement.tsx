@@ -7,12 +7,13 @@
 
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Html } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { useGesture } from "@use-gesture/react";
 import { usePreziEditorStore } from "@/states/prezi-editor-state";
 import { type PreziTextElement } from "@/types/prezi-types";
+import { elementRefManager } from "@/lib/presentation/prezi/element-ref-manager";
 import * as THREE from "three";
 
 interface TextElementProps {
@@ -38,6 +39,21 @@ const TextElement: React.FC<TextElementProps> = React.memo(({ element }) => {
   const mode = usePreziEditorStore((state) => state.mode);
 
   const isSelected = selectedElements.includes(element.id);
+
+  // ✨ Check visibility
+  if (element.visible === false) {
+    return null; // Don't render if hidden
+  }
+
+  // ✨ Register Three.js object to ElementRefManager for animations
+  useEffect(() => {
+    if (groupRef.current) {
+      elementRefManager.register(element.id, groupRef.current);
+    }
+    return () => {
+      elementRefManager.unregister(element.id);
+    };
+  }, [element.id]);
 
   // Handle click (selection)
   const handleClick = (e: any) => {
@@ -153,7 +169,8 @@ const TextElement: React.FC<TextElementProps> = React.memo(({ element }) => {
       <Html
         transform
         occlude={false}
-        position={[0, 0, 0.1]} // Slightly in front
+        zIndexRange={[100, 0]} // ✨ Ensure text renders on top
+        position={[0, 0, 0.1]}
         style={{
           width: `${element.size.width}px`,
           height: `${element.size.height}px`,
@@ -164,17 +181,20 @@ const TextElement: React.FC<TextElementProps> = React.memo(({ element }) => {
           className="relative h-full w-full overflow-hidden rounded"
           style={{
             backgroundColor:
-              element.backgroundColor || "transparent",
+              element.backgroundColor || "#ffffff",
             padding: `${element.padding || 16}px`,
             opacity: element.opacity,
             border: isSelected
-              ? "2px solid #3b82f6"
+              ? "3px solid #3b82f6" // ✨ 更粗的边框（3px）
               : isHovered
               ? "2px solid #60a5fa"
-              : "none",
+              : "1px solid #e5e7eb",
             boxShadow: isSelected
-              ? "0 0 0 3px rgba(59, 130, 246, 0.2)"
-              : "none",
+              ? "0 0 0 4px rgba(59, 130, 246, 0.3), 0 4px 20px rgba(59, 130, 246, 0.4)" // ✨ 更明显的发光效果
+              : isHovered
+              ? "0 2px 8px rgba(0, 0, 0, 0.15)"
+              : "0 1px 3px rgba(0, 0, 0, 0.1)",
+            outline: isSelected ? "2px solid #3b82f6" : "none", // ✨ 额外的外轮廓
             cursor: isSelected && mode === "select" && !element.locked ? "move" : "default",
             transform: isDragging ? "scale(1.02)" : "none",
             transition: isDragging ? "none" : "transform 0.1s",
@@ -182,11 +202,12 @@ const TextElement: React.FC<TextElementProps> = React.memo(({ element }) => {
         >
           {/* Text content (simplified rendering) */}
           <div
-            className="h-full w-full text-left"
+            className="h-full w-full text-left flex items-center"
             style={{
-              fontSize: "16px",
-              lineHeight: "1.5",
+              fontSize: "48px", // ✨ 大幅增大字体到 48px
+              lineHeight: "1.3",
               color: "#000000",
+              fontWeight: "600", // ✨ 更粗的字重
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
             }}

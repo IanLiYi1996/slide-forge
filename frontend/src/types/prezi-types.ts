@@ -44,6 +44,51 @@ export interface CameraState {
   rotation?: Rotation3D; // Optional: camera's own rotation
 }
 
+// ==================== Animation System ====================
+
+/**
+ * Element animation types
+ */
+export type ElementAnimationType =
+  | "fade" // Fade in/out
+  | "scale" // Scale animation
+  | "slide" // Slide from direction
+  | "rotate" // Rotation animation
+  | "zoom" // Zoom + fade (Prezi classic effect)
+  | "bounce" // Bounce animation
+  | "flip"; // Flip animation
+
+/**
+ * Element animation configuration
+ */
+export interface ElementAnimation {
+  type: ElementAnimationType;
+  direction: "in" | "out" | "both"; // Animation direction
+  duration: number; // Animation duration (seconds)
+  delay?: number; // Delay before animation starts (seconds)
+  easing?: string; // GSAP easing function (e.g., "power2.out", "elastic")
+  startScale?: number; // Initial scale (for scale/zoom animations)
+  endScale?: number; // Final scale (for scale/zoom animations)
+  startOpacity?: number; // Initial opacity
+  endOpacity?: number; // Final opacity
+  rotation?: Rotation3D; // Rotation angles (for rotate animations)
+  triggerPoint?: number; // ✨ Trigger point (0-1, camera progress percentage)
+  zoomReveal?: boolean; // ✨ Enable Zoom Reveal effect (Prezi signature)
+}
+
+// ==================== Highlight System ====================
+
+/**
+ * Highlight effect types
+ */
+export interface HighlightEffect {
+  type: "glow" | "outline" | "shadow" | "blur-others" | "scale-focus";
+  color?: string; // Highlight color (for glow/outline)
+  intensity?: number; // Effect intensity (0-1)
+  blurAmount?: number; // Blur strength (for blur-others)
+  scaleFactor?: number; // Scale factor (for scale-focus)
+}
+
 // ==================== Canvas Elements ====================
 
 /**
@@ -70,6 +115,8 @@ export interface PreziElementBase {
   zIndex: number; // Render layer (for sorting when z values are equal)
   opacity: number; // Opacity 0-1
   locked: boolean; // Whether editing is locked
+  visible?: boolean; // ✨ Whether element is visible (default true)
+  animation?: ElementAnimation; // Element animation configuration
 }
 
 /**
@@ -164,6 +211,11 @@ export interface PathKeyframe {
     duration: number; // Transition animation duration (seconds)
   };
   highlightElements?: string[]; // Element IDs to highlight in this step
+  highlightEffect?: HighlightEffect; // ✨ Highlight effect configuration
+  elementAnimations?: {
+    // ✨ Element enter/exit animations at this keyframe
+    [elementId: string]: "enter" | "exit";
+  };
   title?: string; // Step title (shown in editor)
 }
 

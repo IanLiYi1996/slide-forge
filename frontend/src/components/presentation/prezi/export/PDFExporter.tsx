@@ -16,6 +16,7 @@ import { FileDown, Loader2 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas-pro";
 import { type PreziPDFExportOptions } from "@/types/prezi-types";
+import { waitForRenderComplete } from "@/lib/presentation/prezi/export-utils";
 
 interface PDFExporterProps {
   presentationTitle?: string;
@@ -67,8 +68,8 @@ const PDFExporter: React.FC<PDFExporterProps> = ({
         // Move camera to keyframe position
         updateCamera(keyframe.camera);
 
-        // Wait for camera to update and render
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // ✨ Wait for render to stabilize (not fixed delay)
+        await waitForRenderComplete(2000);
 
         // Capture canvas
         const canvasElement = document.querySelector("canvas");

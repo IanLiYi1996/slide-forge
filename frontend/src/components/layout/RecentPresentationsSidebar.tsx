@@ -40,7 +40,11 @@ export function RecentPresentationsSidebar() {
     getNextPageParam: () => 0,
   });
 
-  const presentations = data?.pages?.[0]?.items?.slice(0, 5) || [];
+  // ✨ Filter only TRADITIONAL (image slides) presentations, exclude PREZI
+  const allPresentations = data?.pages?.[0]?.items || [];
+  const presentations = allPresentations
+    .filter((p) => p.presentation?.presentationMode !== "PREZI")
+    .slice(0, 5);
 
   // Handle delete
   const handleDeleteClick = (e: React.MouseEvent, presentationId: string, title: string) => {

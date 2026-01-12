@@ -25,12 +25,13 @@ export default async function RootLayout({
         <html lang="en" suppressHydrationWarning>
           <body className={`${inter.className} antialiased`} suppressHydrationWarning>
             <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-              <div className="flex h-screen w-full overflow-hidden">
-                <GlobalSidebar />
-                <main className="flex-1 overflow-auto">
-                  {children}
-                </main>
-              </div>
+              {/* ✨ GlobalSidebar 现在是 overlay，不占用布局空间 */}
+              <GlobalSidebar />
+
+              {/* ✨ Main 内容全屏展示 */}
+              <main className="h-screen w-full overflow-auto">
+                {children}
+              </main>
             </ThemeProvider>
           </body>
         </html>

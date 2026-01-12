@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prebuild": "mkdir -p public && cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs && cp node_modules/gif.js/dist/gif.worker.js public/gif.worker.js",
     "build": "next build --turbo",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "dev": "next dev --turbo -p 8080",
-    "postinstall": "prisma generate && mkdir -p public && cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs",
+    "postinstall": "prisma generate && mkdir -p public && cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs && cp node_modules/gif.js/dist/gif.worker.js public/gif.worker.js",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "check": "biome check .",
