@@ -41,5 +41,5 @@
     ".next-dev/types/**/*.ts",
     "src/components/notebook/mindmap/types.tss"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "public"]
 }
