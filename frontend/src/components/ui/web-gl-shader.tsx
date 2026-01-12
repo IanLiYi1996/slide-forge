@@ -1,10 +1,13 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import * as THREE from "three"
+import { useTheme } from "next-themes"
 
 export function WebGLShader() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const sceneRef = useRef<{
     scene: THREE.Scene | null
     camera: THREE.OrthographicCamera | null
@@ -20,6 +23,23 @@ export function WebGLShader() {
     uniforms: null,
     animationId: null,
   })
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const getBackgroundColor = () => {
+    // Directly use theme to determine background color
+    const isDark = resolvedTheme === 'dark' || !resolvedTheme
+
+    if (isDark) {
+      // Dark theme: very dark gray (almost black)
+      return new THREE.Color(0x0a0a0a)  // HSL 0 0% 3.9% ≈ #0a0a0a
+    } else {
+      // Light theme: white
+      return new THREE.Color(0xffffff)  // HSL 0 0% 100% = #ffffff
+    }
+  }
 
   useEffect(() => {
     if (!canvasRef.current) return
@@ -41,6 +61,8 @@ export function WebGLShader() {
       uniform float xScale;
       uniform float yScale;
       uniform float distortion;
+      uniform vec3 backgroundColor;
+      uniform float waveIntensity;
 
       void main() {
         vec2 p = (gl_FragCoord.xy * 2.0 - resolution) / min(resolution.x, resolution.y);
@@ -55,19 +77,49 @@ export function WebGLShader() {
         float wave2 = 0.03 / abs(p.y + sin((gx + time * 0.8) * xScale) * yScale);
         float wave3 = 0.03 / abs(p.y + sin((bx + time * 0.6) * xScale) * yScale);
 
-        // Orange to Purple to Pink theme colors
-        // Orange: rgb(249, 115, 22) = (0.976, 0.451, 0.086)
-        // Purple: rgb(168, 85, 247) = (0.659, 0.333, 0.969)
-        // Pink: rgb(236, 72, 153) = (0.925, 0.282, 0.600)
+        // Determine if background is light or dark
+        float bgLuminance = (backgroundColor.r + backgroundColor.g + backgroundColor.b) / 3.0;
 
-        vec3 color1 = vec3(0.976, 0.451, 0.086) * wave1; // Orange
-        vec3 color2 = vec3(0.659, 0.333, 0.969) * wave2; // Purple
-        vec3 color3 = vec3(0.925, 0.282, 0.600) * wave3; // Pink
+        vec3 color1, color2, color3;
 
-        vec3 finalColor = color1 + color2 + color3;
+        if (bgLuminance < 0.5) {
+          // Dark background: bright vibrant colors
+          // Orange: rgb(249, 115, 22) = (0.976, 0.451, 0.086)
+          // Purple: rgb(168, 85, 247) = (0.659, 0.333, 0.969)
+          // Pink: rgb(236, 72, 153) = (0.925, 0.282, 0.600)
+          color1 = vec3(0.976, 0.451, 0.086) * wave1; // Orange
+          color2 = vec3(0.659, 0.333, 0.969) * wave2; // Purple
+          color3 = vec3(0.925, 0.282, 0.600) * wave3; // Pink
+        } else {
+          // Light background: softer, deeper colors
+          // Deep Coral: rgb(230, 90, 60) = (0.902, 0.353, 0.235)
+          // Deep Purple: rgb(120, 60, 180) = (0.471, 0.235, 0.706)
+          // Deep Rose: rgb(190, 60, 120) = (0.745, 0.235, 0.471)
+          color1 = vec3(0.902, 0.353, 0.235) * wave1; // Deep Coral
+          color2 = vec3(0.471, 0.235, 0.706) * wave2; // Deep Purple
+          color3 = vec3(0.745, 0.235, 0.471) * wave3; // Deep Rose
+        }
 
-        // Darken the overall effect to match the dark theme
-        finalColor *= 0.5;
+        vec3 waveColor = color1 + color2 + color3;
+
+        // Use uniform for dynamic wave intensity
+        waveColor *= waveIntensity;
+
+        vec3 finalColor;
+
+        if (bgLuminance < 0.5) {
+          // Dark background: add waves (glow effect)
+          finalColor = backgroundColor + waveColor;
+        } else {
+          // Light background: show colored waves by blending
+          // Calculate total wave intensity
+          float totalWaveIntensity = wave1 + wave2 + wave3;
+
+          // Blend background with wave color based on wave intensity
+          // Use stronger blending where waves are present
+          float blendFactor = min(totalWaveIntensity * waveIntensity * 0.15, 1.0);
+          finalColor = mix(backgroundColor, waveColor, blendFactor);
+        }
 
         gl_FragColor = vec4(finalColor, 1.0);
       }
@@ -77,7 +129,6 @@ export function WebGLShader() {
       refs.scene = new THREE.Scene()
       refs.renderer = new THREE.WebGLRenderer({ canvas })
       refs.renderer.setPixelRatio(window.devicePixelRatio)
-      refs.renderer.setClearColor(new THREE.Color(0x000000))
 
       refs.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, -1)
 
@@ -87,6 +138,8 @@ export function WebGLShader() {
         xScale: { value: 1.0 },
         yScale: { value: 0.5 },
         distortion: { value: 0.05 },
+        backgroundColor: { value: new THREE.Color(0x000000) },
+        waveIntensity: { value: 0.5 },
       }
 
       const position = [
@@ -148,6 +201,22 @@ export function WebGLShader() {
       refs.renderer?.dispose()
     }
   }, [])
+
+  useEffect(() => {
+    if (!mounted || !sceneRef.current.uniforms) return
+
+    const isDark = resolvedTheme === 'dark' || !resolvedTheme
+    const refs = sceneRef.current
+
+    // Update background color
+    refs.uniforms.backgroundColor.value = getBackgroundColor()
+
+    // Update wave intensity
+    // Dark: 0.5 (bright waves added to dark background)
+    // Light: 0.6 (waves shown by darkening light background)
+    refs.uniforms.waveIntensity.value = isDark ? 0.5 : 0.6
+
+  }, [mounted, resolvedTheme])
 
   return (
     <canvas

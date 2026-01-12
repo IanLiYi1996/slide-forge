@@ -48,11 +48,23 @@ export function GlobalSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
 
   // 确保只在客户端渲染主题相关内容（避免 SSR hydration 错误）
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Debug session data - 必须在所有hooks之后，条件判断之前
+  useEffect(() => {
+    if (session?.user && process.env.NODE_ENV === "development") {
+      console.log("[GlobalSidebar] Session user:", {
+        name: session.user.name,
+        email: session.user.email,
+        image: session.user.image,
+      });
+    }
+  }, [session]);
 
   // Handle create new Prezi (show dialog)
   const handleCreatePrezi = () => {
@@ -95,7 +107,9 @@ export function GlobalSidebar() {
     }
   };
 
-  // Hide sidebar on auth pages and presentation view pages (but not agent pages)
+  const isHomePage = pathname === "/";
+
+  // Hide sidebar completely on auth pages and presentation view pages
   if (
     pathname?.startsWith("/auth") ||
     (pathname?.match(/^\/presentation\/[^/]+$/) && !pathname?.includes("/agent"))
@@ -103,16 +117,18 @@ export function GlobalSidebar() {
     return null;
   }
 
-  // Debug session data
-  useEffect(() => {
-    if (session?.user && process.env.NODE_ENV === "development") {
-      console.log("[GlobalSidebar] Session user:", {
-        name: session.user.name,
-        email: session.user.email,
-        image: session.user.image,
-      });
-    }
-  }, [session]);
+  // On homepage, show floating trigger button
+  if (isHomePage && !isOverlayOpen) {
+    return (
+      <button
+        onClick={() => setIsOverlayOpen(true)}
+        className="fixed top-6 left-6 z-50 flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-pink-500 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 group"
+        title="Open Menu"
+      >
+        <FileText className="h-5 w-5 text-white" />
+      </button>
+    );
+  }
 
   // Calculate user initials with better fallback
   const userName = session?.user?.name || session?.user?.email?.split("@")[0] || "User";
@@ -129,14 +145,71 @@ export function GlobalSidebar() {
 
   const isDark = theme === "dark";
 
+  // Homepage overlay mode
+  if (isHomePage) {
+    return (
+      <>
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-in fade-in duration-200"
+          onClick={() => setIsOverlayOpen(false)}
+        />
+
+        {/* Sidebar Drawer */}
+        <aside className="fixed left-0 top-0 h-screen w-64 z-50 border-r bg-gradient-to-b from-card to-card/50 flex flex-col shadow-2xl animate-in slide-in-from-left duration-300">
+          {/* Close Button */}
+          <button
+            onClick={() => setIsOverlayOpen(false)}
+            className="absolute -right-10 top-6 flex items-center justify-center w-8 h-8 rounded-full bg-card border shadow-lg hover:bg-accent transition-colors"
+            title="Close Menu"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          {/* Same content as regular sidebar */}
+          {renderSidebarContent(true)}
+        </aside>
+
+        {/* Create Prezi Dialog */}
+        <CreatePreziDialog
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          onConfirm={handleConfirmCreate}
+        />
+      </>
+    );
+  }
+
+  // Regular sidebar for other pages
   return (
-    <aside className={`border-r bg-gradient-to-b from-card to-card/50 flex flex-col h-screen shadow-sm transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'}`}>
+    <>
+      <aside className={`border-r bg-gradient-to-b from-card to-card/50 flex flex-col h-screen shadow-sm transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'}`}>
+        {renderSidebarContent()}
+      </aside>
+
+      {/* Create Prezi Dialog */}
+      <CreatePreziDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        onConfirm={handleConfirmCreate}
+      />
+    </>
+  );
+
+  function renderSidebarContent(isOverlay = false) {
+    return (
+      <>
       {/* Top Section - Brand */}
       <div className="p-6 border-b">
         <Button
           variant="ghost"
           className={`w-full h-auto py-3 hover:bg-primary/5 ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'}`}
-          onClick={() => router.push("/")}
+          onClick={() => {
+            if (isOverlay) {
+              setIsOverlayOpen(false);
+            }
+            router.push("/");
+          }}
         >
           <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-pink-500">
             <FileText className="h-4 w-4 text-white" />
@@ -304,19 +377,21 @@ export function GlobalSidebar() {
                   )}
                 </button>
 
-                {/* Collapse Button */}
-                <button
-                  onClick={() => setIsCollapsed(!isCollapsed)}
-                  className="flex items-center justify-center h-9 w-9 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                  title="Collapse Sidebar"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
+                {/* Collapse Button - Hide in overlay mode */}
+                {!isOverlay && (
+                  <button
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    className="flex items-center justify-center h-9 w-9 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                    title="Collapse Sidebar"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             )}
 
-            {/* Collapse Button (when collapsed) */}
-            {isCollapsed && (
+            {/* Collapse Button (when collapsed) - Hide in overlay mode */}
+            {!isOverlay && isCollapsed && (
               <button
                 onClick={() => setIsCollapsed(false)}
                 className="w-full flex items-center justify-center h-9 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
@@ -338,12 +413,7 @@ export function GlobalSidebar() {
         )}
       </div>
 
-      {/* Create Prezi Dialog */}
-      <CreatePreziDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-        onConfirm={handleConfirmCreate}
-      />
-    </aside>
-  );
+      </>
+    );
+  }
 }
