@@ -29,6 +29,7 @@ import {
   BarChart3,
   Zap,
   Presentation as PresentationIcon,
+  Hexagon,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useParams, useRouter, usePathname } from "next/navigation";
@@ -61,7 +62,12 @@ export function GlobalSidebar() {
     if (savedPosition) {
       try {
         const parsed = JSON.parse(savedPosition);
-        setPosition(parsed);
+        // ✨ 验证位置是否在屏幕范围内
+        const maxX = window.innerWidth - 48;
+        const maxY = window.innerHeight - 48;
+        const clampedX = Math.max(0, Math.min(parsed.x, maxX));
+        const clampedY = Math.max(0, Math.min(parsed.y, maxY));
+        setPosition({ x: clampedX, y: clampedY });
       } catch (e) {
         console.error('Failed to parse saved position:', e);
       }
@@ -78,6 +84,22 @@ export function GlobalSidebar() {
       });
     }
   }, [session]);
+
+  // ✨ 键盘快捷键：Shift + R 重置按钮位置
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.shiftKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        const resetPosition = { x: 24, y: 24 };
+        setPosition(resetPosition);
+        localStorage.setItem('sidebar-button-position', JSON.stringify(resetPosition));
+        console.log('[GlobalSidebar] Button position reset to default (24, 24)');
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // ✨ Handle create new Prezi - navigate to choice page (consistent with homepage)
   const handleCreatePrezi = () => {
@@ -173,10 +195,11 @@ export function GlobalSidebar() {
           top: `${position.y}px`,
           cursor: isDragging ? 'grabbing' : 'grab',
         }}
-        className="fixed z-50 flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-pink-500 shadow-lg hover:shadow-xl hover:scale-105 transition-shadow duration-200 group select-none"
+        className="fixed z-[200] flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-pink-500 shadow-lg hover:shadow-xl hover:scale-105 transition-shadow duration-200 group select-none"
         title="Drag to move, Click to open menu"
+        suppressHydrationWarning
       >
-        <FileText className="h-5 w-5 text-white" />
+        <Sparkles className="h-5 w-5 text-white" />
       </button>
     );
   }
@@ -238,7 +261,7 @@ export function GlobalSidebar() {
           }}
         >
           <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-pink-500">
-            <FileText className="h-4 w-4 text-white" />
+            <Sparkles className="h-4 w-4 text-white" />
           </div>
           {!isCollapsed && <span className="font-bold text-lg">SlideForge</span>}
         </Button>
