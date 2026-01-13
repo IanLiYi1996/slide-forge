@@ -22,6 +22,14 @@ interface ThemeColors {
   text: string;
   heading: string;
   muted: string;
+
+  // ✨ Modern UI extensions
+  gradientStart?: string;
+  gradientEnd?: string;
+  gradientAccent?: string;
+  glassBackground?: string;
+  glassBorder?: string;
+  shadowColor?: string;
 }
 
 interface UsePreziThemeReturn {

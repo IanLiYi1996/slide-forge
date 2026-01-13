@@ -8,6 +8,7 @@
 import { usePreziEditorStore } from "@/states/prezi-editor-state";
 import { generateElementId } from "@/states/prezi-editor-state";
 import type { PreziElement, Position3D, Rotation3D, ElementAnimation } from "@/types/prezi-types";
+import { generateHTMLElementFromTemplate, QuickTemplates } from "@/lib/presentation/prezi/html-element-templates";
 
 /**
  * Command structure from AI
@@ -20,7 +21,8 @@ export interface PreziCommand {
     | "update_camera"
     | "add_keyframe"
     | "update_canvas"
-    | "add_animation";
+    | "add_animation"
+    | "add_html_from_template"; // ✨ NEW: Generate HTML from template
   params: any;
   confirmation: string;
 }
@@ -62,6 +64,9 @@ export class PreziCommandExecutor {
 
         case "add_animation":
           return this.executeAddAnimation(store, command.params);
+
+        case "add_html_from_template":
+          return this.executeAddHTMLFromTemplate(store, command.params);
 
         default:
           console.warn("Unknown command action:", command.action);
@@ -285,6 +290,92 @@ export class PreziCommandExecutor {
 
     store.updateElement(elementId, { animation });
     return true;
+  }
+
+  /**
+   * ✨ NEW: Add HTML element from template
+   *
+   * Supports quick templates for common use cases:
+   * - feature-card: Feature highlight with icon
+   * - stat-card: Statistic display
+   * - bullet-list: Styled list
+   * - highlight-box: Callout/attention box
+   * - quote-box: Quotation display
+   * - cta-button: Call-to-action button
+   * - two-column: Side-by-side layout
+   */
+  private static executeAddHTMLFromTemplate(store: any, params: any): boolean {
+    const { templateId, variables, position, quickTemplate } = params;
+
+    // Option 1: Use quick template helper
+    if (quickTemplate) {
+      const { type, ...vars } = quickTemplate;
+      let element;
+
+      switch (type) {
+        case "featureCard":
+          element = QuickTemplates.featureCard(vars.icon, vars.title, vars.description);
+          break;
+        case "statCard":
+          element = QuickTemplates.statCard(vars.number, vars.label, vars.trend);
+          break;
+        case "bulletList":
+          element = QuickTemplates.bulletList(vars.items || []);
+          break;
+        case "highlightBox":
+          element = QuickTemplates.highlightBox(vars.title, vars.message);
+          break;
+        case "quoteBox":
+          element = QuickTemplates.quoteBox(vars.quote, vars.author);
+          break;
+        case "ctaButton":
+          element = QuickTemplates.ctaButton(vars.buttonText);
+          break;
+        case "twoColumn":
+          element = QuickTemplates.twoColumn(
+            vars.leftTitle,
+            vars.leftContent,
+            vars.rightTitle,
+            vars.rightContent
+          );
+          break;
+        default:
+          console.error(`Unknown quick template type: ${type}`);
+          return false;
+      }
+
+      if (element && position) {
+        element.position = position;
+      }
+
+      const fullElement = {
+        id: generateElementId("html"),
+        ...element,
+      };
+
+      store.addElement(fullElement as PreziElement);
+      return true;
+    }
+
+    // Option 2: Use template ID with variables
+    if (!templateId) {
+      console.error("Invalid add_html_from_template params: missing templateId or quickTemplate");
+      return false;
+    }
+
+    try {
+      const element = generateHTMLElementFromTemplate(templateId, variables || {}, position);
+      const fullElement = {
+        id: generateElementId("html"),
+        ...element,
+      };
+
+      store.addElement(fullElement as PreziElement);
+      return true;
+    } catch (error) {
+      console.error("Failed to generate HTML from template:", error);
+      return false;
+    }
   }
 
   /**

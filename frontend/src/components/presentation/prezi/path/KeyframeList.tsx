@@ -31,6 +31,9 @@ const KeyframeList: React.FC<KeyframeListProps> = ({ onKeyframeClick }) => {
   const currentKeyframeIndex = usePreziEditorStore(
     (state) => state.currentKeyframeIndex
   );
+  const updateCamera = usePreziEditorStore((state) => state.updateCamera);
+  const updateElement = usePreziEditorStore((state) => state.updateElement);
+  const setCurrentKeyframeIndex = usePreziEditorStore((state) => state.setCurrentKeyframeIndex);
 
   // Get theme colors using unified hook
   const { mounted, themeColors } = usePreziTheme();
@@ -50,10 +53,33 @@ const KeyframeList: React.FC<KeyframeListProps> = ({ onKeyframeClick }) => {
 
   const keyframes = activePath.keyframes;
 
-  // Handle keyframe click
+  // Handle keyframe click - jump to keyframe view
   const handleKeyframeClick = (keyframeId: string, index: number) => {
     if (onKeyframeClick) {
       onKeyframeClick(keyframeId, index);
+      return;
+    }
+
+    // ✨ Default behavior: jump camera to this keyframe
+    const keyframe = activePath?.keyframes[index];
+    if (!keyframe || !canvasData) return;
+
+    console.log(`[KeyframeList] Jumping to keyframe ${index + 1}`);
+
+    // Update camera to keyframe's camera state
+    updateCamera(keyframe.camera);
+
+    // Update current keyframe index (triggers PreziCamera to apply the change)
+    setCurrentKeyframeIndex(index);
+
+    // ✨ Update element visibility based on keyframe.visibleElements
+    const visibleElementIds = keyframe.visibleElements || [];
+    if (visibleElementIds.length > 0) {
+      Object.keys(canvasData.elements).forEach((elementId) => {
+        const shouldBeVisible = visibleElementIds.includes(elementId);
+        updateElement(elementId, { visible: shouldBeVisible });
+      });
+      console.log(`[KeyframeList] Updated visibility: ${visibleElementIds.length} elements visible`);
     }
   };
 
@@ -154,10 +180,10 @@ const KeyframeList: React.FC<KeyframeListProps> = ({ onKeyframeClick }) => {
                       style={{ color: themeColors.muted }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        // TODO: Preview this keyframe
-                        console.log("Preview keyframe:", index);
+                        // ✨ Preview this keyframe (same as clicking the card)
+                        handleKeyframeClick(keyframe.id, index);
                       }}
-                      title="Preview"
+                      title="Preview this keyframe"
                     >
                       <Play className="h-3 w-3" />
                     </Button>

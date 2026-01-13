@@ -17,6 +17,14 @@ interface ThemeColors {
   text: string;
   heading: string;
   muted: string;
+
+  // ✨ NEW: Modern UI extensions
+  gradientStart?: string;      // Gradient start color
+  gradientEnd?: string;        // Gradient end color
+  gradientAccent?: string;     // Gradient accent color
+  glassBackground?: string;    // Glass morphism background (rgba)
+  glassBorder?: string;        // Glass border color
+  shadowColor?: string;        // Shadow color with opacity
 }
 
 interface ThemeFonts {
@@ -31,6 +39,10 @@ interface ThemeTransitions {
 interface ThemeShadows {
   card: string;
   button: string;
+  // ✨ NEW: Enhanced shadow system
+  soft?: string;      // Subtle elevation (tooltips, hover states)
+  medium?: string;    // Standard elevation (cards, dropdowns)
+  strong?: string;    // High elevation (modals, dialogs)
 }
 
 export interface ThemeProperties {
@@ -64,6 +76,13 @@ export const themes: Record<ThemeName, ThemeProperties> = {
         text: "#1F2937",
         heading: "#111827",
         muted: "#6B7280",
+        // ✨ Modern UI extensions
+        gradientStart: "#3B82F6",
+        gradientEnd: "#60A5FA",
+        gradientAccent: "#93C5FD",
+        glassBackground: "rgba(255, 255, 255, 0.7)",
+        glassBorder: "rgba(59, 130, 246, 0.2)",
+        shadowColor: "rgba(59, 130, 246, 0.15)",
       },
       dark: {
         primary: "#60A5FA",
@@ -73,6 +92,13 @@ export const themes: Record<ThemeName, ThemeProperties> = {
         text: "#E5E7EB",
         heading: "#F9FAFB",
         muted: "#9CA3AF",
+        // ✨ Modern UI extensions
+        gradientStart: "#60A5FA",
+        gradientEnd: "#93C5FD",
+        gradientAccent: "#BFDBFE",
+        glassBackground: "rgba(17, 24, 39, 0.7)",
+        glassBorder: "rgba(96, 165, 250, 0.2)",
+        shadowColor: "rgba(96, 165, 250, 0.2)",
       },
     },
     fonts: {
@@ -87,10 +113,16 @@ export const themes: Record<ThemeName, ThemeProperties> = {
       light: {
         card: "0 1px 3px rgba(0,0,0,0.12)",
         button: "0 2px 4px rgba(59,130,246,0.1)",
+        soft: "0 2px 8px rgba(0, 0, 0, 0.08)",
+        medium: "0 4px 16px rgba(0, 0, 0, 0.12)",
+        strong: "0 8px 32px rgba(0, 0, 0, 0.16)",
       },
       dark: {
         card: "0 1px 3px rgba(0,0,0,0.3)",
         button: "0 2px 4px rgba(96,165,250,0.2)",
+        soft: "0 2px 8px rgba(0, 0, 0, 0.4)",
+        medium: "0 4px 16px rgba(0, 0, 0, 0.5)",
+        strong: "0 8px 32px rgba(0, 0, 0, 0.6)",
       },
     },
   },

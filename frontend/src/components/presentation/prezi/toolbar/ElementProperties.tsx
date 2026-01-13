@@ -17,6 +17,7 @@ import { usePreziTheme } from "@/hooks/usePreziTheme";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /**
@@ -212,18 +213,29 @@ const ElementProperties: React.FC = () => {
                 <Input
                   id="bg-color"
                   type="text"
-                  value={element.backgroundColor || "#ffffff"}
+                  value={element.backgroundColor === "transparent" ? "transparent" : (element.backgroundColor || "#ffffff")}
                   onChange={(e) => handleBackgroundColorChange(e.target.value)}
                   className="h-8 text-xs flex-1"
-                  placeholder="#ffffff"
+                  placeholder="#ffffff or transparent"
                 />
-                <input
-                  type="color"
-                  value={element.backgroundColor || "#ffffff"}
-                  onChange={(e) => handleBackgroundColorChange(e.target.value)}
-                  className="h-8 w-12 cursor-pointer rounded border"
-                  style={{ borderColor: adjustColorOpacity(themeColors.muted, 0.3) }}
-                />
+                {element.backgroundColor !== "transparent" && (
+                  <input
+                    type="color"
+                    value={element.backgroundColor || "#ffffff"}
+                    onChange={(e) => handleBackgroundColorChange(e.target.value)}
+                    className="h-8 w-12 cursor-pointer rounded border"
+                    style={{ borderColor: adjustColorOpacity(themeColors.muted, 0.3) }}
+                  />
+                )}
+                <Button
+                  size="sm"
+                  variant={element.backgroundColor === "transparent" ? "default" : "outline"}
+                  className="h-8 text-xs"
+                  onClick={() => handleBackgroundColorChange("transparent")}
+                  title="Transparent background"
+                >
+                  {element.backgroundColor === "transparent" ? "✓" : "⊘"}
+                </Button>
               </div>
             </div>
           </div>
@@ -290,18 +302,29 @@ const ElementProperties: React.FC = () => {
                 <Input
                   id="html-bg-color"
                   type="text"
-                  value={element.backgroundColor || "#ffffff"}
+                  value={element.backgroundColor === "transparent" ? "transparent" : (element.backgroundColor || "#ffffff")}
                   onChange={(e) => handleBackgroundColorChange(e.target.value)}
                   className="h-8 text-xs flex-1"
-                  placeholder="#ffffff"
+                  placeholder="#ffffff or transparent"
                 />
-                <input
-                  type="color"
-                  value={element.backgroundColor || "#ffffff"}
-                  onChange={(e) => handleBackgroundColorChange(e.target.value)}
-                  className="h-8 w-12 cursor-pointer rounded border"
-                  style={{ borderColor: adjustColorOpacity(themeColors.muted, 0.3) }}
-                />
+                {element.backgroundColor !== "transparent" && (
+                  <input
+                    type="color"
+                    value={element.backgroundColor || "#ffffff"}
+                    onChange={(e) => handleBackgroundColorChange(e.target.value)}
+                    className="h-8 w-12 cursor-pointer rounded border"
+                    style={{ borderColor: adjustColorOpacity(themeColors.muted, 0.3) }}
+                  />
+                )}
+                <Button
+                  size="sm"
+                  variant={element.backgroundColor === "transparent" ? "default" : "outline"}
+                  className="h-8 text-xs"
+                  onClick={() => handleBackgroundColorChange("transparent")}
+                  title="Transparent background"
+                >
+                  {element.backgroundColor === "transparent" ? "✓" : "⊘"}
+                </Button>
               </div>
             </div>
           </div>

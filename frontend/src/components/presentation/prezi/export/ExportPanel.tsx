@@ -12,10 +12,11 @@
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileDown, FileCode, Video } from "lucide-react";
+import { FileDown, FileCode, Video, Layers } from "lucide-react";
 import PDFExporter from "./PDFExporter";
 import HTMLExporter from "./HTMLExporter";
 import VideoExporter from "./VideoExporter";
+import PerKeyframeExporter from "./PerKeyframeExporter";
 
 interface ExportPanelProps {
   presentationTitle?: string;
@@ -39,7 +40,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({
       </CardHeader>
       <CardContent className="px-0 flex-1 overflow-y-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="pdf" className="text-xs">
               <FileDown className="mr-1 h-3 w-3" />
               PDF
@@ -51,6 +52,10 @@ const ExportPanel: React.FC<ExportPanelProps> = ({
             <TabsTrigger value="video" className="text-xs">
               <Video className="mr-1 h-3 w-3" />
               Video
+            </TabsTrigger>
+            <TabsTrigger value="per-keyframe" className="text-xs">
+              <Layers className="mr-1 h-3 w-3" />
+              Per-Frame
             </TabsTrigger>
           </TabsList>
 
@@ -65,6 +70,10 @@ const ExportPanel: React.FC<ExportPanelProps> = ({
 
             <TabsContent value="video" className="mt-0">
               <VideoExporter presentationTitle={presentationTitle} />
+            </TabsContent>
+
+            <TabsContent value="per-keyframe" className="mt-0">
+              <PerKeyframeExporter presentationTitle={presentationTitle} />
             </TabsContent>
           </div>
         </Tabs>

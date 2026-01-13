@@ -21,9 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Camera, Plus } from "lucide-react";
+import { Camera, Plus, Sparkles } from "lucide-react";
 import KeyframeList from "./KeyframeList";
-import { type PathKeyframe, PREZI_DEFAULTS } from "@/types/prezi-types";
+import TransitionPicker from "./TransitionPicker";
+import { type PathKeyframe, type TransitionType, PREZI_DEFAULTS } from "@/types/prezi-types";
 
 /**
  * PathEditor component
@@ -36,6 +37,8 @@ const PathEditor: React.FC = () => {
 
   const [keyframeDuration, setKeyframeDuration] = useState(3);
   const [transitionDuration, setTransitionDuration] = useState(1);
+  const [transitionType, setTransitionType] = useState<TransitionType>("ease-in-out");
+  const [showTransitionPicker, setShowTransitionPicker] = useState(false);
 
   // Get theme colors using unified hook
   const { mounted, themeColors } = usePreziTheme();
@@ -57,17 +60,39 @@ const PathEditor: React.FC = () => {
 
   // Capture current view as keyframe
   const handleCaptureKeyframe = () => {
+    // ✨ Get currently visible elements (only elements with visible !== false)
+    const visibleElementIds = Object.entries(canvasData.elements)
+      .filter(([_, element]) => element.visible !== false)
+      .map(([id, _]) => id);
+
+    console.log(`[PathEditor] Capturing keyframe with ${visibleElementIds.length} visible elements`);
+
+    const newKeyframeId = generateKeyframeId();
     const newKeyframe: PathKeyframe = {
-      id: generateKeyframeId(),
+      id: newKeyframeId,
       order: activePath.keyframes.length,
       camera: { ...camera },
       duration: keyframeDuration,
       transition: {
-        type: "ease-in-out",
+        type: transitionType,
         duration: transitionDuration,
       },
       title: `Frame ${activePath.keyframes.length + 1}`,
+      visibleElements: visibleElementIds, // ✨ Only include currently visible elements
     };
+
+    // ✨ Update elements to include this keyframe in their keyframeIds
+    const updatedElements = { ...canvasData.elements };
+    visibleElementIds.forEach((elementId) => {
+      const element = updatedElements[elementId];
+      if (element) {
+        const currentKeyframeIds = element.keyframeIds || [];
+        updatedElements[elementId] = {
+          ...element,
+          keyframeIds: [...currentKeyframeIds, newKeyframeId],
+        };
+      }
+    });
 
     // Update path with new keyframe
     const updatedPath = {
@@ -75,9 +100,10 @@ const PathEditor: React.FC = () => {
       keyframes: [...activePath.keyframes, newKeyframe],
     };
 
-    // Update canvas data
+    // Update canvas data with both updated elements and path
     const updatedCanvasData = {
       ...canvasData,
+      elements: updatedElements,
       paths: canvasData.paths.map((p) =>
         p.id === activePath.id ? updatedPath : p
       ),
@@ -198,15 +224,57 @@ const PathEditor: React.FC = () => {
             </div>
           </div>
 
+          {/* Transition type selector */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-xs">Transition Effect</Label>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-xs"
+                onClick={() => setShowTransitionPicker(!showTransitionPicker)}
+              >
+                <Sparkles className="h-3 w-3 mr-1" />
+                {showTransitionPicker ? "Hide" : "Choose"}
+              </Button>
+            </div>
+            <div
+              className="px-2 py-1.5 rounded text-xs font-medium"
+              style={{
+                backgroundColor: `${themeColors.primary}10`,
+                color: themeColors.primary,
+              }}
+            >
+              {transitionType.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}
+            </div>
+          </div>
+
           <Button
             onClick={handleCaptureKeyframe}
             className="w-full"
             size="sm"
+            variant="gradient"
           >
             <Camera className="mr-2 h-4 w-4" />
             Capture Current View
           </Button>
         </div>
+
+        {/* Transition Picker (expandable) */}
+        {showTransitionPicker && (
+          <div className="rounded-lg p-3" style={{
+            border: `1px solid ${themeColors.primary}30`,
+            backgroundColor: `${themeColors.primary}08`
+          }}>
+            <TransitionPicker
+              currentTransition={transitionType}
+              onSelect={(type) => {
+                setTransitionType(type);
+                setShowTransitionPicker(false);
+              }}
+            />
+          </div>
+        )}
 
         {/* Keyframe list */}
         <div>

@@ -8,7 +8,7 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { usePreziEditorStore, createInitialCanvasData } from "@/states/prezi-editor-state";
+import { usePreziEditorStore, createInitialCanvasData, autoMigrateCanvasData } from "@/states/prezi-editor-state";
 import PreziCanvas from "../editor/PreziCanvas";
 import PlayerControls from "./PlayerControls";
 import PathPlayer from "./PathPlayer";
@@ -36,9 +36,14 @@ const PreziPlayerComponent: React.FC<PreziPlayerProps> = ({
   useEffect(() => {
     if (!canvasData) {
       if (initialData) {
-        setCanvasData(initialData);
+        // ✨ Apply auto-migration to support v1.0 -> v1.1 upgrade
+        const migratedData = autoMigrateCanvasData(initialData);
+        setCanvasData(migratedData);
+        console.log("[PreziPlayer] Loaded and migrated canvas data to version:", migratedData.version);
       } else {
-        setCanvasData(createInitialCanvasData());
+        const newData = createInitialCanvasData();
+        newData.version = "1.1";
+        setCanvasData(newData);
       }
     }
   }, [canvasData, initialData, setCanvasData]);

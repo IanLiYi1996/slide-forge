@@ -7,13 +7,14 @@
 
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { Html } from "@react-three/drei";
-import { useThree } from "@react-three/fiber";
+import { useThree, useFrame } from "@react-three/fiber";
 import { useGesture } from "@use-gesture/react";
 import { usePreziEditorStore } from "@/states/prezi-editor-state";
 import { type PreziTextElement } from "@/types/prezi-types";
 import { elementRefManager } from "@/lib/presentation/prezi/element-ref-manager";
+import { calculateAdaptiveFontSize, calculateCameraDistance } from "@/lib/presentation/prezi/text-utils";
 import * as THREE from "three";
 
 interface TextElementProps {
@@ -28,6 +29,7 @@ const TextElement: React.FC<TextElementProps> = React.memo(({ element }) => {
   const groupRef = useRef<THREE.Group>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [adaptiveFontSize, setAdaptiveFontSize] = useState(48);
 
   const { camera, size } = useThree();
   const selectedElements = usePreziEditorStore(
@@ -37,8 +39,27 @@ const TextElement: React.FC<TextElementProps> = React.memo(({ element }) => {
   const hoveredElement = usePreziEditorStore((state) => state.hoveredElement);
   const updateElement = usePreziEditorStore((state) => state.updateElement);
   const mode = usePreziEditorStore((state) => state.mode);
+  const isPlaying = usePreziEditorStore((state) => state.isPlaying);
 
   const isSelected = selectedElements.includes(element.id);
+
+  // Calculate adaptive font size based on camera distance
+  // This ensures text remains readable when camera is far away
+  useFrame(() => {
+    if (camera && element.position) {
+      const distance = calculateCameraDistance(camera.position, element.position);
+      const newFontSize = calculateAdaptiveFontSize(
+        48, // base font size
+        distance,
+        element.scale
+      );
+
+      // Only update if changed significantly (avoid unnecessary re-renders)
+      if (Math.abs(newFontSize - adaptiveFontSize) > 1) {
+        setAdaptiveFontSize(newFontSize);
+      }
+    }
+  });
 
   // ✨ Check visibility
   if (element.visible === false) {
@@ -181,20 +202,26 @@ const TextElement: React.FC<TextElementProps> = React.memo(({ element }) => {
           className="relative h-full w-full overflow-hidden rounded"
           style={{
             backgroundColor:
-              element.backgroundColor || "#ffffff",
+              element.backgroundColor === "transparent" || element.backgroundColor === "none"
+                ? "transparent"
+                : element.backgroundColor || "#ffffff",
             padding: `${element.padding || 16}px`,
             opacity: element.opacity,
             border: isSelected
-              ? "3px solid #3b82f6" // ✨ 更粗的边框（3px）
+              ? "3px solid #3b82f6"
               : isHovered
               ? "2px solid #60a5fa"
+              : element.backgroundColor === "transparent" || element.backgroundColor === "none"
+              ? "1px solid rgba(0, 0, 0, 0.2)" // 透明背景时用更明显的边框
               : "1px solid #e5e7eb",
             boxShadow: isSelected
-              ? "0 0 0 4px rgba(59, 130, 246, 0.3), 0 4px 20px rgba(59, 130, 246, 0.4)" // ✨ 更明显的发光效果
+              ? "0 0 0 4px rgba(59, 130, 246, 0.3), 0 4px 20px rgba(59, 130, 246, 0.4)"
               : isHovered
               ? "0 2px 8px rgba(0, 0, 0, 0.15)"
+              : element.backgroundColor === "transparent" || element.backgroundColor === "none"
+              ? "none" // 透明背景时无阴影
               : "0 1px 3px rgba(0, 0, 0, 0.1)",
-            outline: isSelected ? "2px solid #3b82f6" : "none", // ✨ 额外的外轮廓
+            outline: isSelected ? "2px solid #3b82f6" : "none",
             cursor: isSelected && mode === "select" && !element.locked ? "move" : "default",
             transform: isDragging ? "scale(1.02)" : "none",
             transition: isDragging ? "none" : "transform 0.1s",
@@ -204,7 +231,7 @@ const TextElement: React.FC<TextElementProps> = React.memo(({ element }) => {
           <div
             className="h-full w-full text-left flex items-center"
             style={{
-              fontSize: "48px", // ✨ 大幅增大字体到 48px
+              fontSize: `${adaptiveFontSize}px`, // ✨ Adaptive font size based on camera distance
               lineHeight: "1.3",
               color: "#000000",
               fontWeight: "600", // ✨ 更粗的字重

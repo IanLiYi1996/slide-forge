@@ -28,6 +28,9 @@ const buttonVariants = cva(
           "border border-input bg-background hover:bg-accent hover:text-accent-foreground flex justify-center items-center disabled",
         noBackgroundLoading:
           "bg-transparent p-0 m-0 text-sm text-inherit flex justify-center items-center disabled",
+        // ✨ NEW: Modern UI variants
+        gradient: "bg-gradient-to-r from-primary to-accent text-white hover:opacity-90 shadow-md hover:shadow-lg transition-all",
+        glass: "bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all",
       },
       size: {
         default: "h-10 px-4 py-2",

@@ -37,6 +37,8 @@ const PreziCamera: React.FC<PreziCameraProps> = ({
   const mode = usePreziEditorStore((state) => state.mode);
   const updateCamera = usePreziEditorStore((state) => state.updateCamera);
   const isPlaying = usePreziEditorStore((state) => state.isPlaying);
+  const cameraState = usePreziEditorStore((state) => state.camera);
+  const currentKeyframeIndex = usePreziEditorStore((state) => state.currentKeyframeIndex);
 
   // ✨ 简化：播放时禁用 OrbitControls，编辑时启用
   useEffect(() => {
@@ -50,6 +52,37 @@ const PreziCamera: React.FC<PreziCameraProps> = ({
       console.log("[PreziCamera] OrbitControls enabled (editing)");
     }
   }, [isPlaying]);
+
+  // ✨ NEW: Apply camera updates when keyframe index changes (for prev/next buttons)
+  // Using currentKeyframeIndex as trigger to avoid update loops
+  useEffect(() => {
+    if (isPlaying || !camera || !controlsRef.current) return;
+    if (currentKeyframeIndex === undefined || currentKeyframeIndex < 0) return;
+
+    // Apply camera state from Zustand to Three.js camera
+    camera.position.set(
+      cameraState.position.x,
+      cameraState.position.y,
+      cameraState.position.z
+    );
+
+    camera.lookAt(
+      cameraState.target.x,
+      cameraState.target.y,
+      cameraState.target.z
+    );
+
+    // Update OrbitControls target
+    controlsRef.current.target.set(
+      cameraState.target.x,
+      cameraState.target.y,
+      cameraState.target.z
+    );
+
+    controlsRef.current.update();
+
+    console.log(`[PreziCamera] Jumped to keyframe ${currentKeyframeIndex}, camera:`, cameraState);
+  }, [currentKeyframeIndex, isPlaying, camera, cameraState]);
 
   // ✨ 核心修改：直接读取虚拟相机（绕过 Zustand）
   useFrame(() => {

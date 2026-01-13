@@ -28,8 +28,11 @@ interface PlayerControlsProps {
 const PlayerControls: React.FC<PlayerControlsProps> = ({ className }) => {
   const isPlaying = usePreziEditorStore((state) => state.isPlaying);
   const playPath = usePreziEditorStore((state) => state.playPath);
+  const resumePlayback = usePreziEditorStore((state) => state.resumePlayback);
   const stopPlaying = usePreziEditorStore((state) => state.stopPlaying);
   const setCurrentKeyframeIndex = usePreziEditorStore((state) => state.setCurrentKeyframeIndex);
+  const updateElement = usePreziEditorStore((state) => state.updateElement);
+  const updateCamera = usePreziEditorStore((state) => state.updateCamera);
   const activePath = useActivePath();
   const canvasData = usePreziEditorStore((state) => state.canvasData);
   const currentKeyframeIndex = usePreziEditorStore(
@@ -69,30 +72,58 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({ className }) => {
   // Handle play/pause
   const handlePlayPause = () => {
     if (isPlaying) {
-      animator.pause();
+      // Pause playback - PathPlayer will handle animator.pause()
       stopPlaying();
     } else {
-      playPath(activePath.id);
+      // ✨ Smart resume: if we're in the middle of a path, resume; otherwise start fresh
+      if (currentKeyframeIndex > 0 && currentKeyframeIndex < (activePath?.keyframes.length || 0)) {
+        // Resume from current position
+        resumePlayback();
+        console.log(`[PlayerControls] Resuming from frame ${currentKeyframeIndex}`);
+      } else {
+        // Start from beginning
+        playPath(activePath.id);
+        console.log("[PlayerControls] Starting from beginning");
+      }
     }
   };
 
   // Handle stop
   const handleStop = () => {
-    animator.stop();
+    // Stop and reset to beginning
     stopPlaying();
+    setCurrentKeyframeIndex(0); // ✨ Reset to first keyframe
+    // PathPlayer will handle animator.stop()
   };
 
-  // ✨ Handle previous keyframe (with element animation trigger)
+  // ✨ Handle previous keyframe (with element visibility and animation)
   const handlePrevious = () => {
     if (activePath && currentKeyframeIndex > 0) {
       const newIndex = currentKeyframeIndex - 1;
+      const keyframe = activePath.keyframes[newIndex];
 
-      // Jump camera to keyframe
-      animator.jumpToKeyframe(newIndex, activePath);
+      if (!keyframe || !canvasData) return;
+
+      // ✨ Manually update camera state (works in both playing and paused states)
+      updateCamera(keyframe.camera);
+
+      // If playing, also use animator
+      if (isPlaying) {
+        animator.jumpToKeyframe(newIndex, activePath);
+      }
+
+      // ✨ Control element visibility based on keyframe.visibleElements
+      const visibleElementIds = keyframe.visibleElements || [];
+      if (visibleElementIds.length > 0) {
+        Object.keys(canvasData.elements).forEach((elementId) => {
+          const shouldBeVisible = visibleElementIds.includes(elementId);
+          updateElement(elementId, { visible: shouldBeVisible });
+        });
+        console.log(`[PlayerControls] Previous - ${visibleElementIds.length} elements visible in frame ${newIndex}`);
+      }
 
       // ✨ Trigger element animations for this keyframe (if any)
-      const keyframe = activePath.keyframes[newIndex];
-      if (keyframe?.elementAnimations && canvasData) {
+      if (keyframe.elementAnimations) {
         const elementAnimator = getElementAnimator();
 
         for (const [elementId, action] of Object.entries(keyframe.elementAnimations)) {
@@ -113,17 +144,34 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({ className }) => {
     }
   };
 
-  // ✨ Handle next keyframe (with element animation trigger)
+  // ✨ Handle next keyframe (with element visibility and animation)
   const handleNext = () => {
     if (activePath && currentKeyframeIndex < activePath.keyframes.length - 1) {
       const newIndex = currentKeyframeIndex + 1;
+      const keyframe = activePath.keyframes[newIndex];
 
-      // Jump camera to keyframe
-      animator.jumpToKeyframe(newIndex, activePath);
+      if (!keyframe || !canvasData) return;
+
+      // ✨ Manually update camera state (works in both playing and paused states)
+      updateCamera(keyframe.camera);
+
+      // If playing, also use animator
+      if (isPlaying) {
+        animator.jumpToKeyframe(newIndex, activePath);
+      }
+
+      // ✨ Control element visibility based on keyframe.visibleElements
+      const visibleElementIds = keyframe.visibleElements || [];
+      if (visibleElementIds.length > 0) {
+        Object.keys(canvasData.elements).forEach((elementId) => {
+          const shouldBeVisible = visibleElementIds.includes(elementId);
+          updateElement(elementId, { visible: shouldBeVisible });
+        });
+        console.log(`[PlayerControls] Next - ${visibleElementIds.length} elements visible in frame ${newIndex}`);
+      }
 
       // ✨ Trigger element animations for this keyframe (if any)
-      const keyframe = activePath.keyframes[newIndex];
-      if (keyframe?.elementAnimations && canvasData) {
+      if (keyframe.elementAnimations) {
         const elementAnimator = getElementAnimator();
 
         for (const [elementId, action] of Object.entries(keyframe.elementAnimations)) {

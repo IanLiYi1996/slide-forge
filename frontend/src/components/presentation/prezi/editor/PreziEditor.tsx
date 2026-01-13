@@ -13,13 +13,13 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { usePreziEditorStore, createInitialCanvasData } from "@/states/prezi-editor-state";
+import { usePreziEditorStore, createInitialCanvasData, autoMigrateCanvasData } from "@/states/prezi-editor-state";
 import { usePreziTheme } from "@/hooks/usePreziTheme";
 import { updatePresentation } from "@/app/_actions/presentation/presentationActions";
 import PreziCanvas from "./PreziCanvas";
 import PreziToolbar from "../toolbar/PreziToolbar";
 import ElementProperties from "../toolbar/ElementProperties";
-import LayerPanel from "../toolbar/LayerPanel";
+import UnifiedKeyframePanel from "../sidebar/UnifiedKeyframePanel";
 import PathEditor from "../path/PathEditor";
 import PathPlayer from "../player/PathPlayer";
 import PlayerControls from "../player/PlayerControls";
@@ -168,9 +168,15 @@ const PreziEditor: React.FC<PreziEditorProps> = ({
   useEffect(() => {
     if (!canvasData) {
       if (initialData) {
-        setCanvasData(initialData);
+        // ✨ Apply auto-migration to support v1.0 -> v1.1 upgrade
+        const migratedData = autoMigrateCanvasData(initialData);
+        setCanvasData(migratedData);
+        console.log("[PreziEditor] Loaded and migrated canvas data to version:", migratedData.version);
       } else {
-        setCanvasData(createInitialCanvasData());
+        // Create new canvas data with version 1.1
+        const newData = createInitialCanvasData();
+        newData.version = "1.1";
+        setCanvasData(newData);
       }
     }
   }, [canvasData, initialData, setCanvasData]);
@@ -593,15 +599,15 @@ const PreziEditor: React.FC<PreziEditorProps> = ({
       {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="flex flex-1 overflow-hidden">
-          {/* Left sidebar - Layer panel */}
+          {/* Left sidebar - Unified Keyframe Panel */}
           <div
-            className="w-80 border-r p-4 flex flex-col"
+            className="w-80 border-r flex flex-col"
             style={{
               backgroundColor: themeColors.background,
               borderColor: adjustColorOpacity(themeColors.muted, 0.2),
             }}
           >
-            <LayerPanel />
+            <UnifiedKeyframePanel />
           </div>
 
           {/* Center - Canvas */}

@@ -117,6 +117,7 @@ export interface PreziElementBase {
   locked: boolean; // Whether editing is locked
   visible?: boolean; // ✨ Whether element is visible (default true)
   animation?: ElementAnimation; // Element animation configuration
+  keyframeIds?: string[]; // ✨ NEW: Keyframes this element belongs to (for grouping in sidebar)
 }
 
 /**
@@ -198,6 +199,46 @@ export type PreziElement =
 // ==================== Path System ====================
 
 /**
+ * Transition types for keyframe-to-keyframe animations
+ */
+export type TransitionType =
+  // Basic easing (existing)
+  | "linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out"
+  // Elastic easing (bouncy, spring-like)
+  | "elastic-in" | "elastic-out" | "elastic-in-out"
+  // Bounce easing (bouncing effect)
+  | "bounce-in" | "bounce-out" | "bounce-in-out"
+  // Back easing (overshoots and returns)
+  | "back-in" | "back-out" | "back-in-out"
+  // Cinematic effects
+  | "swoop" | "dive" | "orbit" | "spiral"
+  // Prezi-style signature effects
+  | "zoom-reveal" | "pan-zoom" | "focus-shift";
+
+/**
+ * Advanced transition configuration
+ */
+export interface TransitionConfig {
+  type: TransitionType;
+  duration: number; // Duration in seconds
+
+  // Advanced parameters
+  intensity?: number; // 0-1, affects bounce/elastic strength
+  pathCurve?: "straight" | "arc" | "bezier"; // Camera movement path shape
+  bezierPoints?: Position3D[]; // Custom bezier curve control points
+
+  // Multi-stage transitions (for complex animations)
+  stages?: {
+    percentage: number; // 0-1, point in transition timeline
+    easing: string; // GSAP easing function for this stage
+    cameraAdjustment?: Partial<CameraState>; // Mid-transition camera tweaks
+  }[];
+
+  // Metadata
+  description?: string; // Human-readable description
+}
+
+/**
  * Path keyframe (each "step" in the presentation)
  */
 export interface PathKeyframe {
@@ -206,16 +247,17 @@ export interface PathKeyframe {
   camera: CameraState; // Camera state
   duration: number; // Duration to stay (seconds)
   transition?: {
-    // Transition animation config
-    type: "linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out";
+    // Transition animation config (basic format for backward compatibility)
+    type: TransitionType;
     duration: number; // Transition animation duration (seconds)
-  };
+  } | TransitionConfig; // ✨ NEW: Can also use advanced TransitionConfig
   highlightElements?: string[]; // Element IDs to highlight in this step
   highlightEffect?: HighlightEffect; // ✨ Highlight effect configuration
   elementAnimations?: {
     // ✨ Element enter/exit animations at this keyframe
     [elementId: string]: "enter" | "exit";
   };
+  visibleElements?: string[]; // ✨ NEW: Element IDs visible in this keyframe (for grouping)
   title?: string; // Step title (shown in editor)
 }
 
@@ -295,6 +337,7 @@ export interface PreziEditorState {
   updateCamera: (camera: CameraState) => void;
   setCurrentKeyframeIndex: (index: number) => void; // 🆕 Set current keyframe index
   playPath: (pathId: string) => void;
+  resumePlayback: () => void; // 🆕 Resume from current position
   stopPlaying: () => void;
   undo: () => void;
   redo: () => void;

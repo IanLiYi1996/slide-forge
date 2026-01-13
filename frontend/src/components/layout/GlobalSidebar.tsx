@@ -34,7 +34,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Separator } from "@/components/ui/separator";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export function GlobalSidebar() {
   const { data: session } = useSession();
@@ -46,9 +46,26 @@ export function GlobalSidebar() {
   const [mounted, setMounted] = useState(false);
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
 
+  // 拖动相关的状态
+  const [position, setPosition] = useState({ x: 24, y: 24 }); // 默认位置 (left-6, top-6)
+  const [isDragging, setIsDragging] = useState(false);
+  const [hasMoved, setHasMoved] = useState(false); // 跟踪是否真的移动了
+  const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
+
   // 确保只在客户端渲染主题相关内容（避免 SSR hydration 错误）
   useEffect(() => {
     setMounted(true);
+
+    // 从 localStorage 加载按钮位置
+    const savedPosition = localStorage.getItem('sidebar-button-position');
+    if (savedPosition) {
+      try {
+        const parsed = JSON.parse(savedPosition);
+        setPosition(parsed);
+      } catch (e) {
+        console.error('Failed to parse saved position:', e);
+      }
+    }
   }, []);
 
   // Debug session data - 必须在所有hooks之后，条件判断之前
@@ -67,6 +84,70 @@ export function GlobalSidebar() {
     router.push("/presentation/prezi-new");
   };
 
+  // 拖动处理函数
+  const handleMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    // 左键点击才触发拖动
+    if (e.button !== 0) return;
+
+    e.preventDefault();
+    setIsDragging(true);
+    setHasMoved(false); // 重置移动标志
+
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: position.x,
+      initialY: position.y,
+    };
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragRef.current) return;
+
+      const deltaX = e.clientX - dragRef.current.startX;
+      const deltaY = e.clientY - dragRef.current.startY;
+
+      // 如果移动超过 5px，认为是拖动而不是点击
+      if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+        setHasMoved(true);
+      }
+
+      const newX = dragRef.current.initialX + deltaX;
+      const newY = dragRef.current.initialY + deltaY;
+
+      // 限制在视口范围内（留出按钮的大小：48px）
+      const maxX = window.innerWidth - 48;
+      const maxY = window.innerHeight - 48;
+
+      const clampedX = Math.max(0, Math.min(newX, maxX));
+      const clampedY = Math.max(0, Math.min(newY, maxY));
+
+      setPosition({ x: clampedX, y: clampedY });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+
+      // 保存位置到 localStorage
+      if (hasMoved) {
+        localStorage.setItem('sidebar-button-position', JSON.stringify(position));
+      }
+
+      dragRef.current = null;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, position, hasMoved]);
+
   // ✨ 只在 auth 页面和纯 ID 的 presentation 查看页面隐藏侧边栏
   // 允许 /presentation/prezi-new, /presentation/prezi-create-ai 等有意义的路径显示侧边栏
   if (
@@ -80,9 +161,20 @@ export function GlobalSidebar() {
   if (!isOverlayOpen) {
     return (
       <button
-        onClick={() => setIsOverlayOpen(true)}
-        className="fixed top-6 left-6 z-50 flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-pink-500 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 group"
-        title="Open Menu"
+        onMouseDown={handleMouseDown}
+        onClick={(e) => {
+          // 只有在没有拖动时才打开侧边栏
+          if (!hasMoved) {
+            setIsOverlayOpen(true);
+          }
+        }}
+        style={{
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+          cursor: isDragging ? 'grabbing' : 'grab',
+        }}
+        className="fixed z-50 flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-pink-500 shadow-lg hover:shadow-xl hover:scale-105 transition-shadow duration-200 group select-none"
+        title="Drag to move, Click to open menu"
       >
         <FileText className="h-5 w-5 text-white" />
       </button>

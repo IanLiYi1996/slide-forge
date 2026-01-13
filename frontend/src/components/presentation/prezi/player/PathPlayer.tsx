@@ -22,15 +22,18 @@ const PathPlayer: React.FC = () => {
   const isPlaying = usePreziEditorStore((state) => state.isPlaying);
   const activePath = useActivePath();
   const canvasData = usePreziEditorStore((state) => state.canvasData);
+  const currentKeyframeIndex = usePreziEditorStore((state) => state.currentKeyframeIndex);
   const setCurrentKeyframeIndex = usePreziEditorStore(
     (state) => state.setCurrentKeyframeIndex
   );
   const stopPlaying = usePreziEditorStore((state) => state.stopPlaying);
   const updateCamera = usePreziEditorStore((state) => state.updateCamera);
+  const updateElement = usePreziEditorStore((state) => state.updateElement);
 
   const animatorRef = useRef(getCameraAnimator());
   const elementAnimatorRef = useRef(getElementAnimator());
   const lastKeyframeIndexRef = useRef<number>(-1);
+  const wasPlayingRef = useRef<boolean>(false);
 
   // ✨ Effect 1: 准备 Timeline（path 或 canvasData 变化时）
   useEffect(() => {
@@ -51,9 +54,28 @@ const PathPlayer: React.FC = () => {
         setCurrentKeyframeIndex(index);
         lastKeyframeIndexRef.current = index;
 
-        // ✨ 触发元素动画（进入新关键帧时）
         const keyframe = activePath.keyframes[index];
-        if (keyframe?.elementAnimations && canvasData) {
+        if (!keyframe || !canvasData) return;
+
+        // ✨ NEW: Control element visibility based on keyframe.visibleElements
+        const visibleElementIds = keyframe.visibleElements || [];
+        if (visibleElementIds.length > 0) {
+          // Update visibility for all elements
+          Object.keys(canvasData.elements).forEach((elementId) => {
+            const shouldBeVisible = visibleElementIds.includes(elementId);
+            const element = canvasData.elements[elementId];
+
+            // Only update if visibility changed
+            if (element && element.visible !== shouldBeVisible) {
+              updateElement(elementId, { visible: shouldBeVisible });
+            }
+          });
+
+          console.log(`[PathPlayer] Updated visibility: ${visibleElementIds.length} elements visible`);
+        }
+
+        // ✨ 触发元素动画（进入新关键帧时）
+        if (keyframe.elementAnimations) {
           for (const [elementId, action] of Object.entries(
             keyframe.elementAnimations
           )) {
@@ -101,19 +123,29 @@ const PathPlayer: React.FC = () => {
     const elementAnimator = elementAnimatorRef.current;
 
     if (isPlaying) {
-      console.log("[PathPlayer] Starting playback");
+      // ✨ Smart playback: check if resuming or starting fresh
+      // If currentKeyframeIndex > 0, we're resuming from pause
+      // If currentKeyframeIndex === 0, we're starting from beginning
+      if (currentKeyframeIndex > 0) {
+        // Resuming from pause - continue from current position
+        console.log(`[PathPlayer] Resuming playback from frame ${currentKeyframeIndex}`);
+        animator.resume();
+      } else {
+        // Starting fresh from beginning
+        console.log("[PathPlayer] Starting playback from beginning");
+        const success = animator.play();
 
-      // ✅ 即时播放（Timeline 已预创建）
-      const success = animator.play();
-
-      if (!success) {
-        console.error(
-          "[PathPlayer] Failed to start playback - timeline not ready"
-        );
-        stopPlaying();
+        if (!success) {
+          console.error(
+            "[PathPlayer] Failed to start playback - timeline not ready"
+          );
+          stopPlaying();
+        }
       }
+
+      wasPlayingRef.current = true;
     } else {
-      console.log("[PathPlayer] Stopping playback");
+      console.log("[PathPlayer] Pausing playback");
 
       // 暂停动画
       animator.pause();
@@ -121,10 +153,18 @@ const PathPlayer: React.FC = () => {
       // 停止所有元素动画
       elementAnimator.stopAll();
 
-      // 重置关键帧跟踪
-      lastKeyframeIndexRef.current = -1;
+      // Keep wasPlayingRef true to remember we were playing (for resume)
+      // Only reset to false when explicitly stopped (currentKeyframeIndex === 0)
     }
-  }, [isPlaying, stopPlaying]);
+  }, [isPlaying, currentKeyframeIndex, stopPlaying]);
+
+  // ✨ Effect 3: Reset wasPlayingRef when stopped (currentKeyframeIndex resets to 0)
+  useEffect(() => {
+    if (!isPlaying && currentKeyframeIndex === 0) {
+      wasPlayingRef.current = false;
+      console.log("[PathPlayer] Reset to beginning");
+    }
+  }, [currentKeyframeIndex, isPlaying]);
 
   // 非可视化组件
   return null;
