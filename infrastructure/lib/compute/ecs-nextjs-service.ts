@@ -97,22 +97,32 @@ export class EcsNextjsServiceConstruct extends Construct {
         BedrockAccess: new iam.PolicyDocument({
           statements: [
             new iam.PolicyStatement({
+              sid: 'BedrockInvokeModel',
               effect: iam.Effect.ALLOW,
               actions: [
                 'bedrock:InvokeModel',
                 'bedrock:InvokeModelWithResponseStream',
               ],
               resources: [
-                // 基础模型 (foundation-model)
-                `arn:aws:bedrock:${cdk.Aws.REGION}::foundation-model/anthropic.claude-*`,
-
-                // 推理配置文件 (inference-profile) - 同区域
-                `arn:aws:bedrock:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:inference-profile/anthropic.claude-*`,
-
-                // 跨区域推理配置文件 (cross-region inference profiles)
+                // 基础模型 (foundation-model) - 所有区域
                 `arn:aws:bedrock:*::foundation-model/*`,
+
+                // 推理配置文件 (inference-profile) - 账户内所有区域
                 `arn:aws:bedrock:*:${cdk.Aws.ACCOUNT_ID}:inference-profile/*`,
+
+                // 应用推理配置文件 (application-inference-profile)
+                `arn:aws:bedrock:*:${cdk.Aws.ACCOUNT_ID}:application-inference-profile/*`,
               ],
+            }),
+            // Global Inference Profile 需要 GetInferenceProfile 权限
+            new iam.PolicyStatement({
+              sid: 'BedrockGetInferenceProfile',
+              effect: iam.Effect.ALLOW,
+              actions: [
+                'bedrock:GetInferenceProfile',
+                'bedrock:ListInferenceProfiles',
+              ],
+              resources: ['*'],
             }),
           ],
         }),
