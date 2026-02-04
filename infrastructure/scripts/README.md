@@ -94,7 +94,7 @@
 **显示信息**:
 - CloudFormation Stack 状态
 - ECS Service 运行状态
-- Aurora 数据库状态
+- S3 存储状态
 - CloudFront URL
 - 实用命令提示
 

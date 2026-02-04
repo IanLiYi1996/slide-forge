@@ -13,7 +13,6 @@ export class VpcConstruct extends Construct {
   public readonly vpc: ec2.Vpc;
   public readonly albSecurityGroup: ec2.SecurityGroup;
   public readonly ecsSecurityGroup: ec2.SecurityGroup;
-  public readonly auroraSecurityGroup: ec2.SecurityGroup;
 
   constructor(scope: Construct, id: string, props: VpcConstructProps) {
     super(scope, id);
@@ -44,7 +43,7 @@ export class VpcConstruct extends Construct {
           cidrMask: 24,
         },
         {
-          name: 'isolated-subnet', // For Aurora
+          name: 'isolated-subnet', // Reserved for future use (Aurora removed)
           subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
           cidrMask: 24,
         },
@@ -114,18 +113,7 @@ export class VpcConstruct extends Construct {
       'To ECS tasks (dynamic ports)',
     );
 
-    // 3. Aurora Security Group
-    this.auroraSecurityGroup = new ec2.SecurityGroup(this, 'AuroraSecurityGroup', {
-      vpc: this.vpc,
-      description: 'Security group for Aurora',
-      allowAllOutbound: false,
-    });
-
-    this.auroraSecurityGroup.addIngressRule(
-      this.ecsSecurityGroup,
-      ec2.Port.tcp(5432),
-      'PostgreSQL from ECS',
-    );
+    // Note: Aurora Security Group removed - using S3 for data storage
 
     // Outputs
     new cdk.CfnOutput(this, 'VpcId', {

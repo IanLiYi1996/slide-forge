@@ -5,9 +5,12 @@
  */
 
 import { auth } from '@/server/auth';
-import { db } from '@/server/db';
-import { calculateRemainingQuota, isQuotaExceeded } from '@/lib/quota-calculator';
-import { type UsageType } from '@prisma/client';
+import {
+  checkAndUpdateQuota,
+  logUsage,
+  type UsageType,
+} from '@/services/s3';
+import { getUserProfile } from '@/services/s3/user-service';
 import { NextResponse } from 'next/server';
 
 interface UsageLogRequest {
@@ -39,109 +42,37 @@ export async function POST(request: Request) {
       );
     }
 
-    // Use transaction to ensure consistency
-    const result = await db.$transaction(async (tx) => {
-      // Get or create quota for this usage type
-      let quota = await tx.usageQuota.findUnique({
-        where: {
-          userId_quotaType: {
-            userId,
-            quotaType: usageType,
-          },
-        },
+    // Get user profile to determine role
+    const profile = await getUserProfile(userId);
+    const role = profile?.role ?? 'USER';
+
+    // Check and update quota atomically
+    const quotaResult = await checkAndUpdateQuota(userId, usageType, quantity, role);
+
+    if (quotaResult.quotaExceeded) {
+      return NextResponse.json({
+        success: false,
+        quotaExceeded: true,
+        remaining: quotaResult.remaining,
+        message: `Quota exceeded. You have ${quotaResult.remaining} remaining.`,
       });
+    }
 
-      // If quota doesn't exist, initialize it
-      if (!quota) {
-        const user = await tx.user.findUnique({
-          where: { id: userId },
-          select: { role: true },
-        });
-
-        if (!user) {
-          throw new Error('User not found');
-        }
-
-        // Import and use quota initialization
-        const { initializeUserQuotas } = await import('@/lib/quota-calculator');
-        const quotasToCreate = initializeUserQuotas(user.role);
-        const quotaData = quotasToCreate.find((q) => q.quotaType === usageType);
-
-        if (!quotaData) {
-          throw new Error(`Invalid usage type: ${usageType}`);
-        }
-
-        quota = await tx.usageQuota.create({
-          data: {
-            userId,
-            ...quotaData,
-          },
-        });
-      }
-
-      // Check if quota would be exceeded
-      const wouldExceed = isQuotaExceeded(
-        quota.baseLimit,
-        quota.purchasedLimit,
-        quota.usedAmount + quantity
-      );
-
-      if (wouldExceed) {
-        const remaining = calculateRemainingQuota(
-          quota.baseLimit,
-          quota.purchasedLimit,
-          quota.usedAmount
-        );
-
-        return {
-          success: false,
-          quotaExceeded: true,
-          remaining,
-          message: `Quota exceeded. You have ${remaining} remaining.`,
-        };
-      }
-
-      // Log the usage
-      await tx.usageLog.create({
-        data: {
-          userId,
-          usageType,
-          quantity,
-          resourceId,
-          metadata: metadata ? (metadata as object) : undefined,
-        },
-      });
-
-      // Update quota usage
-      const updatedQuota = await tx.usageQuota.update({
-        where: {
-          userId_quotaType: {
-            userId,
-            quotaType: usageType,
-          },
-        },
-        data: {
-          usedAmount: {
-            increment: quantity,
-          },
-        },
-      });
-
-      const remaining = calculateRemainingQuota(
-        updatedQuota.baseLimit,
-        updatedQuota.purchasedLimit,
-        updatedQuota.usedAmount
-      );
-
-      return {
-        success: true,
-        quotaExceeded: false,
-        remaining,
-        message: 'Usage tracked successfully',
-      };
+    // Log the usage (append to usage logs)
+    await logUsage({
+      userId,
+      usageType,
+      quantity,
+      resourceId,
+      metadata,
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      success: true,
+      quotaExceeded: false,
+      remaining: quotaResult.remaining,
+      message: 'Usage tracked successfully',
+    });
   } catch (error) {
     console.error('Usage tracking error:', error);
     return NextResponse.json(

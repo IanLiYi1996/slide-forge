@@ -1,6 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/server/auth";
-import { db } from "@/server/db";
+import {
+  getDocProcessorSessionByUserId,
+  updateDocProcessorSession,
+  deleteDocProcessorSession,
+} from "@/services/s3";
+
+function transformToLegacyFormat(s: NonNullable<Awaited<ReturnType<typeof getDocProcessorSessionByUserId>>>) {
+  return {
+    id: s.id,
+    userId: s.userId,
+    sessionId: s.sessionId,
+    title: s.title,
+    fileName: s.fileName,
+    fileType: s.fileType,
+    totalPages: s.totalPages,
+    processedPages: s.processedPages,
+    images: s.images,
+    processedImages: s.processedImages,
+    instructions: s.instructions,
+    status: s.status,
+    exportedAt: s.exportedAt ? new Date(s.exportedAt) : null,
+    exportFormat: s.exportFormat,
+    exportCount: s.exportCount,
+    createdAt: new Date(s.createdAt),
+    updatedAt: new Date(s.updatedAt),
+    lastActivityAt: new Date(s.lastActivityAt),
+  };
+}
 
 // GET - Fetch single session
 export async function GET(
@@ -10,32 +37,22 @@ export async function GET(
   try {
     const session = await auth();
 
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await db.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const { sessionId } = await params;
 
-    const documentSession = await db.documentProcessorSession.findFirst({
-      where: {
-        sessionId: sessionId,
-        userId: user.id,
-      },
-    });
+    const documentSession = await getDocProcessorSessionByUserId(
+      sessionId,
+      session.user.id
+    );
 
     if (!documentSession) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ session: documentSession });
+    return NextResponse.json({ session: transformToLegacyFormat(documentSession) });
   } catch (error) {
     console.error("Error fetching document session:", error);
     return NextResponse.json(
@@ -53,16 +70,8 @@ export async function PUT(
   try {
     const session = await auth();
 
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await db.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const { sessionId } = await params;
@@ -76,34 +85,23 @@ export async function PUT(
       status,
     } = body;
 
-    const updatedSession = await db.documentProcessorSession.updateMany({
-      where: {
-        sessionId: sessionId,
-        userId: user.id,
-      },
-      data: {
+    const updatedSession = await updateDocProcessorSession(
+      sessionId,
+      session.user.id,
+      {
         ...(title !== undefined && { title }),
         ...(processedPages !== undefined && { processedPages }),
         ...(processedImages !== undefined && { processedImages }),
         ...(instructions !== undefined && { instructions }),
         ...(status !== undefined && { status }),
-        lastActivityAt: new Date(),
-      },
-    });
+      }
+    );
 
-    if (updatedSession.count === 0) {
+    if (!updatedSession) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
-    // Fetch updated session
-    const documentSession = await db.documentProcessorSession.findFirst({
-      where: {
-        sessionId: sessionId,
-        userId: user.id,
-      },
-    });
-
-    return NextResponse.json({ session: documentSession });
+    return NextResponse.json({ session: transformToLegacyFormat(updatedSession) });
   } catch (error) {
     console.error("Error updating document session:", error);
     return NextResponse.json(
@@ -121,28 +119,15 @@ export async function DELETE(
   try {
     const session = await auth();
 
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await db.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const { sessionId } = await params;
 
-    const result = await db.documentProcessorSession.deleteMany({
-      where: {
-        sessionId: sessionId,
-        userId: user.id,
-      },
-    });
+    const deleted = await deleteDocProcessorSession(sessionId, session.user.id);
 
-    if (result.count === 0) {
+    if (!deleted) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 

@@ -122,40 +122,27 @@ else
 fi
 
 # ==============================================================================
-# 3. Aurora 数据库状态
+# 3. S3 存储状态
 # ==============================================================================
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "3. Aurora 数据库"
+echo "3. S3 存储"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-db_identifier="${STACK_NAME}-${ENVIRONMENT}-db"
-if aws rds describe-db-clusters \
-  --db-cluster-identifier "$db_identifier" &> /dev/null; then
+# 查找 uploads bucket
+uploads_bucket=$(aws s3api list-buckets --query "Buckets[?contains(Name, '${STACK_NAME}') && contains(Name, 'uploads')].Name | [0]" --output text 2>/dev/null || echo "")
 
-  db_status=$(aws rds describe-db-clusters \
-    --db-cluster-identifier "$db_identifier" \
-    --query 'DBClusters[0].Status' \
-    --output text)
+if [ -n "$uploads_bucket" ] && [ "$uploads_bucket" != "None" ]; then
+  echo "Uploads Bucket: $uploads_bucket"
 
-  db_endpoint=$(aws rds describe-db-clusters \
-    --db-cluster-identifier "$db_identifier" \
-    --query 'DBClusters[0].Endpoint' \
-    --output text)
-
-  echo "Cluster: $db_identifier"
-  echo "  • Status: $db_status"
-  echo "  • Endpoint: $db_endpoint"
-
-  if [ "$db_status" = "available" ]; then
-    print_success "  数据库正常运行"
-  else
-    print_warning "  数据库状态: $db_status"
-  fi
+  # 获取对象数量
+  object_count=$(aws s3api list-objects-v2 --bucket "$uploads_bucket" --query 'KeyCount' --output text 2>/dev/null || echo "0")
+  echo "  • Object Count: $object_count"
+  print_success "  S3 存储正常"
 else
-  print_warning "Aurora 数据库未找到"
+  print_warning "S3 Uploads 桶未找到"
 fi
 
 # ==============================================================================

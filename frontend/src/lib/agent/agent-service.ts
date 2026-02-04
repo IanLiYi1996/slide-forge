@@ -55,12 +55,14 @@ export class AgentSessionInstance {
   private queue = new MessageQueue();
   private outputIterator: AsyncIterator<any> | null = null;
   public sessionId: string;
+  public userId: string | null = null;  // ✅ 新增：存储用户ID
   public sdkSessionId: string | null = null;  // ✅ 新增：存储SDK session ID
   private isListening = false;
   private listeners: Array<(message: any) => void> = [];
 
-  constructor(sessionId: string, config?: AgentConfig, resumeSdkSessionId?: string) {
+  constructor(sessionId: string, config?: AgentConfig, resumeSdkSessionId?: string, userId?: string) {
     this.sessionId = sessionId;
+    this.userId = userId ?? null;
 
     // 确定Claude Code CLI路径
     // 生产环境：尝试多个可能的路径
@@ -472,13 +474,13 @@ Ready to create amazing presentations!`;
  */
 export class AgentService {
   private sessions = new Map<string, AgentSessionInstance>();
-  private prisma: any; // Prisma client，延迟初始化避免循环依赖
+  private s3Session: typeof import('@/services/s3') | null = null; // S3 service，延迟初始化避免循环依赖
 
   constructor() {
-    // 延迟导入Prisma client避免circular dependency
+    // 延迟导入S3 service避免circular dependency
     if (typeof window === 'undefined') {
-      import('@/server/db').then(module => {
-        this.prisma = module.db;
+      import('@/services/s3').then(module => {
+        this.s3Session = module;
       });
     }
   }
@@ -495,26 +497,25 @@ export class AgentService {
       return existingSession;
     }
 
-    // ✅ 从数据库查询SDK session ID
+    // ✅ 从S3查询SDK session ID和userId
     let sdkSessionId: string | undefined;
-    if (this.prisma) {
+    let userId: string | undefined;
+    if (this.s3Session) {
       try {
-        const dbSession = await this.prisma.agentSession.findUnique({
-          where: { sessionId },
-          select: { sdkSessionId: true },
-        });
-        sdkSessionId = dbSession?.sdkSessionId;
+        const s3Session = await this.s3Session.getAgentSession(sessionId);
+        sdkSessionId = s3Session?.sdkSessionId ?? undefined;
+        userId = s3Session?.userId;
 
         if (sdkSessionId) {
-          console.log(`[AgentService] Found SDK session ID in database: ${sdkSessionId} for app sessionId: ${sessionId}`);
+          console.log(`[AgentService] Found SDK session ID in S3: ${sdkSessionId} for app sessionId: ${sessionId}`);
         }
       } catch (error) {
-        console.error('[AgentService] Failed to query SDK session ID from database:', error);
+        console.error('[AgentService] Failed to query SDK session ID from S3:', error);
       }
     }
 
     // ✅ 创建新的 session 实例，传递sdkSessionId用于resume
-    const session = new AgentSessionInstance(sessionId, config, sdkSessionId);
+    const session = new AgentSessionInstance(sessionId, config, sdkSessionId, userId);
     this.sessions.set(sessionId, session);
 
     // ✅ 启动后台任务：等待SDK session ID捕获后保存到数据库
@@ -539,11 +540,10 @@ export class AgentService {
       elapsed += checkInterval;
     }
 
-    if (session.sdkSessionId && this.prisma) {
+    if (session.sdkSessionId && this.s3Session && session.userId) {
       try {
-        await this.prisma.agentSession.update({
-          where: { sessionId: session.sessionId },
-          data: { sdkSessionId: session.sdkSessionId },
+        await this.s3Session.updateAgentSession(session.sessionId, session.userId, {
+          sdkSessionId: session.sdkSessionId,
         });
         console.log(`[AgentService] Saved SDK session ID: ${session.sdkSessionId} for app sessionId: ${session.sessionId}`);
       } catch (error) {
@@ -551,6 +551,8 @@ export class AgentService {
       }
     } else if (!session.sdkSessionId) {
       console.warn(`[AgentService] SDK session ID not captured within ${maxWaitTime}ms for sessionId: ${session.sessionId}`);
+    } else if (!session.userId) {
+      console.warn(`[AgentService] Cannot save SDK session ID - no userId available for sessionId: ${session.sessionId}`);
     }
   }
 

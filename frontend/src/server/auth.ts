@@ -1,8 +1,12 @@
 import { env } from "@/env";
-import { db } from "@/server/db";
-import { PrismaAdapter } from "@auth/prisma-adapter";
+import {
+  getUserProfile,
+  createUserProfile,
+  addAccount,
+  getAccountByProvider,
+  type UserProfile,
+} from "@/services/s3/user-service";
 import NextAuth, { type DefaultSession, type Session } from "next-auth";
-import { type Adapter } from "next-auth/adapters";
 import CognitoProvider from "next-auth/providers/cognito";
 
 declare module "next-auth" {
@@ -30,7 +34,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   },
   callbacks: {
     async jwt({ token, user, account, trigger, session }) {
-      // 首次登录时，从用户对象获取信息
+      // First login: get info from user object
       if (user) {
         token.id = user.id;
         token.hasAccess = user.hasAccess ?? false;
@@ -43,28 +47,21 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         token.isAdmin = user.role === "ADMIN";
       }
 
-      // OAuth 登录时，确保从数据库获取最新的用户信息
-      if (account && token.email) {
-        const dbUser = await db.user.findUnique({
-          where: { email: token.email as string },
-          select: { id: true, hasAccess: true, role: true, name: true, image: true },
-        });
-        if (dbUser) {
-          token.id = dbUser.id;
-          token.hasAccess = dbUser.hasAccess;
-          token.role = dbUser.role;
-          token.isAdmin = dbUser.role === "ADMIN";
-          // 如果数据库中有更完整的信息，使用数据库中的
-          if (dbUser.name) token.name = dbUser.name;
-          if (dbUser.image) token.image = dbUser.image;
+      // OAuth login: get latest user info from S3
+      if (account && token.id) {
+        const profile = await getUserProfile(token.id as string);
+        if (profile) {
+          token.hasAccess = profile.hasAccess;
+          token.role = profile.role;
+          token.isAdmin = profile.role === "ADMIN";
+          if (profile.name) token.name = profile.name;
+          if (profile.image) token.image = profile.image;
         }
       }
 
       // Handle session updates
       if (trigger === "update" && (session as Session)?.user) {
-        const dbUser = await db.user.findUnique({
-          where: { id: token.id as string },
-        });
+        const profile = await getUserProfile(token.id as string);
         if (session) {
           token.name = (session as Session).user.name;
           token.image = (session as Session).user.image;
@@ -73,10 +70,10 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           token.role = (session as Session).user.role;
           token.isAdmin = (session as Session).user.role === "ADMIN";
         }
-        if (dbUser) {
-          token.hasAccess = dbUser.hasAccess ?? false;
-          token.role = dbUser.role;
-          token.isAdmin = dbUser.role === "ADMIN";
+        if (profile) {
+          token.hasAccess = profile.hasAccess ?? false;
+          token.role = profile.role;
+          token.isAdmin = profile.role === "ADMIN";
         }
       }
 
@@ -92,50 +89,74 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       return session;
     },
 
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account, profile: oauthProfile }) {
       if (!user.email) {
         console.error("[Auth] Sign in failed: no email provided");
         return false;
       }
 
+      // For Cognito, the user ID comes from the 'sub' claim
+      // We use this as our primary user identifier
+      const cognitoSub = account?.providerAccountId;
+      if (!cognitoSub) {
+        console.error("[Auth] Sign in failed: no Cognito sub");
+        return false;
+      }
+
       try {
-        // 检查用户是否已存在
-        const existingUser = await db.user.findUnique({
-          where: { email: user.email },
-          include: { accounts: true },
-        });
+        // Check if user profile exists in S3
+        let existingProfile = await getUserProfile(cognitoSub);
 
-        if (existingUser) {
-          // 用户存在，检查是否已关联此 provider 的账户
-          const existingAccount = existingUser.accounts.find(
-            (acc) => acc.provider === account?.provider
-          );
+        if (existingProfile) {
+          // User exists - update user object with stored info
+          user.id = existingProfile.id;
+          user.hasAccess = existingProfile.hasAccess;
+          user.role = existingProfile.role;
 
-          if (!existingAccount && account) {
-            // 用户存在但没有此 provider 的账户，创建关联
+          // Check if this provider account is linked
+          const existingAccount = await getAccountByProvider(cognitoSub, account.provider);
+          if (!existingAccount) {
+            // Link this provider account
             console.log(`[Auth] Linking ${account.provider} account to existing user: ${user.email}`);
-            await db.account.create({
-              data: {
-                userId: existingUser.id,
-                type: account.type,
-                provider: account.provider,
-                providerAccountId: account.providerAccountId,
-                access_token: account.access_token,
-                expires_at: account.expires_at,
-                token_type: account.token_type,
-                scope: account.scope,
-                id_token: account.id_token,
-                refresh_token: account.refresh_token,
-              },
+            await addAccount(cognitoSub, {
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+              type: account.type,
+              access_token: account.access_token ?? undefined,
+              expires_at: account.expires_at ?? undefined,
+              token_type: account.token_type ?? undefined,
+              scope: account.scope ?? undefined,
+              id_token: account.id_token ?? undefined,
+              refresh_token: account.refresh_token ?? undefined,
             });
           }
-
-          // 更新用户 ID 以确保 JWT 使用正确的 ID
-          user.id = existingUser.id;
-          user.hasAccess = existingUser.hasAccess;
-          user.role = existingUser.role;
         } else {
-          // 新用户，设置默认值
+          // New user - create profile in S3
+          console.log(`[Auth] Creating new user profile for: ${user.email}`);
+          existingProfile = await createUserProfile({
+            id: cognitoSub,
+            email: user.email,
+            name: user.name ?? oauthProfile?.name ?? undefined,
+            image: user.image ?? undefined,
+            role: "USER",
+            hasAccess: false,
+          });
+
+          // Link the provider account
+          await addAccount(cognitoSub, {
+            provider: account.provider,
+            providerAccountId: account.providerAccountId,
+            type: account.type,
+            access_token: account.access_token ?? undefined,
+            expires_at: account.expires_at ?? undefined,
+            token_type: account.token_type ?? undefined,
+            scope: account.scope ?? undefined,
+            id_token: account.id_token ?? undefined,
+            refresh_token: account.refresh_token ?? undefined,
+          });
+
+          // Set defaults for new user
+          user.id = cognitoSub;
           user.hasAccess = false;
           user.role = "USER";
         }
@@ -143,20 +164,26 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         return true;
       } catch (error) {
         console.error("[Auth] Sign in error:", error);
-        return true; // 仍然允许登录，让 adapter 处理用户创建
+        // Still allow login even if S3 operations fail
+        // This ensures users aren't locked out
+        user.id = cognitoSub;
+        user.hasAccess = false;
+        user.role = "USER";
+        return true;
       }
     },
   },
 
-  adapter: PrismaAdapter(db) as Adapter,
+  // No adapter - we handle user persistence ourselves via S3
+  // adapter: PrismaAdapter(db) as Adapter,
 
   providers: [
     CognitoProvider({
       clientId: env.COGNITO_CLIENT_ID,
       clientSecret: env.COGNITO_CLIENT_SECRET,
       issuer: env.COGNITO_ISSUER,
-      // 使用 'state' 检查以提高兼容性
-      // 如果 Cognito 配置了 PKCE，可以改为 ['pkce', 'state']
+      // Use 'state' check for compatibility
+      // If Cognito is configured with PKCE, change to ['pkce', 'state']
       checks: ["state"],
       authorization: {
         params: {
@@ -168,6 +195,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
 
   pages: {
     signIn: "/auth/signin",
-    error: "/auth/signin", // 错误时重定向到登录页
+    error: "/auth/signin",
   },
 });

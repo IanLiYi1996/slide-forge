@@ -2,9 +2,10 @@
 
 AWS CDK infrastructure for deploying Slide-Forge to AWS with a hybrid architecture:
 - **Static assets**: S3 + CloudFront
-- **API routes**: ECS Fargate + ALB
-- **Database**: Aurora Serverless v2 PostgreSQL
+- **API routes**: ECS EC2 + ALB
+- **Data storage**: S3 (serverless, no database required)
 - **AI Services**: AWS Bedrock + Claude Agent SDK + OpenAI API
+- **Authentication**: Amazon Cognito
 
 ## ⚡ 快速部署（新）
 
@@ -44,10 +45,13 @@ infrastructure/
 ├── lib/
 │   ├── slide-forge-stack.ts     # Main stack
 │   ├── network/vpc.ts           # VPC with 3 AZs
-│   ├── compute/ecs-nextjs-service.ts  # ECS Fargate service
+│   ├── compute/ecs-nextjs-service.ts  # ECS EC2 service
 │   ├── storage/
-│   │   ├── aurora-serverless.ts # Aurora Serverless v2
 │   │   └── s3-buckets.ts        # Static, uploads, logs buckets
+│   ├── auth/
+│   │   ├── cognito.ts           # Cognito User Pool
+│   │   ├── admin-user-creator.ts
+│   │   └── agent-sdk-role.ts
 │   ├── cdn/cloudfront.ts        # CloudFront distribution
 │   └── common/constants.ts      # Shared configuration
 ├── docker/
@@ -128,26 +132,7 @@ cdk deploy --context environment=development
 cdk deploy --context environment=production
 ```
 
-### 3. Run Database Migrations
-
-After deployment, get the DATABASE_URL and run Prisma migrations:
-
-```bash
-# Get the secret ARN from CDK output
-export SECRET_ARN="arn:aws:secretsmanager:..."
-
-# Extract DATABASE_URL
-export DATABASE_URL=$(aws secretsmanager get-secret-value \
-  --secret-id $SECRET_ARN \
-  --query SecretString \
-  --output text | jq -r .connectionString)
-
-# Run migrations (from frontend directory)
-cd ../frontend
-pnpm prisma migrate deploy
-```
-
-### 4. Build and Upload Static Assets
+### 3. Build and Upload Static Assets
 
 ```bash
 # Build Next.js application (from frontend directory)
@@ -162,7 +147,7 @@ aws s3 sync .next/static s3://$STATIC_BUCKET/_next/static
 aws s3 sync public s3://$STATIC_BUCKET/public
 ```
 
-### 5. Invalidate CloudFront Cache
+### 4. Invalidate CloudFront Cache
 
 ```bash
 # Get distribution ID from CDK output
@@ -174,7 +159,7 @@ aws cloudfront create-invalidation \
   --paths "/*"
 ```
 
-### 6. Access Your Application
+### 5. Access Your Application
 
 The CloudFront URL will be in the CDK output:
 ```
@@ -188,12 +173,13 @@ https://d1234567890abc.cloudfront.net
 The following environment variables are configured in `lib/compute/ecs-nextjs-service.ts`:
 
 **From Secrets Manager** (secure):
-- `DATABASE_URL` - PostgreSQL connection string
 - `NEXTAUTH_SECRET` - NextAuth.js secret
-- `LLM_API_KEY` - OpenAI/compatible API key
-- `YUNWU_API_KEY` - Image generation API key
-- `UPLOADTHING_TOKEN` - File upload service token
-- `TAVILY_API_KEY` - Search API key
+- `COGNITO_CLIENT_SECRET` - Cognito OAuth client secret
+- `LLM_API_KEY` - OpenAI/compatible API key (optional)
+- `UPLOADTHING_TOKEN` - File upload service token (optional)
+- `TAVILY_API_KEY` - Search API key (optional)
+
+**Note**: Data storage uses S3 instead of a database. All presentation data, user profiles, and sessions are stored in the uploads S3 bucket.
 
 **Environment Variables**:
 - `NODE_ENV=production`
@@ -212,43 +198,38 @@ Edit `config/dev.json` or `config/prod.json`:
     "maxAzs": 3,
     "natGateways": 1
   },
-  "aurora": {
-    "minCapacity": 0.5,
-    "maxCapacity": 2
-  },
   "ecs": {
     "cpu": 1024,
     "memory": 2048,
-    "desiredCount": 2
+    "desiredCount": 1
   }
 }
 ```
 
 ## 💰 Cost Optimization
 
-### Development Environment (~$120/month)
-- ECS Fargate (1-2 tasks, ARM64): ~$25
-- Aurora Serverless v2 (0.5 ACU, auto-pause): ~$8
+### Development Environment (~$50/month)
+- ECS EC2 (t3.large): ~$30
 - ALB: ~$20
 - NAT Gateway (1): ~$33
 - CloudFront (100GB): ~$10
-- S3 + Secrets: ~$7
-- Other: ~$12
+- S3 (data storage): ~$5
+- Other: ~$7
 
-### Production Environment (~$300/month)
-- ECS Fargate (2-4 tasks): ~$50
-- Aurora (0.5-2 ACU continuous): ~$70
+### Production Environment (~$150/month)
+- ECS EC2 (larger instance or multiple): ~$60
 - ALB: ~$20
 - NAT Gateway (2, HA): ~$64
 - CloudFront (500GB): ~$50
-- Other: ~$46
+- S3 (data storage): ~$10
+- Other: ~$20
 
 ### Cost Saving Tips
-1. Use ARM64/Graviton2 (20% savings)
-2. Enable Aurora auto-pause (dev)
-3. Use S3 lifecycle policies
-4. CloudFront Price Class 100
-5. VPC Endpoints (reduce NAT costs)
+1. Use S3 for data storage (no database costs)
+2. Use S3 lifecycle policies for old data
+3. CloudFront Price Class 100
+4. VPC Endpoints (reduce NAT costs)
+5. Spot Instances for non-production
 
 ## 🛠️ Common Operations
 
@@ -282,16 +263,6 @@ aws ecs update-service \
   --desired-count 4
 ```
 
-### Connect to Database
-
-```bash
-# Get database endpoint from CDK output
-export DB_ENDPOINT="..."
-
-# Connect via psql (requires VPN or bastion host)
-psql postgresql://username:password@$DB_ENDPOINT:5432/slide_forge
-```
-
 ## 🔍 Troubleshooting
 
 ### ECS Tasks Not Starting
@@ -300,6 +271,7 @@ psql postgresql://username:password@$DB_ENDPOINT:5432/slide_forge
 2. Verify health check endpoint: `/api/health`
 3. Check security group rules
 4. Verify secrets exist in Secrets Manager
+5. Check S3 bucket permissions
 
 ### CloudFront 404 Errors
 
@@ -307,11 +279,11 @@ psql postgresql://username:password@$DB_ENDPOINT:5432/slide_forge
 2. Check CloudFront origin configuration
 3. Wait 5-10 minutes for distribution deployment
 
-### Database Connection Failures
+### S3 Data Access Issues
 
-1. Verify security group allows ECS → Aurora
-2. Check DATABASE_URL format in Secrets Manager
-3. Ensure Aurora cluster is not paused
+1. Verify ECS task role has S3 permissions
+2. Check KMS key permissions for encrypted buckets
+3. Verify bucket name in environment variables (UPLOADS_BUCKET)
 
 ## 🗑️ Cleanup
 
@@ -330,8 +302,9 @@ cdk destroy --all
 
 - [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
 - [Next.js Deployment](https://nextjs.org/docs/deployment)
-- [Aurora Serverless v2](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.html)
+- [S3 Best Practices](https://docs.aws.amazon.com/AmazonS3/latest/userguide/best-practices-for-s3.html)
 - [CloudFront Best Practices](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/best-practices.html)
+- [Amazon Cognito](https://docs.aws.amazon.com/cognito/)
 
 ## 🤝 Support
 

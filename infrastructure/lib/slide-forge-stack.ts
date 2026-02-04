@@ -2,8 +2,6 @@ import * as cdk from 'aws-cdk-lib';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import { Construct } from 'constructs';
 import { VpcConstruct } from './network/vpc';
-import { AuroraServerlessConstruct } from './storage/aurora-serverless';
-import { AuroraSecretConnectionStringUpdater } from './storage/aurora-secret-connection-string';
 import { S3BucketsConstruct } from './storage/s3-buckets';
 import { StaticAssetsDeployment } from './storage/static-assets-deployment';
 import { EcsNextjsServiceConstruct } from './compute/ecs-nextjs-service';
@@ -51,22 +49,7 @@ export class SlideForgeStack extends cdk.Stack {
       stackName,
     });
 
-    // 3. Create Aurora Serverless Database
-    const auroraConstruct = new AuroraServerlessConstruct(this, 'Database', {
-      vpc: vpcConstruct.vpc,
-      securityGroup: vpcConstruct.auroraSecurityGroup,
-      stackName,
-      minCapacity: 0.5,
-      maxCapacity: environment === 'production' ? 4 : 2,
-      deletionProtection: environment === 'production',
-    });
-
-    // 3b. Add connectionString field to Aurora secret (for Prisma compatibility)
-    new AuroraSecretConnectionStringUpdater(this, 'AuroraSecretUpdater', {
-      secret: auroraConstruct.secret,
-    });
-
-    // 4. Create Cognito User Pool (在 ECS 之前，不需要 CloudFront URL)
+    // 3. Create Cognito User Pool (在 ECS 之前，不需要 CloudFront URL)
     const cognitoConstruct = new CognitoConstruct(this, 'Auth', {
       stackName,
       adminEmail: envConfig.cognito.adminEmail,
@@ -102,7 +85,8 @@ export class SlideForgeStack extends cdk.Stack {
       stackName,
     });
 
-    // 8. Create ECS Service (after CloudFront, with distribution domain)
+    // 4. Create ECS Service (after CloudFront, with distribution domain)
+    // Note: Data storage uses S3 instead of database (PostgreSQL removed)
     const ecsConstruct = new EcsNextjsServiceConstruct(this, 'Compute', {
       vpc: vpcConstruct.vpc,
       alb: alb, // Pass existing ALB
@@ -111,9 +95,8 @@ export class SlideForgeStack extends cdk.Stack {
       uploadsBucket: s3Construct.uploadsBucket,
       logsBucket: s3Construct.logsBucket,
       kmsKey: s3Construct.kmsKey,
-      databaseSecret: auroraConstruct.secret,
       stackName,
-      distributionDomain: cloudfrontConstruct.distribution.distributionDomainName, // ✅
+      distributionDomain: cloudfrontConstruct.distribution.distributionDomainName,
       // 传递环境变量配置
       envConfig: {
         claudeUseBedrock: envConfig.claudeConfig.useBedrock,
@@ -226,26 +209,22 @@ export class SlideForgeStack extends cdk.Stack {
         '',
         '📋 Next Steps:',
         '',
-        '1. Create required secrets in AWS Secrets Manager:',
-        `   aws secretsmanager create-secret --name ${stackName}/openai-api-key --secret-string "sk-..."`,
-        `   aws secretsmanager create-secret --name ${stackName}/yunwu-api-key --secret-string "sk-..."`,
+        '1. Create optional secrets in AWS Secrets Manager (if not already configured):',
         `   aws secretsmanager create-secret --name ${stackName}/tavily-api-key --secret-string "tvly-..."`,
         `   aws secretsmanager create-secret --name ${stackName}/uploadthing-token --secret-string "sk_live_..."`,
         '',
-        '2. Run Prisma migrations:',
-        `   export DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id ${auroraConstruct.secret.secretArn} --query SecretString --output text | jq -r .connectionString)`,
-        '   pnpm prisma migrate deploy',
-        '',
-        '3. Build and upload static assets:',
+        '2. Build and upload static assets:',
         '   pnpm build',
         `   aws s3 sync .next/static s3://${s3Construct.staticBucket.bucketName}/_next/static`,
         `   aws s3 sync public s3://${s3Construct.staticBucket.bucketName}/public`,
         '',
-        '4. Invalidate CloudFront cache:',
+        '3. Invalidate CloudFront cache:',
         `   aws cloudfront create-invalidation --distribution-id ${cloudfrontConstruct.distribution.distributionId} --paths "/*"`,
         '',
-        '5. Access your application:',
+        '4. Access your application:',
         `   https://${cloudfrontConstruct.distribution.distributionDomainName}`,
+        '',
+        'Note: This deployment uses S3 for data storage (no database required).',
         '',
         '========================================',
       ].join('\n'),

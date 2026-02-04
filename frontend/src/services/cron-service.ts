@@ -6,8 +6,44 @@
  */
 
 import cron from 'node-cron';
-import { db } from '@/server/db';
-import { getQuotaResetDate } from '@/lib/quota-calculator';
+import { listAllObjects, getObject, putObjectSimple } from '@/services/s3';
+import type { UserQuotas, UsageType, PeriodType } from '@/services/s3';
+
+/**
+ * Get the next reset date based on period type
+ */
+function getQuotaResetDate(periodType: PeriodType, currentDate: Date = new Date()): Date {
+  const resetDate = new Date(currentDate);
+
+  switch (periodType) {
+    case 'DAILY':
+      resetDate.setDate(resetDate.getDate() + 1);
+      resetDate.setHours(0, 0, 0, 0);
+      break;
+
+    case 'WEEKLY':
+      const dayOfWeek = resetDate.getDay();
+      const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+      resetDate.setDate(resetDate.getDate() + daysUntilMonday);
+      resetDate.setHours(0, 0, 0, 0);
+      break;
+
+    case 'MONTHLY':
+      resetDate.setMonth(resetDate.getMonth() + 1, 1);
+      resetDate.setHours(0, 0, 0, 0);
+      break;
+
+    case 'YEARLY':
+      resetDate.setFullYear(resetDate.getFullYear() + 1, 0, 1);
+      resetDate.setHours(0, 0, 0, 0);
+      break;
+
+    case 'LIFETIME':
+      return new Date('2099-12-31');
+  }
+
+  return resetDate;
+}
 
 /**
  * Initialize all cron jobs
@@ -45,26 +81,18 @@ async function resetQuotas() {
   const now = new Date();
 
   try {
-    // Find all quotas that need to be reset
-    const quotasToReset = await db.usageQuota.findMany({
-      where: {
-        resetAt: {
-          lte: now,
-        },
-      },
-      select: {
-        id: true,
-        userId: true,
-        quotaType: true,
-        periodType: true,
-        usedAmount: true,
-      },
+    // List all user quota files
+    const quotaKeys = await listAllObjects({
+      prefix: 'usage/',
     });
 
-    console.log(`📊 Found ${quotasToReset.length} quotas to reset`);
+    // Filter to only quota files
+    const quotaFiles = quotaKeys.filter((key) => key.endsWith('/quotas.json'));
 
-    if (quotasToReset.length === 0) {
-      console.log('✅ No quotas need resetting');
+    console.log(`📊 Checking ${quotaFiles.length} user quotas`);
+
+    if (quotaFiles.length === 0) {
+      console.log('✅ No quotas to check');
       return {
         success: true,
         resetCount: 0,
@@ -72,41 +100,56 @@ async function resetQuotas() {
       };
     }
 
-    // Reset quotas in batches
-    const resetResults = await Promise.allSettled(
-      quotasToReset.map(async (quota) => {
-        const nextResetDate = getQuotaResetDate(quota.periodType, now);
+    // Process each user's quotas
+    let totalReset = 0;
+    let failed = 0;
 
-        return db.usageQuota.update({
-          where: { id: quota.id },
-          data: {
-            usedAmount: 0,
-            resetAt: nextResetDate,
-          },
-        });
+    const resetResults = await Promise.allSettled(
+      quotaFiles.map(async (quotaKey) => {
+        const userQuotas = await getObject<UserQuotas>(quotaKey);
+        if (!userQuotas) return 0;
+
+        let resetCount = 0;
+        let hasChanges = false;
+
+        // Check each quota type for reset
+        for (const [type, quota] of Object.entries(userQuotas.quotas)) {
+          if (quota && new Date(quota.resetAt) <= now && quota.periodType !== 'LIFETIME') {
+            quota.usedAmount = 0;
+            quota.resetAt = getQuotaResetDate(quota.periodType, now).toISOString();
+            resetCount++;
+            hasChanges = true;
+          }
+        }
+
+        if (hasChanges) {
+          userQuotas.updatedAt = now.toISOString();
+          await putObjectSimple(quotaKey, userQuotas);
+        }
+
+        return resetCount;
       })
     );
 
     // Count results
-    const succeeded = resetResults.filter((r) => r.status === 'fulfilled').length;
-    const failed = resetResults.filter((r) => r.status === 'rejected').length;
-
-    // Log failures
-    if (failed > 0) {
-      const failures = resetResults
-        .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-        .map((r) => r.reason);
-      console.error('❌ Reset failures:', failures);
+    for (const result of resetResults) {
+      if (result.status === 'fulfilled') {
+        totalReset += result.value;
+      } else {
+        failed++;
+        console.error('❌ Reset failure:', result.reason);
+      }
     }
 
     const duration = Date.now() - startTime;
     console.log(`✅ Quota reset completed in ${duration}ms:`);
-    console.log(`  - Succeeded: ${succeeded}`);
+    console.log(`  - Users processed: ${quotaFiles.length}`);
+    console.log(`  - Quotas reset: ${totalReset}`);
     console.log(`  - Failed: ${failed}`);
 
     return {
       success: true,
-      resetCount: succeeded,
+      resetCount: totalReset,
       failedCount: failed,
       duration,
     };

@@ -3,7 +3,7 @@
 import { convertPlateJSToPPTX } from "@/components/presentation/utils/exportToPPT";
 import { type PlateSlide } from "@/components/presentation/utils/parser";
 import { auth } from "@/server/auth";
-import { db } from "@/server/db";
+import { getPresentation, getPresentationContent } from "@/services/s3";
 
 export async function exportPresentation(
   presentationId: string,
@@ -31,6 +31,10 @@ export async function exportPresentation(
       session.user.id,
     );
 
+    if (!presentationData.slides) {
+      return { success: false, error: "No slides found in presentation" };
+    }
+
     // Generate the PPT file (ArrayBuffer)
     const arrayBuffer = await convertPlateJSToPPTX(
       { slides: presentationData.slides },
@@ -55,20 +59,23 @@ export async function exportPresentation(
 
 // Helper function to fetch presentation data
 async function fetchPresentationData(presentationId: string, userId: string) {
-  // Implement your actual data fetching logic here
-  // For now returning a placeholder
+  // Get the presentation metadata and verify ownership
+  const presentation = await getPresentation(presentationId);
 
-  // In a real implementation, you would fetch from your database
-  const presentation = await db.baseDocument.findFirst({
-    where: { id: presentationId, userId: userId },
-    include: { presentation: true },
-  });
+  if (!presentation || presentation.base.userId !== userId) {
+    return {
+      id: null,
+      title: null,
+      slides: null,
+    };
+  }
+
+  // Get the full presentation content
+  const content = await getPresentationContent(presentationId);
 
   return {
-    id: presentation?.id,
-    title: presentation?.title,
-    slides: (
-      presentation?.presentation?.content as unknown as { slides: PlateSlide[] }
-    )?.slides,
+    id: presentation.base.id,
+    title: presentation.base.title,
+    slides: (content as { slides?: PlateSlide[] })?.slides ?? null,
   };
 }

@@ -21,7 +21,6 @@ export interface EcsNextjsServiceConstructProps {
   uploadsBucket: s3.IBucket;
   logsBucket: s3.IBucket;
   kmsKey: kms.IKey;
-  databaseSecret: secretsmanager.ISecret;
   stackName: string;
   distributionDomain: string; // Required parameter for NEXTAUTH_URL
   // 环境变量配置
@@ -87,7 +86,6 @@ export class EcsNextjsServiceConstruct extends Construct {
     });
 
     // Grant access to secrets
-    props.databaseSecret.grantRead(taskExecutionRole);
     nextAuthSecret.grantRead(taskExecutionRole);
 
     // ECS Task Role (for application permissions)
@@ -265,10 +263,8 @@ export class EcsNextjsServiceConstruct extends Construct {
     }
 
     // 构建 secrets 映射（敏感信息）
-    // Note: DATABASE_URL requires 'connectionString' field in Aurora secret
-    // This will be automatically added by AuroraSecretConnectionStringUpdater
+    // Note: Data storage uses S3 instead of database
     const secrets: Record<string, ecs.Secret> = {
-      DATABASE_URL: ecs.Secret.fromSecretsManager(props.databaseSecret, 'connectionString'),
       NEXTAUTH_SECRET: ecs.Secret.fromSecretsManager(nextAuthSecret),
     };
 

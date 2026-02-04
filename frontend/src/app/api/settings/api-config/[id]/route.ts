@@ -5,7 +5,10 @@
  */
 
 import { auth } from '@/server/auth';
-import { db } from '@/server/db';
+import {
+  getUserApiConfigurations,
+  deleteApiConfiguration,
+} from '@/services/s3';
 import { NextResponse } from 'next/server';
 
 export async function DELETE(
@@ -21,11 +24,9 @@ export async function DELETE(
     const userId = session.user.id;
     const { id: configId } = await params;
 
-    // Verify ownership before deleting
-    const config = await db.apiConfiguration.findUnique({
-      where: { id: configId },
-      select: { userId: true },
-    });
+    // Find the config by ID to get apiName
+    const userConfigs = await getUserApiConfigurations(userId);
+    const config = userConfigs.find((c) => c.id === configId);
 
     if (!config) {
       return NextResponse.json(
@@ -34,17 +35,8 @@ export async function DELETE(
       );
     }
 
-    if (config.userId !== userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized to delete this configuration' },
-        { status: 403 }
-      );
-    }
-
     // Delete the configuration
-    await db.apiConfiguration.delete({
-      where: { id: configId },
-    });
+    await deleteApiConfiguration(userId, config.apiName);
 
     return NextResponse.json({
       success: true,

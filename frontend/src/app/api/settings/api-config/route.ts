@@ -6,7 +6,12 @@
  */
 
 import { auth } from '@/server/auth';
-import { db } from '@/server/db';
+import {
+  getUserApiConfigurations,
+  createApiConfiguration,
+  updateApiConfiguration,
+  getApiConfiguration,
+} from '@/services/s3';
 import { encryptApiKey, decryptApiKey, maskApiKey } from '@/lib/encryption';
 import { getAllApiConfigs } from '@/lib/api-config-resolver';
 import { API_TYPES } from '@/lib/api-types-config';
@@ -25,11 +30,8 @@ export async function GET() {
 
     const userId = session.user.id;
 
-    // Get user configs from database
-    const userConfigs = await db.apiConfiguration.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
+    // Get user configs from S3
+    const userConfigs = await getUserApiConfigurations(userId);
 
     // Return configs with masked API keys
     const maskedUserConfigs = userConfigs.map((config) => {
@@ -46,8 +48,8 @@ export async function GET() {
         isActive: config.isActive,
         source: 'user',
         category: apiTypeDef?.category || 'other',
-        createdAt: config.createdAt.toISOString(),
-        updatedAt: config.updatedAt.toISOString(),
+        createdAt: config.createdAt,
+        updatedAt: config.updatedAt,
       };
     });
 
@@ -139,32 +141,37 @@ export async function POST(request: Request) {
     // Use displayName from apiTypeDef if not provided
     const finalDisplayName = displayName || apiTypeDef.displayName;
 
-    // Upsert configuration (create or update)
-    const config = await db.apiConfiguration.upsert({
-      where: {
-        userId_apiName: {
-          userId,
-          apiName,
-        },
-      },
-      create: {
+    // Check if config exists
+    const existingConfig = await getApiConfiguration(userId, apiName);
+
+    let config;
+    if (existingConfig) {
+      // Update existing
+      config = await updateApiConfiguration(userId, apiName, {
+        displayName: finalDisplayName,
+        apiKey: encryptedKey,
+        baseUrl: baseUrl || undefined,
+        metadata: metadata || undefined,
+        isActive,
+      });
+    } else {
+      // Create new
+      config = await createApiConfiguration({
         userId,
         apiName,
         displayName: finalDisplayName,
         apiKey: encryptedKey,
-        baseUrl: baseUrl || undefined,
-        metadata: metadata ? (metadata as object) : undefined,
-        isActive,
-      },
-      update: {
-        displayName: finalDisplayName,
-        apiKey: encryptedKey,
-        baseUrl: baseUrl || undefined,
-        metadata: metadata ? (metadata as object) : undefined,
-        isActive,
-        updatedAt: new Date(),
-      },
-    });
+        baseUrl,
+        metadata,
+      });
+    }
+
+    if (!config) {
+      return NextResponse.json(
+        { error: 'Failed to save API configuration' },
+        { status: 500 }
+      );
+    }
 
     // Return with masked key
     return NextResponse.json({
@@ -177,8 +184,8 @@ export async function POST(request: Request) {
         baseUrl: config.baseUrl,
         metadata: config.metadata,
         isActive: config.isActive,
-        createdAt: config.createdAt.toISOString(),
-        updatedAt: config.updatedAt.toISOString(),
+        createdAt: config.createdAt,
+        updatedAt: config.updatedAt,
       },
       message: 'API configuration saved successfully',
     });

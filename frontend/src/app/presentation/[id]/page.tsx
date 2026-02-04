@@ -3,7 +3,7 @@
  */
 
 import { auth } from "@/server/auth";
-import { db } from "@/server/db";
+import { getPresentation } from "@/services/s3";
 import { redirect, notFound } from "next/navigation";
 import PresentationPage from "@/components/presentation/presentation-page/Main";
 
@@ -20,17 +20,7 @@ export default async function Page({ params }: PageProps) {
   }
 
   // Fetch presentation to check ownership
-  const presentation = await db.presentation.findUnique({
-    where: { id: resolvedParams.id },
-    select: {
-      id: true,
-      base: {
-        select: {
-          userId: true,
-        },
-      },
-    },
-  });
+  const presentation = await getPresentation(resolvedParams.id);
 
   if (!presentation) {
     notFound();
