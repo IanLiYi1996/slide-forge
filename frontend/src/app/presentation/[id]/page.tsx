@@ -1,9 +1,5 @@
 /**
- * Presentation View Router
- *
- * Routes to the appropriate viewer based on presentation mode:
- * - TRADITIONAL: Image slides viewer
- * - PREZI: Prezi player
+ * Presentation View Page
  */
 
 import { auth } from "@/server/auth";
@@ -23,12 +19,11 @@ export default async function Page({ params }: PageProps) {
     redirect("/auth/signin");
   }
 
-  // Fetch presentation to check mode
+  // Fetch presentation to check ownership
   const presentation = await db.presentation.findUnique({
     where: { id: resolvedParams.id },
     select: {
       id: true,
-      presentationMode: true,
       base: {
         select: {
           userId: true,
@@ -46,11 +41,5 @@ export default async function Page({ params }: PageProps) {
     notFound();
   }
 
-  // ✨ Route based on presentation mode
-  if (presentation.presentationMode === "PREZI") {
-    redirect(`/presentation/prezi-play/${resolvedParams.id}`);
-  }
-
-  // Default: Traditional image slides viewer
   return <PresentationPage />;
 }

@@ -2,7 +2,7 @@
 
 import { WebGLShader } from "@/components/ui/web-gl-shader";
 import { Button } from "@/components/ui/button";
-import { FileText, Sparkles, ArrowRight, Image, Presentation } from "lucide-react";
+import { FileText, Sparkles, ArrowRight, Image } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -53,7 +53,7 @@ export function HomePage() {
           </div>
 
           {/* Feature Options */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 px-6 mb-12 auto-rows-fr">
+          <div className="grid md:grid-cols-3 gap-6 px-6 mb-12 auto-rows-fr">
             {/* Image to Slides Option */}
             <div className={cn(
               "group relative p-6 rounded-2xl border backdrop-blur-sm transition-all duration-300 flex flex-col h-full",
@@ -194,54 +194,6 @@ export function HomePage() {
                 onClick={() => router.push("/document-processor")}
               >
                 Start Processing
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Create Prezi Option */}
-            <div className={cn(
-              "group relative p-6 rounded-2xl border backdrop-blur-sm transition-all duration-300 flex flex-col h-full",
-              isDark ? "bg-black/40 hover:bg-black/50 border-white/10" : "bg-white/40 hover:bg-white/50 border-black/10",
-              "hover:border-green-500/50"
-            )}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-green-500/20 border border-green-500/30 group-hover:scale-110 transition-transform">
-                  <Presentation className="h-6 w-6 text-green-400" />
-                </div>
-                <span className="text-[10px] font-bold text-green-400 px-2 py-1 rounded-full border border-green-500/30 bg-green-500/10">
-                  INTERACTIVE
-                </span>
-              </div>
-
-              <h3 className={cn("text-2xl font-bold mb-2", isDark ? "text-white" : "text-foreground")}>Create Prezi</h3>
-              <p className={cn("text-sm mb-4", isDark ? "text-white/60" : "text-foreground/70")}>
-                Interactive canvas-based presentations with zoom and pan effects
-              </p>
-
-              <ul className="space-y-2 mb-6 flex-1">
-                <li className={cn("flex items-start gap-2 text-xs", isDark ? "text-white/70" : "text-foreground/80")}>
-                  <span className="text-green-500 mt-0.5">▸</span>
-                  <span>Non-linear storytelling</span>
-                </li>
-                <li className={cn("flex items-start gap-2 text-xs", isDark ? "text-white/70" : "text-foreground/80")}>
-                  <span className="text-green-500 mt-0.5">▸</span>
-                  <span>Infinite canvas workspace</span>
-                </li>
-                <li className={cn("flex items-start gap-2 text-xs", isDark ? "text-white/70" : "text-foreground/80")}>
-                  <span className="text-green-500 mt-0.5">▸</span>
-                  <span>Zoom & pan animations</span>
-                </li>
-              </ul>
-
-              <Button
-                variant="ghost"
-                className={cn(
-                  "w-full h-11 bg-gradient-to-r from-green-500/10 to-emerald-500/10 hover:from-green-500/20 hover:to-emerald-500/20 hover:bg-transparent transition-all border-0",
-                  isDark ? "text-white" : "text-foreground"
-                )}
-                onClick={() => router.push("/presentation/prezi-new")}
-              >
-                Create Prezi
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>

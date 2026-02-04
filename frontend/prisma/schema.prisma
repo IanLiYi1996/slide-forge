@@ -91,7 +91,7 @@ enum DocumentType {
 
 enum PresentationMode {
     TRADITIONAL // Traditional linear slide mode
-    PREZI       // Prezi-style canvas mode with zoom paths
+    PREZI       // @deprecated - Kept for backwards compatibility with existing data
 }
 
 model BaseDocument {
@@ -114,8 +114,8 @@ model BaseDocument {
 
 model Presentation {
     id                String           @id @default(cuid())
-    presentationMode  PresentationMode @default(TRADITIONAL) // Presentation mode: traditional slides or Prezi canvas
-    content           Json // For TRADITIONAL: {slides: PlateSlide[]}, For PREZI: PreziCanvasData
+    presentationMode  PresentationMode @default(TRADITIONAL)
+    content           Json // {slides: PlateSlide[]}
     theme             String           @default("default")
     imageSource       String           @default("ai") // The image model used for generating images
     prompt            String? // The prompt used for generating the presentation

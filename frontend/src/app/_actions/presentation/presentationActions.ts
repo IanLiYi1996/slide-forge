@@ -13,7 +13,6 @@ export async function createPresentation({
   imageSource,
   presentationStyle,
   language,
-  mode = "TRADITIONAL", // 🆕 Presentation mode
 }: {
   content: {
     slides: PlateSlide[];
@@ -24,7 +23,6 @@ export async function createPresentation({
   imageSource?: string;
   presentationStyle?: string;
   language?: string;
-  mode?: "TRADITIONAL" | "PREZI"; // 🆕 Presentation mode parameter
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -41,7 +39,6 @@ export async function createPresentation({
         userId,
         presentation: {
           create: {
-            presentationMode: mode, // 🆕 Set presentation mode
             content: content as unknown as InputJsonValue,
             theme: theme,
             imageSource,

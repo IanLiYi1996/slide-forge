@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       session.user.id,
     );
 
-    // ✨ 如果 session 不存在，自动创建（特别是 Prezi 模式）
+    // ✨ 如果 session 不存在，自动创建
     if (!dbSession) {
       console.log(`[Agent Chat] Session ${sessionId} not found, creating new session`);
 
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       dbSession = await sessionManager.createSessionWithId(
         sessionId,
         session.user.id,
-        sessionId.startsWith("prezi-") ? "Prezi Edit Session" : "New Agent Session"
+        "New Agent Session"
       );
     }
 

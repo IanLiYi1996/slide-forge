@@ -68,22 +68,6 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
-
-    /* Prezi Editor UI variables (will be set dynamically by theme) */
-    --prezi-ui-bg: 0 0% 100%;
-    --prezi-ui-fg: 0 0% 9%;
-    --prezi-ui-primary: 221 83% 53%;
-    --prezi-ui-secondary: 210 40% 96.1%;
-    --prezi-ui-accent: 210 40% 96.1%;
-    --prezi-ui-muted: 220 14.3% 95.9%;
-    --prezi-ui-heading: 0 0% 3.9%;
-    --prezi-ui-active: 221 83% 53%;
-    --prezi-ui-hover: 217 91.2% 59.8%;
-
-    /* State colors (consistent across themes) */
-    --prezi-ui-danger: 0 84.2% 60.2%;
-    --prezi-ui-warning: 25 95% 53%;
-    --prezi-ui-success: 142 76% 36%;
   }
   .dark {
     --background: 0 0% 3.9%;
@@ -118,22 +102,6 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
-
-    /* Prezi Editor UI variables for dark mode (will be set dynamically) */
-    --prezi-ui-bg: 0 0% 3.9%;
-    --prezi-ui-fg: 0 0% 98%;
-    --prezi-ui-primary: 217.2 91.2% 59.8%;
-    --prezi-ui-secondary: 0 0% 14.9%;
-    --prezi-ui-accent: 0 0% 14.9%;
-    --prezi-ui-muted: 0 0% 14.9%;
-    --prezi-ui-heading: 0 0% 98%;
-    --prezi-ui-active: 217.2 91.2% 59.8%;
-    --prezi-ui-hover: 217.2 91.2% 69.8%;
-
-    /* State colors (same in dark mode) */
-    --prezi-ui-danger: 0 84.2% 60.2%;
-    --prezi-ui-warning: 25 95% 53%;
-    --prezi-ui-success: 142 76% 36%;
   }
 }
 
