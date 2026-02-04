@@ -10,20 +10,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { RecentPresentationsSidebar } from "./RecentPresentationsSidebar";
+import { RecentHubSessions } from "./RecentHubSessions";
 import { RecentAgentSessions } from "./RecentAgentSessions";
-import { RecentDocumentSessions } from "./RecentDocumentSessions";
 import { useToast } from "@/components/ui/use-toast";
 import {
   LogOut,
   User,
-  FileText,
   Moon,
   Sun,
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  Image,
   Key,
   BarChart3,
   Zap,
@@ -265,18 +262,25 @@ export function GlobalSidebar() {
           <div className="space-y-1">
             {!isCollapsed && (
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-3">
-                Actions
+                Create
               </p>
             )}
 
             <Button
               variant="ghost"
               className={`w-full h-10 ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'}`}
-              onClick={() => router.push("/presentation")}
-              title={isCollapsed ? "Image to Slides" : undefined}
+              onClick={() => router.push("/create")}
+              title={isCollapsed ? "Smart Document Hub" : undefined}
             >
-              <FileText className="h-4 w-4" />
-              {!isCollapsed && "Image to Slides"}
+              <Zap className="h-4 w-4" />
+              {!isCollapsed && (
+                <>
+                  <span className="flex-1 text-left">Smart Document Hub</span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 px-1.5 py-0.5 rounded-full font-medium">
+                    NEW
+                  </span>
+                </>
+              )}
             </Button>
 
             <Button
@@ -295,27 +299,14 @@ export function GlobalSidebar() {
                 </>
               )}
             </Button>
-
-            <Button
-              variant="ghost"
-              className={`w-full h-10 ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'}`}
-              onClick={() => router.push("/document-processor")}
-              title={isCollapsed ? "Document Processor" : undefined}
-            >
-              <Image className="h-4 w-4" />
-              {!isCollapsed && "Document Processor"}
-            </Button>
           </div>
         </div>
 
-        {/* Recent Presentations - Only show when expanded */}
-        {!isCollapsed && <RecentPresentationsSidebar />}
+        {/* Recent Hub Sessions - Only show when expanded */}
+        {!isCollapsed && <RecentHubSessions />}
 
         {/* Recent Agent Sessions - Only show when expanded */}
         {!isCollapsed && <RecentAgentSessions />}
-
-        {/* Recent Document Sessions - Only show when expanded */}
-        {!isCollapsed && <RecentDocumentSessions />}
       </div>
 
       {/* Bottom Section - User Profile & Controls */}
