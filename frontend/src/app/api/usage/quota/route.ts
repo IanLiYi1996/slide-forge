@@ -7,17 +7,26 @@
  */
 
 import { auth } from '@/server/auth';
-import { db } from '@/server/db';
 import {
-  calculateRemainingQuota,
-  calculateTotalQuota,
-  calculateQuotaPercentage,
-  initializeUserQuotas,
-  USAGE_TYPE_LABELS,
-  formatQuotaAmount,
-} from '@/lib/quota-calculator';
-import { type UsageType } from '@prisma/client';
+  getUserQuotas,
+  getQuota,
+  formatQuotaForDisplay,
+  ALL_USAGE_TYPES,
+  type UsageType,
+} from '@/services/s3';
+import { getUserProfile } from '@/services/s3/user-service';
 import { NextResponse } from 'next/server';
+
+const USAGE_TYPE_LABELS: Record<UsageType, string> = {
+  AI_MODEL_CALL: 'AI Model Calls',
+  SLIDE_GENERATION: 'Slide Generation',
+  IMAGE_GENERATION: 'Image Generation',
+  IMAGE_SEARCH: 'Image Search',
+  STORAGE: 'Storage Space',
+  DOCUMENT_PROCESSING: 'Document Processing',
+  EXPORT_PDF: 'PDF Exports',
+  EXPORT_PPTX: 'PPTX Exports',
+};
 
 export async function GET(request: Request) {
   try {
@@ -33,66 +42,29 @@ export async function GET(request: Request) {
     const quantityParam = searchParams.get('quantity');
     const quantity = quantityParam ? parseInt(quantityParam, 10) : undefined;
 
-    // Get user to check if quotas need initialization
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: { role: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
+    // Get user profile for role
+    const profile = await getUserProfile(userId);
+    const role = profile?.role ?? 'USER';
 
     // If specific type is requested
     if (type) {
-      let quota = await db.usageQuota.findUnique({
-        where: {
-          userId_quotaType: {
-            userId,
-            quotaType: type,
-          },
-        },
-      });
-
-      // Initialize if doesn't exist
-      if (!quota) {
-        const quotasToCreate = initializeUserQuotas(user.role);
-        const quotaData = quotasToCreate.find((q) => q.quotaType === type);
-
-        if (!quotaData) {
-          return NextResponse.json(
-            { error: `Invalid usage type: ${type}` },
-            { status: 400 }
-          );
-        }
-
-        quota = await db.usageQuota.create({
-          data: {
-            userId,
-            ...quotaData,
-          },
-        });
+      if (!ALL_USAGE_TYPES.includes(type)) {
+        return NextResponse.json(
+          { error: `Invalid usage type: ${type}` },
+          { status: 400 }
+        );
       }
 
-      const total = calculateTotalQuota(quota.baseLimit, quota.purchasedLimit);
-      const remaining = calculateRemainingQuota(
-        quota.baseLimit,
-        quota.purchasedLimit,
-        quota.usedAmount
-      );
-      const percentage = calculateQuotaPercentage(
-        quota.baseLimit,
-        quota.purchasedLimit,
-        quota.usedAmount
-      );
+      const quota = await getQuota(userId, type, role);
+      const formatted = formatQuotaForDisplay(quota);
 
       // If checking availability of specific quantity
       if (quantity !== undefined) {
         return NextResponse.json({
-          available: remaining >= quantity,
-          remaining,
-          total,
-          used: quota.usedAmount,
+          available: formatted.remaining >= quantity,
+          remaining: formatted.remaining,
+          total: formatted.total,
+          used: formatted.usedAmount,
           type,
           label: USAGE_TYPE_LABELS[type],
         });
@@ -100,76 +72,49 @@ export async function GET(request: Request) {
 
       return NextResponse.json({
         type,
-        label: USAGE_TYPE_LABELS[type],
-        baseLimit: quota.baseLimit,
-        purchasedLimit: quota.purchasedLimit,
-        total,
-        used: quota.usedAmount,
-        remaining,
-        percentage,
-        periodType: quota.periodType,
-        resetAt: quota.resetAt.toISOString(),
-        formattedTotal: formatQuotaAmount(total, type),
-        formattedUsed: formatQuotaAmount(quota.usedAmount, type),
-        formattedRemaining: formatQuotaAmount(remaining, type),
+        label: formatted.label,
+        baseLimit: formatted.baseLimit,
+        purchasedLimit: formatted.purchasedLimit,
+        total: formatted.total,
+        used: formatted.usedAmount,
+        remaining: formatted.remaining,
+        percentage: formatted.percentage,
+        periodType: formatted.periodType,
+        resetAt: formatted.resetAt,
+        formattedTotal: formatted.formatted.total,
+        formattedUsed: formatted.formatted.used,
+        formattedRemaining: formatted.formatted.remaining,
       });
     }
 
     // Get all quotas for user
-    let quotas = await db.usageQuota.findMany({
-      where: { userId },
-    });
-
-    // Initialize quotas if none exist
-    if (quotas.length === 0) {
-      const quotasToCreate = initializeUserQuotas(user.role);
-
-      await db.usageQuota.createMany({
-        data: quotasToCreate.map((q) => ({
-          userId,
-          ...q,
-        })),
-      });
-
-      quotas = await db.usageQuota.findMany({
-        where: { userId },
-      });
-    }
+    const userQuotas = await getUserQuotas(userId, role);
 
     // Format all quotas
-    const formattedQuotas = quotas.map((quota) => {
-      const total = calculateTotalQuota(quota.baseLimit, quota.purchasedLimit);
-      const remaining = calculateRemainingQuota(
-        quota.baseLimit,
-        quota.purchasedLimit,
-        quota.usedAmount
-      );
-      const percentage = calculateQuotaPercentage(
-        quota.baseLimit,
-        quota.purchasedLimit,
-        quota.usedAmount
-      );
+    const formattedQuotas = ALL_USAGE_TYPES.map((quotaType) => {
+      const quota = userQuotas.quotas[quotaType];
+      const formatted = formatQuotaForDisplay(quota);
 
       return {
-        type: quota.quotaType,
-        label: USAGE_TYPE_LABELS[quota.quotaType],
-        baseLimit: quota.baseLimit,
-        purchasedLimit: quota.purchasedLimit,
-        total,
-        used: quota.usedAmount,
-        remaining,
-        percentage,
-        periodType: quota.periodType,
-        resetAt: quota.resetAt.toISOString(),
-        formattedTotal: formatQuotaAmount(total, quota.quotaType),
-        formattedUsed: formatQuotaAmount(quota.usedAmount, quota.quotaType),
-        formattedRemaining: formatQuotaAmount(remaining, quota.quotaType),
+        type: quotaType,
+        label: formatted.label,
+        baseLimit: formatted.baseLimit,
+        purchasedLimit: formatted.purchasedLimit,
+        total: formatted.total,
+        used: formatted.usedAmount,
+        remaining: formatted.remaining,
+        percentage: formatted.percentage,
+        periodType: formatted.periodType,
+        resetAt: formatted.resetAt,
+        formattedTotal: formatted.formatted.total,
+        formattedUsed: formatted.formatted.used,
+        formattedRemaining: formatted.formatted.remaining,
       };
     });
 
     return NextResponse.json({
       quotas: formattedQuotas,
-      role: user.role,
+      role,
     });
   } catch (error) {
     console.error('Quota fetch error:', error);

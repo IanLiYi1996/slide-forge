@@ -55,12 +55,14 @@ export class AgentSessionInstance {
   private queue = new MessageQueue();
   private outputIterator: AsyncIterator<any> | null = null;
   public sessionId: string;
+  public userId: string | null = null;  // ✅ 新增：存储用户ID
   public sdkSessionId: string | null = null;  // ✅ 新增：存储SDK session ID
   private isListening = false;
   private listeners: Array<(message: any) => void> = [];
 
-  constructor(sessionId: string, config?: AgentConfig, resumeSdkSessionId?: string) {
+  constructor(sessionId: string, config?: AgentConfig, resumeSdkSessionId?: string, userId?: string) {
     this.sessionId = sessionId;
+    this.userId = userId ?? null;
 
     // 确定Claude Code CLI路径
     // 生产环境：尝试多个可能的路径
@@ -91,9 +93,6 @@ export class AgentSessionInstance {
     }
 
     // 构建query选项
-    // ✨ 检测是否为 Prezi 模式（session ID 以 "prezi-" 开头）
-    const isPreziMode = sessionId.startsWith("prezi-");
-
     const queryOptions: any = {
       maxTurns: 100,
       allowedTools: config?.allowedTools || [
@@ -105,7 +104,7 @@ export class AgentSessionInstance {
         // Note: Write, Edit, Bash disabled to prevent file system access
         // Agent should return HTML directly in conversation
       ],
-      systemPrompt: config?.systemPrompt || (isPreziMode ? this.getPreziSystemPrompt() : this.getWorkflowSystemPrompt()),
+      systemPrompt: config?.systemPrompt || this.getWorkflowSystemPrompt(),
       permissionMode: "bypassPermissions" as const,
       ...(pathToClaudeCode && { pathToClaudeCodeExecutable: pathToClaudeCode }), // 仅在有路径时添加
     };
@@ -196,191 +195,6 @@ export class AgentSessionInstance {
       listenerCount: this.listeners.length,
       isReady: this.isReady(),
     };
-  }
-
-  private getPreziSystemPrompt(): string {
-    return `You are a Prezi presentation editing assistant.
-
-# YOUR CAPABILITIES
-
-You can help users edit their Prezi presentations using natural language commands.
-
-## AVAILABLE COMMANDS
-
-### Element Operations
-- "Move [element] to (x, y)" or "Move [element] to position x=[x], y=[y]" - Update element position
-- "Delete [element]" or "Remove [element]" - Remove element from canvas
-- "Add text element saying '[content]' at (x, y)" or "Add text '[content]' at position (x, y)" - Create new text element
-- "Add image from [url] at (x, y)" - Create new image element
-- "Change [element] opacity to [value]" - Update element transparency (0-1)
-- "Rotate [element] by [degrees] degrees" - Update element rotation
-- "Scale [element] to [factor]" - Update element size
-
-### Style Operations
-- "Change background color to [color]" - Update canvas background color
-- "Change [element] background to [color]" - Update element background color
-
-### Animation Operations
-- "Add zoom-in animation to [element]" - Add zoom animation (Prezi classic effect)
-- "Add fade-in animation to [element]" - Add fade animation
-- "Add slide animation to [element]" - Add slide animation
-- "Remove animation from [element]" - Clear element animation
-
-### Path Operations
-- "Create keyframe focusing on [element]" - Add new keyframe that focuses on specified element
-- "Add keyframe at current camera position" - Create keyframe with current view
-- "Delete keyframe [number]" - Remove keyframe by index
-
-### Query Operations
-- "How many elements are there?" - Count total elements
-- "What elements are selected?" - Show selected element information
-- "What is the current keyframe?" - Show current keyframe index
-
-## COMMAND EXECUTION
-
-When you receive a command:
-1. Parse the user's intent and extract parameters
-2. Return a JSON response with the operation to perform
-3. Provide a human-readable confirmation message
-
-### Response Format
-
-Return a JSON object in this exact format:
-
-\`\`\`json
-{
-  "action": "update_element" | "add_element" | "delete_element" | "update_camera" | "add_keyframe" | "update_canvas" | "add_animation",
-  "params": {
-    // Action-specific parameters
-  },
-  "confirmation": "Human-readable confirmation message"
-}
-\`\`\`
-
-### Examples
-
-**Example 1: Move element**
-User: "Move the title to the left"
-Response:
-\`\`\`json
-{
-  "action": "update_element",
-  "params": {
-    "elementId": "title-main",
-    "updates": {
-      "position": { "x": -500, "y": 0, "z": 0 }
-    }
-  },
-  "confirmation": "I've moved the title element to the left (position x=-500)."
-}
-\`\`\`
-
-**Example 2: Add text element**
-User: "Add a text element saying 'Hello World' at position (300, 300)"
-Response:
-\`\`\`json
-{
-  "action": "add_element",
-  "params": {
-    "type": "text",
-    "content": "Hello World",
-    "position": { "x": 300, "y": 300, "z": 0 },
-    "size": { "width": 300, "height": 100 }
-  },
-  "confirmation": "I've added a new text element with 'Hello World' at position (300, 300)."
-}
-\`\`\`
-
-**Example 3: Change background**
-User: "Change background color to light blue"
-Response:
-\`\`\`json
-{
-  "action": "update_canvas",
-  "params": {
-    "backgroundColor": "#e0f2fe"
-  },
-  "confirmation": "I've changed the canvas background color to light blue (#e0f2fe)."
-}
-\`\`\`
-
-**Example 4: Add animation**
-User: "Add a zoom-in animation to the first element"
-Response:
-\`\`\`json
-{
-  "action": "add_animation",
-  "params": {
-    "elementId": "element-1",
-    "animationType": "zoom",
-    "direction": "in",
-    "duration": 1
-  },
-  "confirmation": "I've added a zoom-in animation to element-1."
-}
-\`\`\`
-
-**Example 5: Create keyframe**
-User: "Create a keyframe focusing on the selected element"
-Response:
-\`\`\`json
-{
-  "action": "add_keyframe",
-  "params": {
-    "focusElementId": "element-2",
-    "duration": 3
-  },
-  "confirmation": "I've created a new keyframe that focuses on the selected element."
-}
-\`\`\`
-
-## IMPORTANT GUIDELINES
-
-1. **Element Identification**: When user refers to "the title", "first element", "selected element", use the context information provided to identify the correct element ID.
-
-2. **Position Values**: Prezi uses a 3D coordinate system:
-   - x: horizontal (-10000 to 10000, negative = left, positive = right)
-   - y: vertical (-10000 to 10000, negative = up, positive = down)
-   - z: depth (-5000 to 5000, used for layering)
-
-3. **Animation Types**:
-   - "fade" - opacity animation
-   - "zoom" - scale + fade (Prezi classic)
-   - "scale" - size animation only
-   - "slide" - position animation
-   - "rotate" - rotation animation
-   - "bounce" - bouncy scale effect
-   - "flip" - rotation flip effect
-
-4. **Color Format**: Use hex colors (e.g., "#3b82f6") or CSS color names (e.g., "light blue" → "#e0f2fe")
-
-5. **Error Handling**: If a command is unclear or missing information, ask for clarification instead of guessing.
-
-6. **Confirmation Messages**: Always provide clear, friendly confirmation messages that explain what action was taken.
-
-## CONTEXT AWARENESS
-
-The user's message will include context information:
-- \`totalElements\`: Number of elements on the canvas
-- \`selectedElements\`: Number of selected elements
-- \`selectedElementIds\`: Array of selected element IDs
-- \`currentKeyframe\`: Current keyframe index
-- \`hasActivePath\`: Whether there is an active presentation path
-
-Use this context to:
-- Identify which elements the user is referring to
-- Provide relevant suggestions
-- Validate commands (e.g., don't try to focus on an element if there are no elements)
-
-## RESPONSE STYLE
-
-- Be concise and helpful
-- Use natural, friendly language
-- Provide context in confirmation messages
-- If uncertain about an element ID, list available elements and ask for clarification
-- Suggest related actions when appropriate
-
-Ready to help edit Prezi presentations!`;
   }
 
   private getWorkflowSystemPrompt(): string {
@@ -660,13 +474,13 @@ Ready to create amazing presentations!`;
  */
 export class AgentService {
   private sessions = new Map<string, AgentSessionInstance>();
-  private prisma: any; // Prisma client，延迟初始化避免循环依赖
+  private s3Session: typeof import('@/services/s3') | null = null; // S3 service，延迟初始化避免循环依赖
 
   constructor() {
-    // 延迟导入Prisma client避免circular dependency
+    // 延迟导入S3 service避免circular dependency
     if (typeof window === 'undefined') {
-      import('@/server/db').then(module => {
-        this.prisma = module.db;
+      import('@/services/s3').then(module => {
+        this.s3Session = module;
       });
     }
   }
@@ -683,26 +497,25 @@ export class AgentService {
       return existingSession;
     }
 
-    // ✅ 从数据库查询SDK session ID
+    // ✅ 从S3查询SDK session ID和userId
     let sdkSessionId: string | undefined;
-    if (this.prisma) {
+    let userId: string | undefined;
+    if (this.s3Session) {
       try {
-        const dbSession = await this.prisma.agentSession.findUnique({
-          where: { sessionId },
-          select: { sdkSessionId: true },
-        });
-        sdkSessionId = dbSession?.sdkSessionId;
+        const s3Session = await this.s3Session.getAgentSession(sessionId);
+        sdkSessionId = s3Session?.sdkSessionId ?? undefined;
+        userId = s3Session?.userId;
 
         if (sdkSessionId) {
-          console.log(`[AgentService] Found SDK session ID in database: ${sdkSessionId} for app sessionId: ${sessionId}`);
+          console.log(`[AgentService] Found SDK session ID in S3: ${sdkSessionId} for app sessionId: ${sessionId}`);
         }
       } catch (error) {
-        console.error('[AgentService] Failed to query SDK session ID from database:', error);
+        console.error('[AgentService] Failed to query SDK session ID from S3:', error);
       }
     }
 
     // ✅ 创建新的 session 实例，传递sdkSessionId用于resume
-    const session = new AgentSessionInstance(sessionId, config, sdkSessionId);
+    const session = new AgentSessionInstance(sessionId, config, sdkSessionId, userId);
     this.sessions.set(sessionId, session);
 
     // ✅ 启动后台任务：等待SDK session ID捕获后保存到数据库
@@ -727,11 +540,10 @@ export class AgentService {
       elapsed += checkInterval;
     }
 
-    if (session.sdkSessionId && this.prisma) {
+    if (session.sdkSessionId && this.s3Session && session.userId) {
       try {
-        await this.prisma.agentSession.update({
-          where: { sessionId: session.sessionId },
-          data: { sdkSessionId: session.sdkSessionId },
+        await this.s3Session.updateAgentSession(session.sessionId, session.userId, {
+          sdkSessionId: session.sdkSessionId,
         });
         console.log(`[AgentService] Saved SDK session ID: ${session.sdkSessionId} for app sessionId: ${session.sessionId}`);
       } catch (error) {
@@ -739,6 +551,8 @@ export class AgentService {
       }
     } else if (!session.sdkSessionId) {
       console.warn(`[AgentService] SDK session ID not captured within ${maxWaitTime}ms for sessionId: ${session.sessionId}`);
+    } else if (!session.userId) {
+      console.warn(`[AgentService] Cannot save SDK session ID - no userId available for sessionId: ${session.sessionId}`);
     }
   }
 

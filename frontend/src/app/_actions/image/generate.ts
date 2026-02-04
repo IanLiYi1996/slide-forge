@@ -3,7 +3,7 @@
 import { utapi } from "@/app/api/uploadthing/core";
 import { env } from "@/env";
 import { auth } from "@/server/auth";
-import { db } from "@/server/db";
+import { createGeneratedImage } from "@/services/s3";
 import { UTFile } from "uploadthing/server";
 
 // yunwu API 配置类型
@@ -163,16 +163,14 @@ export async function generateImageAction(
     const permanentUrl = uploadResult[0].data.ufsUrl;
     console.log(`Uploaded to UploadThing URL: ${permanentUrl}`);
 
-    // 存储到数据库
-    const generatedImage = await db.generatedImage.create({
-      data: {
-        url: permanentUrl,
-        prompt: prompt,
-        userId: session.user.id,
-      },
+    // 存储到 S3
+    const generatedImage = await createGeneratedImage({
+      url: permanentUrl,
+      prompt: prompt,
+      userId: session.user.id,
     });
 
-    console.log("Image saved to database with ID:", generatedImage.id);
+    console.log("Image saved to S3 with ID:", generatedImage.id);
 
     return {
       success: true,

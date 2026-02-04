@@ -7,6 +7,9 @@ import { create } from "zustand";
 // 图片生成模型提供商类型
 export type ImageGenerationProvider = "yunwu" | "z-image-turbo";
 
+// 内容生成提供商类型 (用于图片分析和大纲生成)
+export type ContentGenerationProvider = "openai" | "bedrock-claude";
+
 // Type for image model configuration
 export type ImageModelConfig = {
   aspectRatio: AspectRatio;
@@ -18,7 +21,6 @@ export type ImageModelConfig = {
 interface PresentationState {
   currentPresentationId: string | null;
   currentPresentationTitle: string | null;
-  presentationMode: "TRADITIONAL" | "PREZI"; // 🆕 Presentation mode
   isGridView: boolean;
   isSheetOpen: boolean;
   numSlides: number;
@@ -35,6 +37,7 @@ interface PresentationState {
   stockImageProvider: "unsplash";
   presentationStyle: string;
   modelProvider: "openai" | "lmstudio";
+  contentProvider: ContentGenerationProvider; // 内容生成提供商 (图片分析/大纲生成)
   modelId: string;
   modelName: string; // User-specified model name for OpenAI Compatible APIs
   savingStatus: "idle" | "saving" | "saved";
@@ -106,7 +109,6 @@ interface PresentationState {
   failSlideImageGeneration: (slideId: string, error: string) => void;
   clearSlideImageGeneration: (slideId: string) => void;
   setCurrentPresentation: (id: string | null, title: string | null) => void;
-  setPresentationMode: (mode: "TRADITIONAL" | "PREZI") => void; // 🆕 Set presentation mode
   setIsGridView: (isGrid: boolean) => void;
   setIsSheetOpen: (isOpen: boolean) => void;
   setNumSlides: (num: number) => void;
@@ -135,6 +137,7 @@ interface PresentationState {
   setStockImageProvider: (provider: "unsplash") => void;
   setPresentationStyle: (style: string) => void;
   setModelProvider: (provider: "openai" | "lmstudio") => void;
+  setContentProvider: (provider: ContentGenerationProvider) => void;
   setModelId: (id: string) => void;
   setModelName: (name: string) => void;
   setSavingStatus: (status: "idle" | "saving" | "saved") => void;
@@ -170,7 +173,6 @@ interface PresentationState {
 export const usePresentationState = create<PresentationState>((set) => ({
   currentPresentationId: null,
   currentPresentationTitle: null,
-  presentationMode: "TRADITIONAL", // 🆕 Default mode
   isGridView: true,
   isSheetOpen: false,
   shouldShowExitHeader: false,
@@ -198,6 +200,7 @@ export const usePresentationState = create<PresentationState>((set) => ({
   stockImageProvider: "unsplash",
   presentationStyle: "professional",
   modelProvider: "openai",
+  contentProvider: "bedrock-claude", // 默认使用 Bedrock Claude
   modelId: "",
   modelName: "", // Will use env.LLM_MODEL_NAME
   slides: [], // Now holds the new slide object structure
@@ -312,7 +315,6 @@ export const usePresentationState = create<PresentationState>((set) => ({
     }),
   setCurrentPresentation: (id, title) =>
     set({ currentPresentationId: id, currentPresentationTitle: title }),
-  setPresentationMode: (mode) => set({ presentationMode: mode }), // 🆕 Set presentation mode
   setIsGridView: (isGrid) => set({ isGridView: isGrid }),
   setIsSheetOpen: (isOpen) => set({ isSheetOpen: isOpen }),
   setNumSlides: (num) => set({ numSlides: num }),
@@ -337,6 +339,7 @@ export const usePresentationState = create<PresentationState>((set) => ({
   setStockImageProvider: (provider) => set({ stockImageProvider: provider }),
   setPresentationStyle: (style) => set({ presentationStyle: style }),
   setModelProvider: (provider) => set({ modelProvider: provider }),
+  setContentProvider: (provider) => set({ contentProvider: provider }),
   setModelId: (id) => set({ modelId: id }),
   setModelName: (name) => set({ modelName: name }),
   setSavingStatus: (status) => set({ savingStatus: status }),

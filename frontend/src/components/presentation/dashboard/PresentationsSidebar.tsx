@@ -1,6 +1,6 @@
 "use client";
 
-import { fetchPresentations } from "@/app/_actions/presentation/fetchPresentations";
+import { fetchPresentations, type PresentationDocument } from "@/app/_actions/presentation/fetchPresentations";
 import { deletePresentations } from "@/app/_actions/presentation/presentationActions";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,7 +13,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { usePresentationState } from "@/states/presentation-state";
-import { type Prisma } from "@prisma/client";
 import {
   useInfiniteQuery,
   useMutation,
@@ -24,12 +23,6 @@ import { useEffect } from "react";
 import { useInView } from "react-intersection-observer";
 import { PresentationItem } from "./PresentationItem";
 import { SelectionControls } from "./SelectionControls";
-
-type PresentationDocument = Prisma.BaseDocumentGetPayload<{
-  include: {
-    presentation: true;
-  };
-}>;
 
 interface PresentationResponse {
   items: PresentationDocument[];

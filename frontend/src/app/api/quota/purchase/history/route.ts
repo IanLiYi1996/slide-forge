@@ -5,9 +5,10 @@
  */
 
 import { auth } from '@/server/auth';
-import { db } from '@/server/db';
+import { getUserPurchases, getPurchaseStats, type UsageType } from '@/services/s3';
 import { USAGE_TYPE_LABELS } from '@/lib/quota-calculator';
 import { NextResponse } from 'next/server';
+import type { PurchaseStatus } from '@/services/s3';
 
 export async function GET(request: Request) {
   try {
@@ -20,57 +21,34 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
 
     // Parse query parameters
-    const status = searchParams.get('status');
+    const status = searchParams.get('status') as PurchaseStatus | null;
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    // Build where clause
-    const where = {
-      userId,
-      ...(status && { status: status as 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED' }),
-    };
-
     // Get purchases with pagination
-    const [purchases, total] = await Promise.all([
-      db.quotaPurchase.findMany({
-        where,
-        orderBy: {
-          createdAt: 'desc',
-        },
-        skip: offset,
-        take: Math.min(limit, 100), // Max 100 per page
-      }),
-      db.quotaPurchase.count({ where }),
-    ]);
+    const { purchases, total } = await getUserPurchases(userId, {
+      status: status || undefined,
+      limit: Math.min(limit, 100), // Max 100 per page
+      offset,
+    });
 
     // Format purchases
     const formattedPurchases = purchases.map((purchase) => ({
       id: purchase.id,
       quotaType: purchase.quotaType,
-      label: USAGE_TYPE_LABELS[purchase.quotaType],
+      label: USAGE_TYPE_LABELS[purchase.quotaType as UsageType],
       amount: purchase.amount,
-      price: purchase.price.toNumber(),
+      price: purchase.price,
       paymentMethod: purchase.paymentMethod,
       status: purchase.status,
       transactionId: purchase.transactionId,
-      expiresAt: purchase.expiresAt?.toISOString(),
-      createdAt: purchase.createdAt.toISOString(),
-      updatedAt: purchase.updatedAt.toISOString(),
+      expiresAt: purchase.expiresAt,
+      createdAt: purchase.createdAt,
+      updatedAt: purchase.updatedAt,
     }));
 
     // Calculate summary statistics
-    const stats = {
-      total: total,
-      completed: await db.quotaPurchase.count({
-        where: { userId, status: 'COMPLETED' },
-      }),
-      pending: await db.quotaPurchase.count({
-        where: { userId, status: 'PENDING' },
-      }),
-      totalSpent: purchases
-        .filter((p) => p.status === 'COMPLETED')
-        .reduce((sum, p) => sum + p.price.toNumber(), 0),
-    };
+    const stats = await getPurchaseStats(userId);
 
     return NextResponse.json({
       purchases: formattedPurchases,

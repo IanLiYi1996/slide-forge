@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       session.user.id,
     );
 
-    // ✨ 如果 session 不存在，自动创建（特别是 Prezi 模式）
+    // ✨ 如果 session 不存在，自动创建
     if (!dbSession) {
       console.log(`[Agent Chat] Session ${sessionId} not found, creating new session`);
 
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       dbSession = await sessionManager.createSessionWithId(
         sessionId,
         session.user.id,
-        sessionId.startsWith("prezi-") ? "Prezi Edit Session" : "New Agent Session"
+        "New Agent Session"
       );
     }
 
@@ -321,7 +321,7 @@ export async function POST(req: Request) {
                       );
 
                       // ✅ 使用检测到的幻灯片数据并合并到现有幻灯片
-                      if (detectedSlides.size > 0) {
+                      if (detectedSlides.size > 0 && updatedSession) {
                         // ✅ 步骤1：获取数据库中现有的幻灯片
                         const existingSlides = (updatedSession.slides as any) || [];
                         const existingSlidesMap = new Map<number, any>();
@@ -370,7 +370,7 @@ export async function POST(req: Request) {
                         console.log(
                           `[Agent Chat] Synced ${mergedSlidesArray.length} slides to database (${detectedSlides.size} new/updated) - using merge strategy`
                         );
-                      } else {
+                      } else if (updatedSession) {
                         // 回退：从消息提取（兼容旧逻辑）
                         const extractedSlides = extractSlidesFromMessages(updatedMessages);
                         if (extractedSlides.length > 0) {

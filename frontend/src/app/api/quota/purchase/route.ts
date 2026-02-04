@@ -6,9 +6,13 @@
  */
 
 import { auth } from '@/server/auth';
-import { db } from '@/server/db';
+import {
+  createPurchase,
+  updatePurchase,
+  addPurchasedQuota,
+  type UsageType,
+} from '@/services/s3';
 import { QUOTA_PRICING, USAGE_TYPE_LABELS } from '@/lib/quota-calculator';
-import { type UsageType } from '@prisma/client';
 import { NextResponse } from 'next/server';
 
 /**
@@ -107,60 +111,38 @@ export async function POST(request: Request) {
     }
 
     // Create purchase record
-    const purchase = await db.quotaPurchase.create({
-      data: {
-        userId,
-        quotaType,
-        amount,
-        price: tier.price,
-        paymentMethod: paymentMethod || 'pending',
-        status: 'PENDING',
-        // TODO: Integrate with actual payment gateway
-        // For now, we'll auto-complete for demo purposes
-      },
+    const purchase = await createPurchase({
+      userId,
+      quotaType,
+      amount,
+      price: tier.price,
+      paymentMethod: paymentMethod || 'pending',
+      status: 'PENDING',
     });
 
     // For demo: Auto-complete the purchase and add to quota
     // In production, this would be done via webhook from payment gateway
-    const completedPurchase = await db.$transaction(async (tx) => {
-      // Update purchase status
-      const updated = await tx.quotaPurchase.update({
-        where: { id: purchase.id },
-        data: {
-          status: 'COMPLETED',
-          transactionId: `demo_${Date.now()}`,
-        },
-      });
-
-      // Add purchased quota to user's quota
-      await tx.usageQuota.update({
-        where: {
-          userId_quotaType: {
-            userId,
-            quotaType,
-          },
-        },
-        data: {
-          purchasedLimit: {
-            increment: amount,
-          },
-        },
-      });
-
-      return updated;
+    const completedPurchase = await updatePurchase(userId, purchase.id, {
+      status: 'COMPLETED',
+      transactionId: `demo_${Date.now()}`,
     });
+
+    // Add purchased quota to user's quota
+    await addPurchasedQuota(userId, quotaType, amount);
 
     return NextResponse.json({
       success: true,
-      purchase: {
-        id: completedPurchase.id,
-        quotaType: completedPurchase.quotaType,
-        amount: completedPurchase.amount,
-        price: completedPurchase.price.toNumber(),
-        status: completedPurchase.status,
-        transactionId: completedPurchase.transactionId,
-        createdAt: completedPurchase.createdAt.toISOString(),
-      },
+      purchase: completedPurchase
+        ? {
+            id: completedPurchase.id,
+            quotaType: completedPurchase.quotaType,
+            amount: completedPurchase.amount,
+            price: completedPurchase.price,
+            status: completedPurchase.status,
+            transactionId: completedPurchase.transactionId,
+            createdAt: completedPurchase.createdAt,
+          }
+        : null,
       message: 'Purchase completed successfully',
     });
   } catch (error) {

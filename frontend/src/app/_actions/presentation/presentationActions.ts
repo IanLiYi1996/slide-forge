@@ -2,8 +2,56 @@
 
 import { type PlateSlide } from "@/components/presentation/utils/parser";
 import { auth } from "@/server/auth";
-import { db } from "@/server/db";
-import { type InputJsonValue } from "@prisma/client/runtime/library";
+import {
+  createPresentation as s3CreatePresentation,
+  getPresentation as s3GetPresentation,
+  getPresentationContent as s3GetPresentationContent,
+  updatePresentation as s3UpdatePresentation,
+  deletePresentation as s3DeletePresentation,
+  deletePresentations as s3DeletePresentations,
+  type DocumentWithPresentation,
+} from "@/services/s3";
+
+function transformToLegacyFormat(doc: DocumentWithPresentation) {
+  return {
+    id: doc.base.id,
+    title: doc.base.title,
+    type: doc.base.type,
+    userId: doc.base.userId,
+    thumbnailUrl: doc.base.thumbnailUrl,
+    isPublic: doc.base.isPublic,
+    documentType: doc.base.documentType,
+    createdAt: new Date(doc.base.createdAt),
+    updatedAt: new Date(doc.base.updatedAt),
+    presentation: {
+      id: doc.presentation.id,
+      presentationMode: doc.presentation.presentationMode,
+      content: doc.presentation.content,
+      theme: doc.presentation.theme,
+      imageSource: doc.presentation.imageSource,
+      prompt: doc.presentation.prompt,
+      presentationStyle: doc.presentation.presentationStyle,
+      language: doc.presentation.language,
+      outline: doc.presentation.outline,
+      searchResults: doc.presentation.searchResults,
+      slideImages: doc.presentation.slideImages,
+      templateId: doc.presentation.templateId,
+      customThemeId: doc.presentation.customThemeId,
+      generationStage: doc.presentation.generationStage,
+      lastAccessedAt: doc.presentation.lastAccessedAt
+        ? new Date(doc.presentation.lastAccessedAt)
+        : null,
+      slidesGenerated: doc.presentation.slidesGenerated,
+      currentSlideIndex: doc.presentation.currentSlideIndex,
+      exportedAt: doc.presentation.exportedAt
+        ? new Date(doc.presentation.exportedAt)
+        : null,
+      exportFormat: doc.presentation.exportFormat,
+      exportCount: doc.presentation.exportCount,
+      exportHistory: doc.presentation.exportHistory,
+    },
+  };
+}
 
 export async function createPresentation({
   content,
@@ -13,7 +61,6 @@ export async function createPresentation({
   imageSource,
   presentationStyle,
   language,
-  mode = "TRADITIONAL", // 🆕 Presentation mode
 }: {
   content: {
     slides: PlateSlide[];
@@ -24,7 +71,6 @@ export async function createPresentation({
   imageSource?: string;
   presentationStyle?: string;
   language?: string;
-  mode?: "TRADITIONAL" | "PREZI"; // 🆕 Presentation mode parameter
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -33,33 +79,21 @@ export async function createPresentation({
   const userId = session.user.id;
 
   try {
-    const presentation = await db.baseDocument.create({
-      data: {
-        type: "PRESENTATION",
-        documentType: "presentation",
-        title: title ?? "Untitled Presentation",
-        userId,
-        presentation: {
-          create: {
-            presentationMode: mode, // 🆕 Set presentation mode
-            content: content as unknown as InputJsonValue,
-            theme: theme,
-            imageSource,
-            presentationStyle,
-            language,
-            outline: outline,
-          },
-        },
-      },
-      include: {
-        presentation: true,
-      },
+    const doc = await s3CreatePresentation({
+      userId,
+      title: title ?? "Untitled Presentation",
+      content,
+      theme,
+      outline,
+      imageSource,
+      presentationStyle,
+      language,
     });
 
     return {
       success: true,
       message: "Presentation created successfully",
-      presentation,
+      presentation: transformToLegacyFormat(doc),
     };
   } catch (error) {
     console.error(error);
@@ -73,7 +107,7 @@ export async function createPresentation({
 export async function createEmptyPresentation(
   title: string,
   theme = "default",
-  language = "en-US",
+  language = "en-US"
 ) {
   const emptyContent: { slides: PlateSlide[] } = { slides: [] };
 
@@ -109,7 +143,7 @@ export async function updatePresentation({
 }: {
   id: string;
   content?: {
-    slides?: PlateSlide[] | string[]; // Support both formats
+    slides?: PlateSlide[] | string[];
     config?: Record<string, unknown>;
   };
   title?: string;
@@ -121,15 +155,15 @@ export async function updatePresentation({
   presentationStyle?: string;
   language?: string;
   thumbnailUrl?: string;
-  slides?: string[]; // New: array of image URLs for pure-image mode
-  slideImages?: Record<string, unknown>; // New: slide image generation history
-  generationStage?: string; // New: outline, slides, completed, exported
-  lastAccessedAt?: Date; // New: track last access time
-  slidesGenerated?: number; // New: count of completed slides
-  currentSlideIndex?: number; // New: last edited slide position
-  exportedAt?: Date; // New: export timestamp
-  exportFormat?: string; // New: pdf, pptx, images
-  exportCount?: number; // New: number of times exported
+  slides?: string[];
+  slideImages?: Record<string, unknown>;
+  generationStage?: string;
+  lastAccessedAt?: Date;
+  slidesGenerated?: number;
+  currentSlideIndex?: number;
+  exportedAt?: Date;
+  exportFormat?: string;
+  exportCount?: number;
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -137,52 +171,35 @@ export async function updatePresentation({
   }
 
   try {
-    // Extract values from content if provided there
-    const effectiveTheme = theme;
-    const effectiveImageSource = imageSource;
-    const effectivePresentationStyle = presentationStyle;
-    const effectiveLanguage = language;
-
     // Build content object - support both old PlateSlide format and new pure-image format
     let finalContent = content;
     if (slides && slides.length > 0) {
-      // Pure-image mode: store as simple array of URLs
       finalContent = { slides: slides };
     }
 
-    // Update base document with all presentation data
-    const presentation = await db.baseDocument.update({
-      where: { id },
-      data: {
-        title: title,
-        thumbnailUrl,
-        presentation: {
-          update: {
-            prompt: prompt,
-            content: finalContent as unknown as InputJsonValue,
-            theme: effectiveTheme,
-            imageSource: effectiveImageSource,
-            presentationStyle: effectivePresentationStyle,
-            language: effectiveLanguage,
-            outline,
-            searchResults: searchResults as unknown as InputJsonValue,
-            slideImages: slideImages as unknown as InputJsonValue,
-            // Session management fields
-            generationStage,
-            lastAccessedAt,
-            slidesGenerated,
-            currentSlideIndex,
-            // Export tracking
-            exportedAt,
-            exportFormat,
-            exportCount,
-          },
-        },
-      },
-      include: {
-        presentation: true,
-      },
+    const doc = await s3UpdatePresentation(id, session.user.id, {
+      title,
+      content: finalContent,
+      theme,
+      outline,
+      slideImages,
+      generationStage,
+      lastAccessedAt: lastAccessedAt?.toISOString(),
+      slidesGenerated,
+      currentSlideIndex,
+      exportedAt: exportedAt?.toISOString(),
+      exportFormat,
+      exportCount,
+      thumbnailUrl,
+      searchResults,
     });
+
+    if (!doc) {
+      return {
+        success: false,
+        message: "Presentation not found or unauthorized",
+      };
+    }
 
     console.log("Presentation updated successfully");
 
@@ -192,7 +209,7 @@ export async function updatePresentation({
     if (finalContent) savedFields.push("content");
     if (outline) savedFields.push("outline");
     if (searchResults) savedFields.push("searchResults");
-    if (effectiveTheme) savedFields.push("theme");
+    if (theme) savedFields.push("theme");
     if (thumbnailUrl) savedFields.push("thumbnailUrl");
     if (slideImages) savedFields.push("slideImages");
 
@@ -207,7 +224,7 @@ export async function updatePresentation({
     return {
       success: true,
       message: "Presentation updated successfully",
-      presentation,
+      presentation: transformToLegacyFormat(doc),
     };
   } catch (error) {
     console.error(error);
@@ -225,18 +242,19 @@ export async function updatePresentationTitle(id: string, title: string) {
   }
 
   try {
-    const presentation = await db.baseDocument.update({
-      where: { id },
-      data: { title },
-      include: {
-        presentation: true,
-      },
-    });
+    const doc = await s3UpdatePresentation(id, session.user.id, { title });
+
+    if (!doc) {
+      return {
+        success: false,
+        message: "Presentation not found or unauthorized",
+      };
+    }
 
     return {
       success: true,
       message: "Presentation title updated successfully",
-      presentation,
+      presentation: transformToLegacyFormat(doc),
     };
   } catch (error) {
     console.error(error);
@@ -258,17 +276,8 @@ export async function deletePresentations(ids: string[]) {
   }
 
   try {
-    // Delete the base documents using deleteMany (this will cascade delete the presentations)
-    const result = await db.baseDocument.deleteMany({
-      where: {
-        id: {
-          in: ids,
-        },
-        userId: session.user.id, // Ensure only user's own presentations can be deleted
-      },
-    });
+    const deletedCount = await s3DeletePresentations(ids, session.user.id);
 
-    const deletedCount = result.count;
     const failedCount = ids.length - deletedCount;
 
     if (failedCount > 0) {
@@ -298,7 +307,6 @@ export async function deletePresentations(ids: string[]) {
   }
 }
 
-// Get the presentation with the presentation content
 export async function getPresentation(id: string) {
   const session = await auth();
   if (!session?.user) {
@@ -306,16 +314,18 @@ export async function getPresentation(id: string) {
   }
 
   try {
-    const presentation = await db.baseDocument.findUnique({
-      where: { id },
-      include: {
-        presentation: true,
-      },
-    });
+    const doc = await s3GetPresentation(id);
+
+    if (!doc) {
+      return {
+        success: false,
+        message: "Presentation not found",
+      };
+    }
 
     return {
       success: true,
-      presentation,
+      presentation: transformToLegacyFormat(doc),
     };
   } catch (error) {
     console.error(error);
@@ -333,21 +343,9 @@ export async function getPresentationContent(id: string) {
   }
 
   try {
-    const presentation = await db.baseDocument.findUnique({
-      where: { id },
-      include: {
-        presentation: {
-          select: {
-            id: true,
-            content: true,
-            theme: true,
-            outline: true,
-          },
-        },
-      },
-    });
+    const content = await s3GetPresentationContent(id);
 
-    if (!presentation) {
+    if (!content) {
       return {
         success: false,
         message: "Presentation not found",
@@ -355,7 +353,7 @@ export async function getPresentationContent(id: string) {
     }
 
     // Check if the user has access to this presentation
-    if (presentation.userId !== session.user.id && !presentation.isPublic) {
+    if (content.userId !== session.user.id && !content.isPublic) {
       return {
         success: false,
         message: "Unauthorized access",
@@ -364,7 +362,12 @@ export async function getPresentationContent(id: string) {
 
     return {
       success: true,
-      presentation: presentation.presentation,
+      presentation: {
+        id,
+        content: content.content,
+        theme: content.theme,
+        outline: [],
+      },
     };
   } catch (error) {
     console.error(error);
@@ -382,15 +385,19 @@ export async function updatePresentationTheme(id: string, theme: string) {
   }
 
   try {
-    const presentation = await db.presentation.update({
-      where: { id },
-      data: { theme },
-    });
+    const doc = await s3UpdatePresentation(id, session.user.id, { theme });
+
+    if (!doc) {
+      return {
+        success: false,
+        message: "Presentation not found or unauthorized",
+      };
+    }
 
     return {
       success: true,
       message: "Presentation theme updated successfully",
-      presentation,
+      presentation: doc.presentation,
     };
   } catch (error) {
     console.error(error);
@@ -409,14 +416,9 @@ export async function duplicatePresentation(id: string, newTitle?: string) {
 
   try {
     // Get the original presentation
-    const original = await db.baseDocument.findUnique({
-      where: { id },
-      include: {
-        presentation: true,
-      },
-    });
+    const original = await s3GetPresentation(id);
 
-    if (!original?.presentation) {
+    if (!original) {
       return {
         success: false,
         message: "Original presentation not found",
@@ -424,29 +426,17 @@ export async function duplicatePresentation(id: string, newTitle?: string) {
     }
 
     // Create a new presentation with the same content
-    const duplicated = await db.baseDocument.create({
-      data: {
-        type: "PRESENTATION",
-        documentType: "presentation",
-        title: newTitle ?? `${original.title} (Copy)`,
-        userId: session.user.id,
-        isPublic: false,
-        presentation: {
-          create: {
-            content: original.presentation.content as unknown as InputJsonValue,
-            theme: original.presentation.theme,
-          },
-        },
-      },
-      include: {
-        presentation: true,
-      },
+    const duplicated = await s3CreatePresentation({
+      userId: session.user.id,
+      title: newTitle ?? `${original.base.title} (Copy)`,
+      content: original.presentation.content as { slides: PlateSlide[] },
+      theme: original.presentation.theme,
     });
 
     return {
       success: true,
       message: "Presentation duplicated successfully",
-      presentation: duplicated,
+      presentation: transformToLegacyFormat(duplicated),
     };
   } catch (error) {
     console.error(error);

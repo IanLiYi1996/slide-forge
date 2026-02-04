@@ -248,6 +248,14 @@ check_prerequisites() {
     print_success "CDK $(cdk --version)"
   fi
 
+  # 检查 Docker
+  if ! command -v docker &> /dev/null; then
+    print_error "Docker 未安装"
+    has_error=true
+  else
+    print_success "Docker $(docker --version | cut -d' ' -f3 | tr -d ',')"
+  fi
+
   # 检查 AWS 凭证
   if aws sts get-caller-identity &> /dev/null; then
     local account_id=$(aws sts get-caller-identity --query Account --output text)
@@ -521,14 +529,14 @@ confirm_deployment() {
     echo ""
     print_warning "即将部署到 AWS，这将创建以下资源:"
     echo "  • VPC (3 可用区)"
-    echo "  • ECS Fargate 集群"
+    echo "  • ECS EC2 集群"
     echo "  • Application Load Balancer"
-    echo "  • Aurora Serverless v2 数据库"
-    echo "  • S3 Buckets"
+    echo "  • S3 Buckets (数据存储)"
     echo "  • CloudFront 分发"
     echo "  • Secrets Manager 密钥"
+    echo "  • Cognito 用户池"
     echo ""
-    print_warning "预计成本: 开发环境 ~$100/月, 生产环境 ~$300/月"
+    print_warning "预计成本: 开发环境 ~$50/月, 生产环境 ~$150/月"
     echo ""
 
     read -p "确认部署? [y/N] " -n 1 -r
@@ -550,7 +558,7 @@ deploy_to_aws() {
   echo ""
 
   # 1. 安装依赖
-  print_info "步骤 1/5: 安装 CDK 依赖..."
+  print_info "步骤 1/6: 安装 CDK 依赖..."
   if ! pnpm install --frozen-lockfile; then
     print_error "依赖安装失败"
     exit 1
@@ -559,7 +567,7 @@ deploy_to_aws() {
   echo ""
 
   # 2. 构建前端
-  print_info "步骤 2/5: 构建 Next.js 应用..."
+  print_info "步骤 2/6: 构建 Next.js 应用..."
   cd "$PROJECT_ROOT/frontend"
   if ! pnpm build; then
     print_error "前端构建失败"
@@ -570,7 +578,7 @@ deploy_to_aws() {
 
   # 3. CDK Synth
   cd "$INFRA_DIR"
-  print_info "步骤 3/5: 合成 CloudFormation 模板..."
+  print_info "步骤 3/6: 合成 CloudFormation 模板..."
   if ! pnpm cdk synth --quiet; then
     print_error "CDK synth 失败"
     exit 1
@@ -579,13 +587,13 @@ deploy_to_aws() {
   echo ""
 
   # 4. 显示变更
-  print_info "步骤 4/5: 检查将要创建的资源..."
+  print_info "步骤 4/6: 检查将要创建的资源..."
   echo ""
   pnpm cdk diff || true
   echo ""
 
   # 5. 执行部署
-  print_info "步骤 5/5: 部署到 AWS..."
+  print_info "步骤 5/6: 部署到 AWS..."
   echo ""
   print_warning "这可能需要 10-15 分钟，请耐心等待..."
   echo ""
@@ -602,11 +610,163 @@ deploy_to_aws() {
   fi
 
   if eval "$deploy_cmd"; then
-    print_success "部署成功！"
+    print_success "CDK 部署成功！"
+    echo ""
+
+    # 同步静态资源
+    sync_static_assets
   else
     print_error "部署失败"
     exit 1
   fi
+}
+
+# ==============================================================================
+# 同步静态资源到 S3
+# ==============================================================================
+
+sync_static_assets() {
+  local stack_name_full="${STACK_NAME}-${ENVIRONMENT}"
+
+  print_info "步骤 6/6: 同步静态资源到 S3..."
+  echo ""
+
+  # 获取 AWS 账号和区域信息
+  local account_id=$(aws sts get-caller-identity --query Account --output text)
+  local region="${AWS_REGION:-us-east-1}"
+  local ecr_repo="$account_id.dkr.ecr.$region.amazonaws.com/cdk-hnb659fds-container-assets-$account_id-$region"
+
+  # 获取 Stack 输出
+  local static_bucket=$(aws cloudformation describe-stacks \
+    --stack-name "$stack_name_full" \
+    --query "Stacks[0].Outputs[?contains(OutputKey, 'StaticBucketName')].OutputValue" \
+    --output text 2>/dev/null | head -1)
+
+  local distribution_id=$(aws cloudformation describe-stacks \
+    --stack-name "$stack_name_full" \
+    --query "Stacks[0].Outputs[?contains(Description, 'CloudFront')].OutputValue" \
+    --output text 2>/dev/null | grep "^E" | head -1)
+
+  # 如果没有找到 distribution_id，尝试从部署说明中提取
+  if [ -z "$distribution_id" ]; then
+    distribution_id=$(aws cloudformation describe-stacks \
+      --stack-name "$stack_name_full" \
+      --query "Stacks[0].Outputs[?OutputKey=='DeploymentInstructions'].OutputValue" \
+      --output text 2>/dev/null | grep -oP 'distribution-id \K[A-Z0-9]+' || echo "")
+  fi
+
+  if [ -z "$static_bucket" ]; then
+    print_warning "无法获取 Static Bucket 名称，跳过静态资源同步"
+    print_info "可以稍后手动运行: ./scripts/sync-static.sh"
+    return
+  fi
+
+  print_info "Static Bucket: $static_bucket"
+  print_info "CloudFront Distribution: ${distribution_id:-未找到}"
+  echo ""
+
+  # 登录 ECR
+  print_info "登录 ECR..."
+  if ! aws ecr get-login-password --region $region | docker login --username AWS --password-stdin "$account_id.dkr.ecr.$region.amazonaws.com" 2>/dev/null; then
+    print_warning "ECR 登录失败，跳过静态资源同步"
+    return
+  fi
+  print_success "ECR 登录成功"
+
+  # 获取当前运行的镜像（优先从 ECS 任务获取）
+  print_info "查找当前运行的 Docker 镜像..."
+  local cluster_name="${STACK_NAME}-${ENVIRONMENT}-cluster"
+  local full_image=""
+
+  # 尝试从 ECS 任务获取
+  local task_arn=$(aws ecs list-tasks --cluster "$cluster_name" --query "taskArns[0]" --output text 2>/dev/null || echo "")
+
+  if [ -n "$task_arn" ] && [ "$task_arn" != "None" ]; then
+    full_image=$(aws ecs describe-tasks \
+      --cluster "$cluster_name" \
+      --tasks "$task_arn" \
+      --query "tasks[0].containers[0].image" \
+      --output text 2>/dev/null || echo "")
+  fi
+
+  if [ -z "$full_image" ] || [ "$full_image" = "None" ]; then
+    # 回退到最近推送的镜像
+    print_warning "无法从 ECS 获取镜像，使用最近推送的镜像"
+    local latest_tag=$(aws ecr describe-images \
+      --repository-name "cdk-hnb659fds-container-assets-$account_id-$region" \
+      --query "imageDetails | sort_by(@, &imagePushedAt) | [-1].imageTags[0]" \
+      --output text 2>/dev/null | head -1)
+
+    if [ -z "$latest_tag" ] || [ "$latest_tag" = "None" ]; then
+      print_warning "无法获取镜像 tag，跳过静态资源同步"
+      return
+    fi
+    full_image="$ecr_repo:$latest_tag"
+  fi
+
+  print_info "镜像: ${full_image:(-40)}..."
+
+  # 拉取镜像
+  print_info "拉取 Docker 镜像..."
+  if ! docker pull "$full_image" 2>/dev/null; then
+    print_warning "镜像拉取失败，跳过静态资源同步"
+    return
+  fi
+  print_success "镜像拉取完成"
+
+  # 提取静态文件
+  print_info "提取静态文件..."
+  local temp_dir="/tmp/nextjs-static-$$"
+  rm -rf "$temp_dir"
+  mkdir -p "$temp_dir"
+
+  local container_id=$(docker create "$full_image")
+  docker cp "$container_id:/app/.next/static" "$temp_dir/" 2>/dev/null || true
+  docker cp "$container_id:/app/public" "$temp_dir/" 2>/dev/null || true
+  docker rm "$container_id" > /dev/null
+
+  if [ ! -d "$temp_dir/static" ]; then
+    print_warning "无法从镜像中提取静态文件，跳过同步"
+    rm -rf "$temp_dir"
+    return
+  fi
+  print_success "静态文件提取完成"
+
+  # 同步到 S3
+  print_info "同步静态文件到 S3..."
+  aws s3 sync "$temp_dir/static" "s3://$static_bucket/_next/static" --delete --quiet
+  print_success "静态 chunks 同步完成"
+
+  if [ -d "$temp_dir/public" ]; then
+    aws s3 sync "$temp_dir/public" "s3://$static_bucket/public" --delete --quiet
+    print_success "Public 文件同步完成"
+  fi
+
+  # 清理临时文件
+  rm -rf "$temp_dir"
+
+  # 刷新 CloudFront 缓存
+  if [ -n "$distribution_id" ]; then
+    print_info "刷新 CloudFront 缓存..."
+    local invalidation_id=$(aws cloudfront create-invalidation \
+      --distribution-id "$distribution_id" \
+      --paths "/*" \
+      --query "Invalidation.Id" \
+      --output text 2>/dev/null)
+
+    if [ -n "$invalidation_id" ]; then
+      print_success "CloudFront 缓存刷新已启动 (ID: $invalidation_id)"
+      print_info "缓存刷新通常需要 1-2 分钟完成"
+    else
+      print_warning "CloudFront 缓存刷新失败，请手动刷新"
+    fi
+  else
+    print_warning "未找到 CloudFront Distribution ID，跳过缓存刷新"
+    print_info "请手动运行: aws cloudfront create-invalidation --distribution-id YOUR_ID --paths '/*'"
+  fi
+
+  echo ""
+  print_success "静态资源同步完成！"
 }
 
 # ==============================================================================
@@ -681,9 +841,7 @@ show_deployment_summary() {
     echo "  2. 点击 'Sign In'"
     echo "  3. 使用邮箱和临时密码登录"
     echo "  4. 按提示修改为永久密码"
-    echo "  5. 使用 Prisma Studio 设置管理员权限:"
-    echo "     cd frontend && pnpm prisma studio"
-    echo "     将 role 设为 'ADMIN'，hasAccess 设为 true"
+    echo "  5. 用户数据存储在 S3 中，管理员权限通过 S3 用户配置文件设置"
     echo ""
   fi
 

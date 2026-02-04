@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RecentPresentationsSidebar } from "./RecentPresentationsSidebar";
-import { RecentPreziSidebar } from "./RecentPreziSidebar";
 import { RecentAgentSessions } from "./RecentAgentSessions";
 import { RecentDocumentSessions } from "./RecentDocumentSessions";
 import { useToast } from "@/components/ui/use-toast";
@@ -28,8 +27,6 @@ import {
   Key,
   BarChart3,
   Zap,
-  Presentation as PresentationIcon,
-  Hexagon,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useParams, useRouter, usePathname } from "next/navigation";
@@ -101,11 +98,6 @@ export function GlobalSidebar() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // ✨ Handle create new Prezi - navigate to choice page (consistent with homepage)
-  const handleCreatePrezi = () => {
-    router.push("/presentation/prezi-new");
-  };
-
   // 拖动处理函数
   const handleMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
     // 左键点击才触发拖动
@@ -171,7 +163,6 @@ export function GlobalSidebar() {
   }, [isDragging, position, hasMoved]);
 
   // ✨ 只在 auth 页面和纯 ID 的 presentation 查看页面隐藏侧边栏
-  // 允许 /presentation/prezi-new, /presentation/prezi-create-ai 等有意义的路径显示侧边栏
   if (
     pathname?.startsWith("/auth") ||
     (pathname?.match(/^\/presentation\/[a-f0-9-]{36}$/) && !pathname?.includes("/agent"))
@@ -314,31 +305,11 @@ export function GlobalSidebar() {
               <Image className="h-4 w-4" />
               {!isCollapsed && "Document Processor"}
             </Button>
-
-            <Button
-              variant="ghost"
-              className={`w-full h-10 ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'}`}
-              onClick={handleCreatePrezi}
-              title={isCollapsed ? "Create Prezi" : undefined}
-            >
-              <PresentationIcon className="h-4 w-4" />
-              {!isCollapsed && (
-                <>
-                  <span className="flex-1 text-left">Create Prezi</span>
-                  <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-1.5 py-0.5 rounded-full font-medium">
-                    NEW
-                  </span>
-                </>
-              )}
-            </Button>
           </div>
         </div>
 
         {/* Recent Presentations - Only show when expanded */}
         {!isCollapsed && <RecentPresentationsSidebar />}
-
-        {/* Recent Prezi - Only show when expanded */}
-        {!isCollapsed && <RecentPreziSidebar />}
 
         {/* Recent Agent Sessions - Only show when expanded */}
         {!isCollapsed && <RecentAgentSessions />}

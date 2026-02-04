@@ -2,13 +2,13 @@
  * API Configuration Resolver
  *
  * Resolves API configurations with the following priority:
- * 1. User-configured keys (from database)
+ * 1. User-configured keys (from S3)
  * 2. System defaults (from .env)
  *
  * API types are defined in api-types-config.ts based on .env variable names.
  */
 
-import { db } from '@/server/db';
+import { getApiConfiguration, getUserApiConfigurations } from '@/services/s3';
 import { decryptApiKey } from './encryption';
 import { API_TYPES, type ApiTypeDefinition } from './api-types-config';
 
@@ -49,14 +49,7 @@ export async function getApiConfig(
   }
 
   // Try to get user-specific configuration first
-  const userConfig = await db.apiConfiguration.findUnique({
-    where: {
-      userId_apiName: {
-        userId,
-        apiName,
-      },
-    },
-  });
+  const userConfig = await getApiConfiguration(userId, apiName);
 
   if (userConfig && userConfig.isActive) {
     // Decrypt and return user config
@@ -141,11 +134,9 @@ export async function getAllApiConfigs(userId: string): Promise<{
     hasEnvValue: boolean;
   }>;
 }> {
-  // Get user configs from database
-  const userConfigs = await db.apiConfiguration.findMany({
-    where: { userId, isActive: true },
-    select: { apiName: true, displayName: true },
-  });
+  // Get user configs from S3
+  const userConfigs = await getUserApiConfigurations(userId);
+  const activeUserConfigs = userConfigs.filter((c) => c.isActive);
 
   // Check which API types have system configs (.env)
   const systemConfigs: Array<{
@@ -158,7 +149,7 @@ export async function getAllApiConfigs(userId: string): Promise<{
 
   for (const apiType of API_TYPES) {
     // Skip if user has their own config for this type
-    const hasUserConfig = userConfigs.some((c) => c.apiName === apiType.apiName);
+    const hasUserConfig = activeUserConfigs.some((c) => c.apiName === apiType.apiName);
     if (hasUserConfig) continue;
 
     // Check if system config exists in .env
@@ -174,7 +165,7 @@ export async function getAllApiConfigs(userId: string): Promise<{
   }
 
   return {
-    userConfigs: userConfigs.map((c) => {
+    userConfigs: activeUserConfigs.map((c) => {
       const apiType = API_TYPES.find((t) => t.apiName === c.apiName);
       return {
         apiName: c.apiName,

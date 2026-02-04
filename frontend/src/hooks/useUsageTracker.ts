@@ -7,7 +7,7 @@
 
 'use client';
 
-import { type UsageType } from '@prisma/client';
+import { type UsageType } from '@/services/s3';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 

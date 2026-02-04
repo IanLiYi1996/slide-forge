@@ -27,12 +27,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { usePresentationState } from "@/states/presentation-state";
-import { type BaseDocument } from "@prisma/client";
 import {
   useInfiniteQuery,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { type PresentationDocument } from "@/app/_actions/presentation/fetchPresentations";
 import {
   Calendar,
   ChevronRight,
@@ -127,7 +127,7 @@ export function RecentPresentations() {
     },
   });
 
-  const handlePresentationClick = async (presentation: BaseDocument) => {
+  const handlePresentationClick = async (presentation: PresentationDocument) => {
     try {
       setIsNavigating(presentation.id);
       setCurrentPresentation(presentation.id, presentation.title);

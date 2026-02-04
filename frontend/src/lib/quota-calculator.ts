@@ -4,7 +4,10 @@
  * Defines default quotas and provides utilities for quota management.
  */
 
-import { type PeriodType, type UsageType, UserRole } from '@prisma/client';
+import type { UsageType, PeriodType, UserRole } from '@/services/s3';
+
+// Re-export types for convenience
+export type { UsageType, PeriodType };
 
 /**
  * Default quota limits by user role
@@ -13,7 +16,7 @@ import { type PeriodType, type UsageType, UserRole } from '@prisma/client';
  * ADMIN role gets 10x the limits for administrative purposes
  */
 export const DEFAULT_QUOTAS: Record<UserRole, Record<UsageType, number>> = {
-  [UserRole.USER]: {
+  USER: {
     AI_MODEL_CALL: 1000, // API calls per month
     SLIDE_GENERATION: 50, // Slides per month
     IMAGE_GENERATION: 100, // Images per month
@@ -23,7 +26,7 @@ export const DEFAULT_QUOTAS: Record<UserRole, Record<UsageType, number>> = {
     EXPORT_PDF: 50, // PDF exports per month
     EXPORT_PPTX: 20, // PPTX exports per month
   },
-  [UserRole.ADMIN]: {
+  ADMIN: {
     AI_MODEL_CALL: 10000,
     SLIDE_GENERATION: 500,
     IMAGE_GENERATION: 1000,

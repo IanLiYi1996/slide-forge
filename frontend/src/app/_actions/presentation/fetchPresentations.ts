@@ -2,16 +2,90 @@
 import "server-only";
 
 import { auth } from "@/server/auth";
-import { db } from "@/server/db";
-import { type Prisma, DocumentType } from "@prisma/client";
+import {
+  getUserPresentations,
+  getPublicPresentations,
+  getUserPublicPresentations,
+  type DocumentWithPresentation,
+} from "@/services/s3";
 
-export type PresentationDocument = Prisma.BaseDocumentGetPayload<{
-  include: {
-    presentation: true;
-  };
-}>;
+export interface PresentationDocument {
+  id: string;
+  title: string;
+  type: string;
+  userId: string;
+  thumbnailUrl: string | null;
+  isPublic: boolean;
+  documentType: string;
+  createdAt: Date;
+  updatedAt: Date;
+  presentation: {
+    id: string;
+    presentationMode: string;
+    content: unknown;
+    theme: string;
+    imageSource: string;
+    prompt: string | null;
+    presentationStyle: string | null;
+    language: string | null;
+    outline: string[];
+    searchResults: unknown;
+    slideImages: unknown;
+    templateId: string | null;
+    customThemeId: string | null;
+    generationStage: string | null;
+    lastAccessedAt: Date | null;
+    slidesGenerated: number | null;
+    currentSlideIndex: number | null;
+    exportedAt: Date | null;
+    exportFormat: string | null;
+    exportCount: number;
+    exportHistory: unknown;
+  } | null;
+}
 
 const ITEMS_PER_PAGE = 10;
+
+function transformToLegacyFormat(doc: DocumentWithPresentation): PresentationDocument {
+  return {
+    id: doc.base.id,
+    title: doc.base.title,
+    type: doc.base.type,
+    userId: doc.base.userId,
+    thumbnailUrl: doc.base.thumbnailUrl ?? null,
+    isPublic: doc.base.isPublic,
+    documentType: doc.base.documentType,
+    createdAt: new Date(doc.base.createdAt),
+    updatedAt: new Date(doc.base.updatedAt),
+    presentation: {
+      id: doc.presentation.id,
+      presentationMode: doc.presentation.presentationMode,
+      content: doc.presentation.content,
+      theme: doc.presentation.theme,
+      imageSource: doc.presentation.imageSource,
+      prompt: doc.presentation.prompt ?? null,
+      presentationStyle: doc.presentation.presentationStyle ?? null,
+      language: doc.presentation.language ?? null,
+      outline: doc.presentation.outline,
+      searchResults: doc.presentation.searchResults,
+      slideImages: doc.presentation.slideImages,
+      templateId: doc.presentation.templateId ?? null,
+      customThemeId: doc.presentation.customThemeId ?? null,
+      generationStage: doc.presentation.generationStage ?? null,
+      lastAccessedAt: doc.presentation.lastAccessedAt
+        ? new Date(doc.presentation.lastAccessedAt)
+        : null,
+      slidesGenerated: doc.presentation.slidesGenerated ?? null,
+      currentSlideIndex: doc.presentation.currentSlideIndex ?? null,
+      exportedAt: doc.presentation.exportedAt
+        ? new Date(doc.presentation.exportedAt)
+        : null,
+      exportFormat: doc.presentation.exportFormat ?? null,
+      exportCount: doc.presentation.exportCount,
+      exportHistory: doc.presentation.exportHistory,
+    },
+  };
+}
 
 export async function fetchPresentations(page = 0) {
   const session = await auth();
@@ -24,68 +98,22 @@ export async function fetchPresentations(page = 0) {
     };
   }
 
-  const skip = page * ITEMS_PER_PAGE;
-
-  const items = await db.baseDocument.findMany({
-    where: {
-      userId,
-      type: DocumentType.PRESENTATION,
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
-    take: ITEMS_PER_PAGE,
-    skip: skip,
-    include: {
-      presentation: true,
-    },
-  });
-
-  const hasMore = items.length === ITEMS_PER_PAGE;
+  const result = await getUserPresentations(userId, page, ITEMS_PER_PAGE);
 
   return {
-    items,
-    hasMore,
+    items: result.documents.map(transformToLegacyFormat),
+    hasMore: result.hasMore,
   };
 }
 
 export async function fetchPublicPresentations(page = 0) {
-  const skip = page * ITEMS_PER_PAGE;
+  const result = await getPublicPresentations(page, ITEMS_PER_PAGE);
 
-  const [items, total] = await Promise.all([
-    db.baseDocument.findMany({
-      where: {
-        type: DocumentType.PRESENTATION,
-        isPublic: true,
-      },
-      orderBy: {
-        updatedAt: "desc",
-      },
-      take: ITEMS_PER_PAGE,
-      skip: skip,
-      include: {
-        presentation: true,
-        user: {
-          select: {
-            name: true,
-            image: true,
-          },
-        },
-      },
-    }),
-    db.baseDocument.count({
-      where: {
-        type: DocumentType.PRESENTATION,
-        isPublic: true,
-      },
-    }),
-  ]);
-
-  const hasMore = skip + ITEMS_PER_PAGE < total;
-
+  // Note: We don't have user info in S3 documents directly
+  // For now, return without user info - can be enhanced if needed
   return {
-    items,
-    hasMore,
+    items: result.documents.map(transformToLegacyFormat),
+    hasMore: result.hasMore,
   };
 }
 
@@ -93,40 +121,20 @@ export async function fetchUserPresentations(userId: string, page = 0) {
   const session = await auth();
   const currentUserId = session?.user.id;
 
-  const skip = page * ITEMS_PER_PAGE;
+  // If viewing own profile, show all presentations
+  // Otherwise, show only public presentations
+  if (currentUserId === userId) {
+    const result = await getUserPresentations(userId, page, ITEMS_PER_PAGE);
+    return {
+      items: result.documents.map(transformToLegacyFormat),
+      hasMore: result.hasMore,
+    };
+  }
 
-  const [items, total] = await Promise.all([
-    db.baseDocument.findMany({
-      where: {
-        userId,
-        type: DocumentType.PRESENTATION,
-        OR: [
-          { isPublic: true },
-          { userId: currentUserId }, // Include private presentations if the user is viewing their own
-        ],
-      },
-      orderBy: {
-        updatedAt: "desc",
-      },
-      take: ITEMS_PER_PAGE,
-      skip: skip,
-      include: {
-        presentation: true,
-      },
-    }),
-    db.baseDocument.count({
-      where: {
-        userId,
-        type: DocumentType.PRESENTATION,
-        OR: [{ isPublic: true }, { userId: currentUserId }],
-      },
-    }),
-  ]);
-
-  const hasMore = skip + ITEMS_PER_PAGE < total;
-
+  // Show only public presentations for other users
+  const result = await getUserPublicPresentations(userId, page, ITEMS_PER_PAGE);
   return {
-    items,
-    hasMore,
+    items: result.documents.map(transformToLegacyFormat),
+    hasMore: result.hasMore,
   };
 }

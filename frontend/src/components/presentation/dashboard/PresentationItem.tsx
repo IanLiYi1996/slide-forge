@@ -28,8 +28,8 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { usePresentationState } from "@/states/presentation-state";
-import { type BaseDocument } from "@prisma/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type PresentationDocument } from "@/app/_actions/presentation/fetchPresentations";
 import {
   Check,
   Copy,
@@ -47,17 +47,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 interface PresentationItemProps {
-  presentation: BaseDocument & {
-    presentation: {
-      id: string;
-      content: unknown;
-      theme: string;
-      generationStage?: string | null;
-      slidesGenerated?: number | null;
-      outline?: string[];
-      lastAccessedAt?: Date | string | null;
-    } | null;
-  };
+  presentation: PresentationDocument;
   isSelecting?: boolean;
   onSelect?: (id: string) => void;
   isSelected?: boolean;

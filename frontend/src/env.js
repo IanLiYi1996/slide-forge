@@ -16,6 +16,8 @@ export const env = createEnv({
     // Image Generation APIs
     YUNWU_API_KEY: z.string(),
     DASHSCOPE_API_KEY: z.string().optional(), // 🆕 新增：z-image-turbo API key (可选)
+    // Bedrock Claude 配置 (用于图片分析和内容生成)
+    BEDROCK_MODEL_ID: z.string().default("global.anthropic.claude-sonnet-4-5-20250929-v1:0"), // Global cross-region inference profile
     // Claude Agent SDK - Amazon Bedrock 配置
     CLAUDE_CODE_USE_BEDROCK: z.string().default("0"),
     ENABLE_CLAUDE_AGENT: z.string().default("false"),
@@ -52,6 +54,7 @@ export const env = createEnv({
     LLM_MODEL_NAME: process.env.LLM_MODEL_NAME,
     YUNWU_API_KEY: process.env.YUNWU_API_KEY,
     DASHSCOPE_API_KEY: process.env.DASHSCOPE_API_KEY, // 🆕 新增
+    BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID,
     CLAUDE_CODE_USE_BEDROCK: process.env.CLAUDE_CODE_USE_BEDROCK,
     ENABLE_CLAUDE_AGENT: process.env.ENABLE_CLAUDE_AGENT,
     AGENT_SESSION_TIMEOUT: process.env.AGENT_SESSION_TIMEOUT,
