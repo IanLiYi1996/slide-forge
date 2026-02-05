@@ -179,3 +179,29 @@ export {
   deleteGeneratedImage,
   type GeneratedImage,
 } from './generated-image-service';
+
+// Smart Document Hub session management
+export {
+  createHubSession,
+  getHubSession,
+  getHubSessionByUserId,
+  updateHubSession,
+  deleteHubSession,
+  getUserHubSessions,
+  addPageToSession,
+  updatePageInSession,
+  initializePagesFromOutline,
+  initializePagesFromImages,
+  updateSessionStatus,
+  completeSession,
+  setSessionError,
+  updateGenerateConfig,
+  updateProcessConfig,
+  updateExtractConfig,
+  recordExport,
+  cleanupOldHubSessions,
+  type HubSession,
+  type HubPage,
+  type ProcessingMode,
+  type HubSessionStatus,
+} from './hub-session-service';

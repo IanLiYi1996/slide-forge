@@ -2,6 +2,7 @@
 // 它只定义接口和类型，会被 Server Actions 使用
 
 import type { AspectRatio, ImageSize } from "@/app/_actions/image/generate";
+import type { ImageUrls } from "@/types/smart-hub";
 
 // 统一的图片生成请求接口
 export interface ImageGenerationRequest {
@@ -29,7 +30,8 @@ export interface ConversationMessage {
 // 统一的响应格式
 export interface ImageGenerationResponse {
   success: boolean;
-  imageUrl?: string;
+  imageUrl?: string;          // Primary URL (for backward compatibility)
+  imageUrls?: ImageUrls;      // Both primary and backup URLs
   image?: { url: string; id: string };
   responseText?: string;
   conversationHistory?: ConversationMessage[];

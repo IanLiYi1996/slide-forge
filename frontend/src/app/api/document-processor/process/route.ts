@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { YunwuService } from "@/lib/image-generation/yunwu-api-service";
+import type { AspectRatio, ImageSize } from "@/app/_actions/image/generate";
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageDataUrl, instruction } = await request.json();
+    const { imageDataUrl, instruction, aspectRatio, imageSize } = await request.json();
 
     if (!imageDataUrl || !instruction) {
       return NextResponse.json(
@@ -11,47 +13,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiKey = process.env.YUNWU_API_KEY;
-    if (!apiKey) {
+    // Use the YunwuService for image processing
+    const yunwuService = new YunwuService();
+
+    // Build the modification prompt that includes the original image reference
+    const modificationPrompt = `Based on the attached image, please: ${instruction}
+
+Important: Maintain the overall structure and layout of the original image while applying the requested changes.`;
+
+    const result = await yunwuService.generateImage({
+      prompt: modificationPrompt,
+      modificationPrompt: modificationPrompt,
+      aspectRatio: (aspectRatio as AspectRatio) || "16:9",
+      imageSize: (imageSize as ImageSize) || "1K",
+      conversationHistory: [
+        {
+          role: "user",
+          parts: [
+            { text: "Here is the image I want to modify:" },
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: imageDataUrl.replace(/^data:image\/\w+;base64,/, ""),
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!result.success || !result.imageUrl) {
+      console.error("Yunwu processing error:", result.error);
       return NextResponse.json(
-        { message: "YUNWU_API_KEY is not configured" },
+        { message: result.error || "Failed to process image" },
         { status: 500 }
       );
     }
 
-    // Call Yunwu API for image processing
-    // TODO: Replace this URL with the actual Yunwu API endpoint from their documentation
-    // This is a placeholder endpoint - update it according to Yunwu's API specs
-    const yunwuResponse = await fetch("https://api.yunwu.ai/v1/image/process", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        image: imageDataUrl,
-        instruction: instruction,
-      }),
-    });
-
-    if (!yunwuResponse.ok) {
-      const error = await yunwuResponse.text();
-      console.error("Yunwu API error:", error);
-      return NextResponse.json(
-        { message: "Failed to process image with Yunwu API" },
-        { status: yunwuResponse.status }
-      );
-    }
-
-    const result = await yunwuResponse.json();
-
     return NextResponse.json({
-      processedImageUrl: result.processedImageUrl || result.data?.url,
+      processedImageUrl: result.imageUrl,
+      imageUrls: result.imageUrls,
     });
   } catch (error) {
     console.error("Error processing image:", error);
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     );
   }
