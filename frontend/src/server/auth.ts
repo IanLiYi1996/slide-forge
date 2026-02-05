@@ -18,11 +18,24 @@ declare module "next-auth" {
       role: string;
       isAdmin: boolean;
     } & DefaultSession["user"];
+    accessToken?: string;
+    idToken?: string;
+    error?: string;
   }
 
   interface User {
     hasAccess: boolean;
     role: string;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    accessToken?: string;
+    idToken?: string;
+    refreshToken?: string;
+    expiresAt?: number;
+    error?: string;
   }
 }
 
@@ -47,8 +60,14 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         token.isAdmin = user.role === "ADMIN";
       }
 
-      // OAuth login: get latest user info from S3
+      // OAuth login: store tokens and get latest user info from S3
       if (account && token.id) {
+        // Store Cognito tokens for AgentCore
+        token.accessToken = account.access_token;
+        token.idToken = account.id_token;
+        token.refreshToken = account.refresh_token;
+        token.expiresAt = account.expires_at;
+
         const profile = await getUserProfile(token.id as string);
         if (profile) {
           token.hasAccess = profile.hasAccess;
@@ -77,6 +96,13 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         }
       }
 
+      // Check if token is expired
+      if (token.expiresAt && Date.now() >= (token.expiresAt as number) * 1000) {
+        // Token expired - mark for refresh
+        // Note: Cognito tokens can be refreshed using refresh_token
+        token.error = "TokenExpired";
+      }
+
       return token;
     },
 
@@ -86,6 +112,13 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       session.user.location = token.location as string;
       session.user.role = (token.role as string) ?? "USER";
       session.user.isAdmin = token.role === "ADMIN";
+
+      // Expose tokens for AgentCore API calls
+      // Use idToken for AgentCore JWT auth (contains user claims)
+      session.accessToken = token.accessToken as string | undefined;
+      session.idToken = token.idToken as string | undefined;
+      session.error = token.error as string | undefined;
+
       return session;
     },
 

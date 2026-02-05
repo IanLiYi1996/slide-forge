@@ -1,0 +1,19 @@
+[project]
+name = "slide-forge-backend"
+version = "0.1.0"
+description = "FastAPI backend for Slide Forge presentation generation with AgentCore"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.42.24",
+    "claude-agent-sdk>=0.1.19",
+    "fastapi>=0.120.0",
+    "httpx>=0.28.1",
+    "uvicorn>=0.38.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
