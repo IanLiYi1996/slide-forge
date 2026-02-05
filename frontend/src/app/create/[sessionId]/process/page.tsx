@@ -287,12 +287,10 @@ export default function ProcessPage() {
                 </Button>
               </div>
 
-              {processedCount > 0 && (
-                <Button onClick={() => setIsExportOpen(true)}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export ({processedCount})
-                </Button>
-              )}
+              <Button onClick={() => setIsExportOpen(true)}>
+                <Download className="h-4 w-4 mr-2" />
+                Export {processedCount > 0 ? `(${processedCount})` : ""}
+              </Button>
             </>
           )}
         </div>

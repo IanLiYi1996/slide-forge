@@ -89,6 +89,10 @@ export function ExportDialog({
   const { trackUsage } = useUsageTracker();
 
   const readyPages = session.pages.filter((p) => p.status === "ready");
+  // For process mode, we can export original images even if not processed
+  const exportablePages = session.mode === "process"
+    ? session.pages.filter((p) => p.imageDataUrl || p.outputImageUrl)
+    : readyPages;
 
   const dataUrlToBlob = async (dataUrl: string): Promise<Blob> => {
     const response = await fetch(dataUrl);
@@ -169,20 +173,23 @@ export function ExportDialog({
 
         case "zip": {
           const zip = new JSZip();
+          let exportedCount = 0;
 
           for (let i = 0; i < session.pages.length; i++) {
             const page = session.pages[i];
             if (!page) continue;
             setExportProgress(((i + 1) / session.pages.length) * 100);
 
-            // Add processed/generated image
-            if (page.outputImageUrl) {
-              const blob = await dataUrlToBlob(page.outputImageUrl);
+            // Add processed image if available, otherwise use original
+            const primaryImage = page.outputImageUrl || page.imageDataUrl;
+            if (primaryImage) {
+              const blob = await dataUrlToBlob(primaryImage);
               zip.file(`page_${i + 1}.png`, blob);
+              exportedCount++;
             }
 
-            // Optionally add original
-            if (includeOriginals && page.imageDataUrl && page.imageDataUrl !== page.outputImageUrl) {
+            // Optionally add original (only if we exported processed image)
+            if (includeOriginals && page.outputImageUrl && page.imageDataUrl && page.imageDataUrl !== page.outputImageUrl) {
               const originalBlob = await dataUrlToBlob(page.imageDataUrl);
               zip.file(`page_${i + 1}_original.png`, originalBlob);
             }
@@ -193,7 +200,7 @@ export function ExportDialog({
 
           toast({
             title: "ZIP export successful",
-            description: `${session.pages.length} images exported`,
+            description: `${exportedCount} images exported`,
           });
           break;
         }
@@ -263,7 +270,14 @@ export function ExportDialog({
         <DialogHeader>
           <DialogTitle>Export {session.title}</DialogTitle>
           <DialogDescription>
-            {readyPages.length} of {session.pages.length} pages ready for export
+            {session.mode === "process" ? (
+              <>
+                {exportablePages.length} pages available
+                {readyPages.length > 0 && ` (${readyPages.length} processed)`}
+              </>
+            ) : (
+              <>{readyPages.length} of {session.pages.length} pages ready for export</>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -339,7 +353,7 @@ export function ExportDialog({
           </Button>
           <Button
             onClick={handleExport}
-            disabled={isExporting || readyPages.length === 0}
+            disabled={isExporting || exportablePages.length === 0}
           >
             {isExporting ? (
               <>
