@@ -4,6 +4,8 @@ import {
   getHubSessionByUserId,
   updatePageInSession,
 } from '@/services/s3/hub-session-service';
+import { YunwuService } from '@/lib/image-generation/yunwu-api-service';
+import type { AspectRatio, ImageSize } from '@/app/_actions/image/generate';
 
 // POST /api/smart-hub/process - Process an image with AI instruction
 export async function POST(request: NextRequest) {
@@ -41,37 +43,49 @@ export async function POST(request: NextRequest) {
       status: 'processing',
     });
 
-    // Call the existing document processor API with generation config
-    const processResponse = await fetch(
-      `${process.env.NEXTAUTH_URL || ''}/api/document-processor/process`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Cookie: request.headers.get('cookie') || '',
-        },
-        body: JSON.stringify({
-          imageDataUrl,
-          instruction,
-          aspectRatio: aspectRatio || '16:9',
-          imageSize: imageSize || '1K',
-        }),
-      }
-    );
+    // Call YunwuService directly for image processing
+    const yunwuService = new YunwuService();
 
-    if (!processResponse.ok) {
-      const error = await processResponse.json();
+    // Build the modification prompt that includes the original image reference
+    const modificationPrompt = `Based on the attached image, please: ${instruction}
+
+Important: Maintain the overall structure and layout of the original image while applying the requested changes.`;
+
+    // Extract base64 data from data URL
+    const base64Data = imageDataUrl.replace(/^data:image\/\w+;base64,/, '');
+
+    const result = await yunwuService.generateImage({
+      prompt: modificationPrompt,
+      modificationPrompt: modificationPrompt,
+      aspectRatio: (aspectRatio as AspectRatio) || '16:9',
+      imageSize: (imageSize as ImageSize) || '1K',
+      conversationHistory: [
+        {
+          role: 'user',
+          parts: [
+            { text: 'Here is the image I want to modify:' },
+            {
+              inlineData: {
+                mimeType: 'image/png',
+                data: base64Data,
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!result.success || !result.imageUrl) {
+      console.error('Yunwu processing error:', result.error);
       await updatePageInSession(sessionId, session.user.id, pageIndex, {
         status: 'error',
-        errorMessage: error.message || 'Processing failed',
+        errorMessage: result.error || 'Processing failed',
       });
       return NextResponse.json(
-        { error: error.message || 'Processing failed' },
-        { status: processResponse.status }
+        { error: result.error || 'Processing failed' },
+        { status: 500 }
       );
     }
-
-    const result = await processResponse.json();
 
     // Update page with processed image
     const updatedSession = await updatePageInSession(
@@ -80,14 +94,16 @@ export async function POST(request: NextRequest) {
       pageIndex,
       {
         status: 'ready',
-        outputImageUrl: result.processedImageUrl,
+        outputImageUrl: result.imageUrl,
+        outputImageUrls: result.imageUrls,
         modificationCount: (hubSession.pages[pageIndex]?.modificationCount || 0) + 1,
       }
     );
 
     return NextResponse.json({
       success: true,
-      processedImageUrl: result.processedImageUrl,
+      processedImageUrl: result.imageUrl,
+      imageUrls: result.imageUrls,
       session: updatedSession,
     });
   } catch (error) {
