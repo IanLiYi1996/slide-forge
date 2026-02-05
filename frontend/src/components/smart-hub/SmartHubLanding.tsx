@@ -115,6 +115,7 @@ export function SmartHubLanding() {
       // Get current input text from the global state
       const currentInputText = useSmartHubState.getState().inputText;
 
+      // Create session first
       const response = await fetch("/api/smart-hub/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -122,7 +123,7 @@ export function SmartHubLanding() {
           mode: selectedMode,
           title: inputMetadata?.fileName || getDefaultTitle(selectedMode),
           inputMetadata,
-          inputText: currentInputText || "", // Pass inputText to session
+          inputText: currentInputText || "",
         }),
       });
 
@@ -132,6 +133,31 @@ export function SmartHubLanding() {
 
       const data = await response.json();
       const sessionId = data.session.sessionId;
+
+      // If process mode and we have images, add them to the session
+      if (selectedMode === "process" && pageImages.length > 0) {
+        const pagesResponse = await fetch(`/api/smart-hub/session/${sessionId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "page_processing",
+            pages: pageImages.map((img, index) => ({
+              id: crypto.randomUUID(),
+              index,
+              sourceType: "image",
+              imageDataUrl: img.dataUrl,
+              status: "pending",
+              conversationHistory: [],
+              modificationCount: 0,
+              createdAt: new Date().toISOString(),
+            })),
+          }),
+        });
+
+        if (!pagesResponse.ok) {
+          console.error("Failed to add pages to session");
+        }
+      }
 
       // Navigate to the appropriate mode page
       router.push(`/create/${sessionId}/${selectedMode}`);
