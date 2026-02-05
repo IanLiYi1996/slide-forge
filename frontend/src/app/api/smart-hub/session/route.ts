@@ -50,10 +50,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { mode, title, inputMetadata } = body as {
+    const { mode, title, inputMetadata, inputText } = body as {
       mode: ProcessingMode;
       title?: string;
       inputMetadata?: InputMetadata;
+      inputText?: string;
     };
 
     if (!mode || !['generate', 'process', 'extract'].includes(mode)) {
@@ -68,6 +69,7 @@ export async function POST(request: NextRequest) {
       mode,
       title,
       inputMetadata,
+      inputText,
     });
 
     return NextResponse.json({ session: hubSession }, { status: 201 });

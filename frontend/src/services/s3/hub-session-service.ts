@@ -55,6 +55,7 @@ export interface CreateHubSessionParams {
   mode: ProcessingMode;
   title?: string;
   inputMetadata?: InputMetadata;
+  inputText?: string;
 }
 
 /**
@@ -79,6 +80,7 @@ export async function createHubSession(
         language: 'en-US',
         tone: 'professional',
         style: 'professional',
+        theme: 'default',
         aspectRatio: '16:9',
         imageSize: '2K',
         enableWebSearch: true,
@@ -117,6 +119,7 @@ export async function createHubSession(
     status: 'idle',
     title: params.title ?? getDefaultTitle(params.mode),
     inputMetadata: defaultInputMetadata,
+    inputText: params.inputText || '',
     pages: [],
     currentPageIndex: 0,
     generateConfig,

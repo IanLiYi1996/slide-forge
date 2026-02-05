@@ -112,6 +112,9 @@ export function SmartHubLanding() {
 
     setIsCreating(true);
     try {
+      // Get current input text from the global state
+      const currentInputText = useSmartHubState.getState().inputText;
+
       const response = await fetch("/api/smart-hub/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -119,6 +122,7 @@ export function SmartHubLanding() {
           mode: selectedMode,
           title: inputMetadata?.fileName || getDefaultTitle(selectedMode),
           inputMetadata,
+          inputText: currentInputText || "", // Pass inputText to session
         }),
       });
 

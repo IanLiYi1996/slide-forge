@@ -169,12 +169,14 @@ function buildModificationPrompt(
     language?: string;
     tone?: string;
     style?: string;
+    theme?: string;
     aspectRatio?: string;
   }
 ): string {
   const language = config?.language || 'en-US';
   const tone = config?.tone || 'professional';
   const style = config?.style || 'professional';
+  const theme = config?.theme || 'default';
   const aspectRatio = config?.aspectRatio || '16:9';
 
   const isFirstSlide = slideIndex === 0;
@@ -191,14 +193,15 @@ ${modification}
 SLIDE INFO:
 - Type: ${slideType} (Slide ${slideIndex + 1})
 - Style: ${style}
+- Theme: ${theme}
 - Tone: ${tone}
 - Aspect Ratio: ${aspectRatio}
 - Language: ${language.includes('zh') ? 'Chinese' : language.includes('ja') ? 'Japanese' : 'English'}
 
 INSTRUCTIONS:
-1. Keep the overall structure and theme of the slide
+1. Keep the overall structure and the ${theme} color theme of the slide
 2. Apply the user's requested changes precisely
-3. Maintain visual consistency with the ${style} style
+3. Maintain visual consistency with the ${style} style and ${theme} color palette
 4. Ensure text remains readable with good contrast
 5. Preserve any existing design elements unless specifically asked to change them
 

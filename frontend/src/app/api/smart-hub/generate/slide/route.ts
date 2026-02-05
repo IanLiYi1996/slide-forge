@@ -135,6 +135,7 @@ function buildSlidePrompt(
   const language = config?.language || 'en-US';
   const tone = config?.tone || 'professional';
   const style = config?.style || 'professional';
+  const theme = config?.theme || 'default';
   const aspectRatio = config?.aspectRatio || '16:9';
 
   const isFirstSlide = slideIndex === 0;
@@ -148,7 +149,18 @@ function buildSlidePrompt(
     bold: 'High contrast design, large impactful text, strong visual hierarchy, and eye-catching elements',
   };
 
+  // Theme-specific color instructions
+  const themeInstructions: Record<string, string> = {
+    default: 'Use classic blue tones (#3B82F6 primary, #1E40AF secondary, #DBEAFE background)',
+    corporate: 'Use formal navy and gray tones (#1E3A5F primary, #64748B secondary, #F1F5F9 background)',
+    tech: 'Use modern dark theme with cyan accents (#0EA5E9 accent, #18181B dark, #27272A panels)',
+    nature: 'Use earthy green tones (#22C55E primary, #166534 secondary, #F0FDF4 light background)',
+    elegant: 'Use sophisticated purple tones (#8B5CF6 primary, #4C1D95 secondary, #F5F3FF background)',
+    vibrant: 'Use bold colorful palette (#F97316 orange, #EC4899 pink, #FEF3C7 warm background)',
+  };
+
   const styleGuide = styleInstructions[style] || styleInstructions.professional;
+  const themeGuide = themeInstructions[theme] || themeInstructions.default;
 
   return `Create a ${tone} presentation slide image with the following specifications:
 
@@ -160,14 +172,18 @@ ${content}
 DESIGN STYLE: ${style.toUpperCase()}
 ${styleGuide}
 
+COLOR THEME: ${theme.toUpperCase()}
+${themeGuide}
+
 REQUIREMENTS:
 - Design a visually appealing slide with modern aesthetics
-- Use a ${tone}, ${style} design approach
+- Use a ${tone}, ${style} design approach with the ${theme} color palette
 - Include relevant icons or graphics that match the ${style} style
 - Ensure text is readable with good contrast
+- Apply the ${theme} theme colors consistently
 - Use the appropriate layout for a ${slideType}
 - Language: ${language.includes('zh') ? 'Chinese' : language.includes('ja') ? 'Japanese' : language.includes('ko') ? 'Korean' : 'English'}
 - Aspect ratio: ${aspectRatio}
 
-${isFirstSlide ? 'This is the title slide - make it impactful and visually striking with the ' + style + ' aesthetic.' : 'Present the key points clearly with supporting visuals in the ' + style + ' style.'}`;
+${isFirstSlide ? 'This is the title slide - make it impactful and visually striking with the ' + style + ' aesthetic and ' + theme + ' colors.' : 'Present the key points clearly with supporting visuals in the ' + style + ' style and ' + theme + ' theme.'}`;
 }

@@ -106,6 +106,9 @@ export type ImageSize = '1K' | '2K' | '4K';
 /** Presentation style options */
 export type PresentationStyle = 'professional' | 'creative' | 'minimal' | 'bold';
 
+/** Presentation theme options */
+export type PresentationTheme = 'default' | 'corporate' | 'tech' | 'nature' | 'elegant' | 'vibrant';
+
 /** Image generation provider */
 export type ImageGenerationProvider = 'yunwu' | 'z-image-turbo';
 
@@ -115,6 +118,7 @@ export interface GenerateConfig {
   language: string;
   tone: 'professional' | 'casual' | 'creative' | 'academic';
   style: PresentationStyle;
+  theme?: PresentationTheme;
   aspectRatio: AspectRatio;
   imageSize: ImageSize;
   imageProvider?: ImageGenerationProvider;
@@ -305,6 +309,7 @@ export const DEFAULT_GENERATE_CONFIG: GenerateConfig = {
   language: 'en-US',
   tone: 'professional',
   style: 'professional',
+  theme: 'default',
   aspectRatio: '16:9',
   imageSize: '2K',
   enableWebSearch: true,

@@ -27,6 +27,7 @@ import {
   type AspectRatio,
   type ImageSize,
   type PresentationStyle,
+  type PresentationTheme,
   type ImageGenerationProvider,
 } from "@/types/smart-hub";
 import { DEFAULT_GENERATE_CONFIG } from "@/types/smart-hub";
@@ -62,6 +63,15 @@ const STYLE_OPTIONS: { value: PresentationStyle; label: string; description: str
   { value: "creative", label: "Creative", description: "Bold colors and layouts" },
   { value: "minimal", label: "Minimal", description: "Simple, focused design" },
   { value: "bold", label: "Bold", description: "Eye-catching and impactful" },
+];
+
+const THEME_OPTIONS: { value: PresentationTheme; label: string; description: string; colors: string[] }[] = [
+  { value: "default", label: "Default", description: "Classic blue theme", colors: ["#3B82F6", "#1E40AF", "#DBEAFE"] },
+  { value: "corporate", label: "Corporate", description: "Formal navy & gray", colors: ["#1E3A5F", "#64748B", "#F1F5F9"] },
+  { value: "tech", label: "Tech", description: "Modern dark theme", colors: ["#0EA5E9", "#18181B", "#27272A"] },
+  { value: "nature", label: "Nature", description: "Earthy green tones", colors: ["#22C55E", "#166534", "#F0FDF4"] },
+  { value: "elegant", label: "Elegant", description: "Sophisticated purple", colors: ["#8B5CF6", "#4C1D95", "#F5F3FF"] },
+  { value: "vibrant", label: "Vibrant", description: "Bold & colorful", colors: ["#F97316", "#EC4899", "#FEF3C7"] },
 ];
 
 const TONE_OPTIONS = [
@@ -178,6 +188,40 @@ export function GenerateConfigDialog({
                         : "border-border hover:bg-accent"
                     }`}
                   >
+                    <p className="font-medium text-sm">{option.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {option.description}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Theme */}
+            <div className="space-y-2">
+              <Label>Color Theme</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {THEME_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() =>
+                      setLocalConfig({ ...localConfig, theme: option.value })
+                    }
+                    className={`p-3 rounded-lg border text-left transition-colors ${
+                      localConfig.theme === option.value
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-accent"
+                    }`}
+                  >
+                    <div className="flex gap-1 mb-2">
+                      {option.colors.map((color, i) => (
+                        <div
+                          key={i}
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
                     <p className="font-medium text-sm">{option.label}</p>
                     <p className="text-xs text-muted-foreground">
                       {option.description}

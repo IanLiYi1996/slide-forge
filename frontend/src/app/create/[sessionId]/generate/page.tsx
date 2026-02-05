@@ -157,6 +157,31 @@ export default function GeneratePage() {
     }
   };
 
+  // Handle config change with persistence
+  const handleConfigChange = async (newConfig: GenerateConfig) => {
+    setGenerateConfig(newConfig);
+
+    // Save to backend immediately
+    if (localSession) {
+      try {
+        const response = await fetch(`/api/smart-hub/session/${localSession.sessionId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            generateConfig: newConfig,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setLocalSession(data.session);
+        }
+      } catch (error) {
+        console.error("Failed to save config:", error);
+      }
+    }
+  };
+
   // Handle slide regeneration
   const handleRegenerateSlide = async () => {
     if (!localSession) return;
@@ -507,7 +532,7 @@ export default function GeneratePage() {
         open={isConfigOpen}
         onOpenChange={setIsConfigOpen}
         config={generateConfig}
-        onConfigChange={setGenerateConfig}
+        onConfigChange={handleConfigChange}
       />
     </div>
   );
