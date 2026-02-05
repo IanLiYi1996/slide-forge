@@ -46,16 +46,54 @@ export class YunwuService implements IImageGeneratorService {
     try {
       console.log(`[yunwu] Generating image`);
 
-      // 构建请求（复用原有逻辑）
+      // 构建请求内容
       const promptText = request.modificationPrompt || request.prompt;
 
-      const requestBody = {
-        contents: [
+      // Build contents array - include conversation history if provided (for image modification)
+      let contents: Array<{
+        role: string;
+        parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
+      }> = [];
+
+      if (request.conversationHistory && request.conversationHistory.length > 0) {
+        // Include conversation history (which may contain the source image)
+        contents = request.conversationHistory.map((msg) => ({
+          role: msg.role === "assistant" ? "model" : "user",
+          parts: msg.parts.map((part) => {
+            if (part.text) {
+              return { text: part.text };
+            }
+            if (part.inlineData?.data) {
+              return {
+                inlineData: {
+                  mimeType: part.inlineData.mimeType || "image/png",
+                  data: part.inlineData.data,
+                },
+              };
+            }
+            return { text: "" };
+          }),
+        }));
+
+        // Add the current prompt as the last message
+        contents.push({
+          role: "user",
+          parts: [{ text: promptText }],
+        });
+
+        console.log(`[yunwu] Using conversation history with ${request.conversationHistory.length} messages`);
+      } else {
+        // Simple text prompt
+        contents = [
           {
             role: "user",
             parts: [{ text: promptText }],
           },
-        ],
+        ];
+      }
+
+      const requestBody = {
+        contents,
         generationConfig: {
           responseModalities: ["TEXT", "IMAGE"],
           imageConfig: {
@@ -65,7 +103,7 @@ export class YunwuService implements IImageGeneratorService {
         },
       };
 
-      console.log(`[yunwu] Request config: ${request.aspectRatio} ${request.imageSize}`);
+      console.log(`[yunwu] Request config: ${request.aspectRatio} ${request.imageSize}, contents: ${contents.length} messages`);
 
       const response = await fetch(this.apiUrl, {
         method: "POST",

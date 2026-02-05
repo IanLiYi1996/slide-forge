@@ -108,8 +108,9 @@ Important: Maintain the overall structure and layout of the original image while
     });
   } catch (error) {
     console.error('Error processing image:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to process image';
     return NextResponse.json(
-      { error: 'Failed to process image' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
