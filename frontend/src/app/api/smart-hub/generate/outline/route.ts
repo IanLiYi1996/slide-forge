@@ -14,43 +14,81 @@ import { webSearchTool, isWebSearchAvailable } from './search-tool';
 
 export const maxDuration = 60; // 1 minute
 
-// Outline generation prompt template
-const OUTLINE_GENERATION_PROMPT = `You are an expert presentation designer.
+// Outline generation prompt template - Detailed format for AI image generation
+const OUTLINE_GENERATION_PROMPT = `Given the following presentation topic and requirements, generate a structured outline with {NUM_SLIDES} slides in a detailed format optimized for AI image generation.
+The outline should be in {LANGUAGE} language.
 
-Generate a structured outline for a presentation based on the following content:
-
-Topic/Content: {CONTENT}
-Number of Slides: {NUM_SLIDES}
+Topic: {CONTENT}
 Style: {STYLE}
 Tone: {TONE}
-Language: {LANGUAGE}
 
-Create a clear, logical outline with {NUM_SLIDES} main points. Each point should be:
-- Concise (5-15 words)
-- Focused on one key idea
-- Appropriate for a single slide
-- Ordered logically (introduction → body → conclusion)
+Generate exactly {NUM_SLIDES} slides with a complete structured format for each slide that includes narrative purpose, content structure, visual descriptions, and layout guidance.
 
-Guidelines:
-1. First point should be an introduction/title slide
-2. Middle points should cover key concepts, benefits, steps, or sections from the content
-3. Last point should be a conclusion or summary
-4. Use active, engaging language
-5. Be specific to the topic - avoid generic points
+Each slide MUST follow this exact structure:
 
-Return the outline as a JSON object with "title" and "outline" fields:
+Slide N: [Slide Title]
+
+// NARRATIVE GOAL (叙事目标)
+[A brief 1-2 sentence description of the emotional/strategic purpose of this slide - what feeling or message should it convey to the audience]
+
+// KEY CONTENT (关键内容)
+[Main text elements in structured format:
+- For title/cover slides: List the main title and subtitle
+- For content slides: List 2-3 key points or main sections
+Keep it concise - each item should be one clear statement]
+
+// VISUAL (视觉画面)
+[Detailed 2-3 sentence description of visual elements to include:
+- Central illustration, diagram, or image concept
+- Visual metaphors or symbolic elements
+- Suggested colors, icons, or graphical elements
+- Overall visual style
+Be specific but concise - focus on key visual elements]
+
+// LAYOUT (布局结构)
+[Brief 1-2 sentence description of spatial arrangement:
+- Layout style (poster, grid, triptych, centered, split-screen, etc.)
+- Text positioning (centered, left-aligned, top, bottom)
+- Visual element placement (center, sides, background, foreground)
+- Balance between text and imagery]
+
+Example slide format:
+
+Slide 1: Introduction - The Challenge We Face
+
+// NARRATIVE GOAL (叙事目标)
+Open with an engaging, problem-focused tone that immediately captures attention by identifying a key pain point the audience experiences. Set an approachable, solution-oriented atmosphere.
+
+// KEY CONTENT (关键内容)
+Title: Solving the Modern Workplace Challenge
+Subtitle: A New Approach to Remote Collaboration
+Context: Why traditional methods are failing
+
+// VISUAL (视觉画面)
+A dynamic illustration showing a broken chain being reconnected with a glowing digital link. Surrounding the main image are floating icons representing common workplace tools (laptop, calendar, chat bubble). Use warm, optimistic colors - soft blues and energizing oranges. Style should be modern and clean with subtle hand-drawn elements.
+
+// LAYOUT (布局结构)
+Centered poster layout with the title prominently displayed at top in large, bold typography. Main illustration occupies the central 60% of the slide with ample breathing room. Subtitle sits just below the title in a lighter weight.
+
+Now generate {NUM_SLIDES} slides following this exact format.
+
+Return the result as a JSON object with "title" and "outline" fields:
 {
-  "title": "Presentation Title",
+  "title": "Your Generated Presentation Title Here",
   "outline": [
-    "Introduction: Topic Overview",
-    "Key Point 1",
-    "Key Point 2",
+    "Slide 1: [Title]\\n\\n// NARRATIVE GOAL...\\n\\n// KEY CONTENT...\\n\\n// VISUAL...\\n\\n// LAYOUT...",
+    "Slide 2: [Title]\\n\\n// NARRATIVE GOAL...\\n\\n// KEY CONTENT...\\n\\n// VISUAL...\\n\\n// LAYOUT...",
     ...
-    "Summary and Conclusion"
   ]
 }
 
-Generate the outline now:`;
+Ensure each slide:
+1. Has a clear narrative purpose that flows logically to the next slide
+2. Contains specific, actionable content (not vague descriptions)
+3. Includes detailed visual descriptions that an AI image generator can interpret
+4. Specifies clear layout guidance for professional presentation design
+5. Uses {LANGUAGE} language for all content
+6. Applies {STYLE} style and {TONE} tone consistently`;
 
 // POST /api/smart-hub/generate/outline - Generate outline from text
 export async function POST(request: NextRequest) {
@@ -238,43 +276,53 @@ async function generateWithLLMAndSearch(
 
   const actualLanguage = languageMap[config.language || 'en-US'] ?? config.language;
 
-  const systemPrompt = `You are an expert presentation outline generator. Your task is to create a comprehensive and engaging presentation outline based on the user's topic.
+  const systemPrompt = `You are an expert presentation outline generator. Your task is to create a comprehensive and engaging presentation outline with detailed visual guidance for AI image generation.
 
 Current Date: ${currentDate}
 
 ## Your Process:
 1. **Analyze the topic** - Understand what the user wants to present
-2. **Research if needed** - Use web search to find current, relevant information that can enhance the outline
-3. **Generate outline** - Create a structured outline with the requested number of topics
+2. **Research if needed** - Use web search to find current, relevant information
+3. **Generate detailed outline** - Create a structured outline with visual design guidance
 
 ## Web Search Guidelines:
 - Use web search to find current statistics, recent developments, or expert insights
-- Search for information that will make the presentation more credible and engaging
-- Limit searches to 2-5 queries maximum (you decide how many are needed)
+- Limit searches to 2-5 queries maximum
 - Focus on finding information that directly relates to the presentation topic
 
-## Outline Requirements:
-- Generate exactly ${config.numberOfSlides} main topics
-- Each topic should be a clear, engaging heading
-- Use ${actualLanguage} language
-- Make topics flow logically from one to another
-- Ensure topics are comprehensive and cover key aspects
-- Apply a ${config.tone || 'professional'} tone
+## Slide Structure Requirements:
+Generate exactly ${config.numberOfSlides} slides. Each slide MUST include these four sections:
+
+Slide N: [Slide Title]
+
+// NARRATIVE GOAL (叙事目标)
+[1-2 sentences describing the emotional/strategic purpose]
+
+// KEY CONTENT (关键内容)
+[Main text elements - title/subtitle for cover, 2-3 key points for content]
+
+// VISUAL (视觉画面)
+[2-3 sentences describing visual elements, colors, icons, style for AI image generation]
+
+// LAYOUT (布局结构)
+[1-2 sentences on spatial arrangement - layout type, text positioning, image placement]
 
 ## Output Format:
 Return a JSON object with "title" and "outline" fields:
 {
   "title": "Presentation Title",
   "outline": [
-    "Introduction: Topic Overview",
-    "Key Point 1",
-    "Key Point 2",
+    "Slide 1: [Title]\\n\\n// NARRATIVE GOAL...\\n\\n// KEY CONTENT...\\n\\n// VISUAL...\\n\\n// LAYOUT...",
+    "Slide 2: [Title]\\n\\n// NARRATIVE GOAL...\\n\\n// KEY CONTENT...\\n\\n// VISUAL...\\n\\n// LAYOUT...",
     ...
-    "Summary and Conclusion"
   ]
 }
 
-Remember: Use web search strategically to enhance the outline with current, relevant information.`;
+## Additional Requirements:
+- Use ${actualLanguage} language for all content
+- Apply a ${config.tone || 'professional'} tone throughout
+- Ensure logical flow from introduction to conclusion
+- Include specific, actionable visual descriptions for AI image generators`;
 
   if (useStreaming) {
     // Return streaming response with tool calls

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, Sparkles, Settings2, Send, RotateCcw, MessageSquare } from "lucide-react";
+import { Loader2, ArrowLeft, Sparkles, Settings2, Send, RotateCcw, MessageSquare, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -361,18 +361,83 @@ export default function GeneratePage() {
           {outline.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Presentation Outline</CardTitle>
-                <CardDescription>
-                  Review and edit the outline. Each item will become a slide.
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Presentation Outline</CardTitle>
+                    <CardDescription>
+                      Review and edit the outline. Each item will become a slide.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newOutline = [...outline, `Slide ${outline.length + 1}: New Slide\n\n// NARRATIVE GOAL (叙事目标)\n[描述这张幻灯片的目的]\n\n// KEY CONTENT (关键内容)\n- 要点 1\n- 要点 2\n\n// VISUAL (视觉画面)\n[描述视觉元素]\n\n// LAYOUT (布局结构)\n[描述布局]`];
+                      setOutline(newOutline, localSession.outlineTitle || null);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Slide
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {outline.map((item, index) => (
-                    <div key={index} className="flex items-start gap-3">
-                      <span className="text-sm font-medium text-muted-foreground w-6 pt-2">
-                        {index + 1}.
-                      </span>
+                    <div key={index} className="flex items-start gap-2 group">
+                      <div className="flex flex-col gap-1 pt-2">
+                        <span className="text-sm font-medium text-muted-foreground w-6">
+                          {index + 1}.
+                        </span>
+                        {/* Move and Delete buttons */}
+                        <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            disabled={index === 0}
+                            onClick={() => {
+                              const newOutline = [...outline];
+                              const temp = newOutline[index];
+                              newOutline[index] = newOutline[index - 1] ?? '';
+                              newOutline[index - 1] = temp ?? '';
+                              setOutline(newOutline, localSession.outlineTitle || null);
+                            }}
+                            title="Move up"
+                          >
+                            <ChevronUp className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            disabled={index === outline.length - 1}
+                            onClick={() => {
+                              const newOutline = [...outline];
+                              const temp = newOutline[index];
+                              newOutline[index] = newOutline[index + 1] ?? '';
+                              newOutline[index + 1] = temp ?? '';
+                              setOutline(newOutline, localSession.outlineTitle || null);
+                            }}
+                            title="Move down"
+                          >
+                            <ChevronDown className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            disabled={outline.length <= 1}
+                            onClick={() => {
+                              const newOutline = outline.filter((_, i) => i !== index);
+                              setOutline(newOutline, localSession.outlineTitle || null);
+                            }}
+                            title="Delete slide"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
                       <Textarea
                         value={item}
                         onChange={(e) => {
@@ -380,12 +445,15 @@ export default function GeneratePage() {
                           newOutline[index] = e.target.value;
                           setOutline(newOutline, localSession.outlineTitle || null);
                         }}
-                        className="flex-1 min-h-[60px]"
+                        className="flex-1 min-h-[120px] font-mono text-sm"
                       />
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-end mt-6">
+                <div className="flex justify-between mt-6">
+                  <p className="text-sm text-muted-foreground">
+                    {outline.length} slides in outline
+                  </p>
                   <Button onClick={handleConfirmOutline}>
                     Confirm & Generate Slides
                   </Button>
