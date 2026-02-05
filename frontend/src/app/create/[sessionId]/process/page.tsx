@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Loader2,
@@ -18,11 +18,15 @@ import {
   LayoutDashboard,
   Send,
   RotateCcw,
+  Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/components/ui/use-toast";
 import { useSmartHubState } from "@/states/smart-hub-state";
 import { ExportDialog } from "@/components/smart-hub/shared/ExportDialog";
@@ -30,6 +34,46 @@ import { ImageAnnotationCanvas } from "@/components/smart-hub/process/ImageAnnot
 import { processUploadedFile } from "@/lib/document-processor/pdf-utils";
 import { type HubSession, type HubPage } from "@/types/smart-hub";
 import { cn } from "@/lib/utils";
+
+// Available aspect ratios and image sizes
+type AspectRatio = "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9";
+type ImageSize = "1K" | "2K" | "4K";
+
+const ASPECT_RATIOS: { value: AspectRatio; label: string; ratio: number }[] = [
+  { value: "1:1", label: "1:1 (Square)", ratio: 1 },
+  { value: "4:3", label: "4:3 (Standard)", ratio: 4/3 },
+  { value: "3:2", label: "3:2 (Photo)", ratio: 3/2 },
+  { value: "16:9", label: "16:9 (Widescreen)", ratio: 16/9 },
+  { value: "21:9", label: "21:9 (Ultrawide)", ratio: 21/9 },
+  { value: "3:4", label: "3:4 (Portrait)", ratio: 3/4 },
+  { value: "2:3", label: "2:3 (Portrait Photo)", ratio: 2/3 },
+  { value: "9:16", label: "9:16 (Mobile)", ratio: 9/16 },
+  { value: "4:5", label: "4:5 (Instagram)", ratio: 4/5 },
+  { value: "5:4", label: "5:4 (Large Format)", ratio: 5/4 },
+];
+
+const IMAGE_SIZES: { value: ImageSize; label: string }[] = [
+  { value: "1K", label: "1K (Standard)" },
+  { value: "2K", label: "2K (High)" },
+  { value: "4K", label: "4K (Ultra)" },
+];
+
+// Calculate closest aspect ratio from image dimensions
+function detectAspectRatio(width: number, height: number): AspectRatio {
+  const imageRatio = width / height;
+  let closest: AspectRatio = "16:9";
+  let minDiff = Infinity;
+
+  for (const ar of ASPECT_RATIOS) {
+    const diff = Math.abs(ar.ratio - imageRatio);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = ar.value;
+    }
+  }
+
+  return closest;
+}
 
 export default function ProcessPage() {
   const params = useParams();
@@ -58,6 +102,12 @@ export default function ProcessPage() {
   const [isAnnotationMode, setIsAnnotationMode] = useState(false);
   const [annotatedImageUrl, setAnnotatedImageUrl] = useState<string | null>(null);
 
+  // Generation config state
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
+  const [imageSize, setImageSize] = useState<ImageSize>("1K");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [autoDetectedRatio, setAutoDetectedRatio] = useState<AspectRatio | null>(null);
+
   // Load session on mount
   useEffect(() => {
     async function load() {
@@ -79,6 +129,20 @@ export default function ProcessPage() {
       setLocalSession(currentSession);
     }
   }, [currentSession]);
+
+  // Auto-detect aspect ratio from current page's image
+  useEffect(() => {
+    const currentPage = localSession?.pages[currentPageIndex];
+    if (currentPage?.imageDataUrl) {
+      const img = new window.Image();
+      img.onload = () => {
+        const detected = detectAspectRatio(img.naturalWidth, img.naturalHeight);
+        setAutoDetectedRatio(detected);
+        setAspectRatio(detected);
+      };
+      img.src = currentPage.imageDataUrl;
+    }
+  }, [currentPageIndex, localSession?.pages]);
 
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -168,8 +232,34 @@ export default function ProcessPage() {
       }
     }
 
-    const success = await processPage(currentPageIndex, instruction);
-    if (success) {
+    // Make direct API call with config parameters
+    try {
+      const page = localSession?.pages[currentPageIndex];
+      if (!page?.imageDataUrl) {
+        throw new Error("No image to process");
+      }
+
+      const response = await fetch("/api/smart-hub/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          pageIndex: currentPageIndex,
+          imageDataUrl: annotatedImageUrl || page.imageDataUrl,
+          instruction,
+          aspectRatio,
+          imageSize,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Processing failed");
+      }
+
+      const { session } = await response.json();
+      setLocalSession(session);
+
       toast({
         title: "Processing complete",
         description: "Page has been processed",
@@ -177,13 +267,13 @@ export default function ProcessPage() {
       setInstruction("");
       setAnnotatedImageUrl(null);
       setIsAnnotationMode(false);
-
-      // Reload session to get updated data
-      const response = await fetch(`/api/smart-hub/session/${sessionId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setLocalSession(data.session);
-      }
+    } catch (err) {
+      console.error("Process error:", err);
+      toast({
+        title: "Processing failed",
+        description: err instanceof Error ? err.message : "Failed to process",
+        variant: "destructive",
+      });
     }
   };
 
@@ -614,6 +704,67 @@ export default function ProcessPage() {
                     </Button>
                   )}
                 </div>
+
+                {/* Generation Settings */}
+                <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen} className="mt-3 pt-3 border-t">
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full justify-between px-2 h-8">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Settings2 className="h-3.5 w-3.5" />
+                        <span>Generation Settings</span>
+                        {autoDetectedRatio && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            Auto: {autoDetectedRatio}
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {aspectRatio} · {imageSize}
+                      </span>
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Aspect Ratio</Label>
+                        <Select value={aspectRatio} onValueChange={(v) => setAspectRatio(v as AspectRatio)}>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ASPECT_RATIOS.map((ar) => (
+                              <SelectItem key={ar.value} value={ar.value} className="text-xs">
+                                {ar.label}
+                                {ar.value === autoDetectedRatio && " (Original)"}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Image Size</Label>
+                        <Select value={imageSize} onValueChange={(v) => setImageSize(v as ImageSize)}>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {IMAGE_SIZES.map((size) => (
+                              <SelectItem key={size.value} value={size.value} className="text-xs">
+                                {size.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    {autoDetectedRatio && aspectRatio !== autoDetectedRatio && (
+                      <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <span>⚠</span>
+                        Output ratio differs from original ({autoDetectedRatio})
+                      </p>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
 
                 {localSession.pages.length > 1 && (
                   <div className="flex items-center justify-between mt-3 pt-3 border-t">

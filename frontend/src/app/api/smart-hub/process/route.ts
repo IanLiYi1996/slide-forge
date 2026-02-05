@@ -14,11 +14,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { sessionId, pageIndex, imageDataUrl, instruction } = body as {
+    const { sessionId, pageIndex, imageDataUrl, instruction, aspectRatio, imageSize } = body as {
       sessionId: string;
       pageIndex: number;
       imageDataUrl: string;
       instruction: string;
+      aspectRatio?: string;
+      imageSize?: string;
     };
 
     if (!sessionId || pageIndex === undefined || !imageDataUrl || !instruction) {
@@ -39,7 +41,7 @@ export async function POST(request: NextRequest) {
       status: 'processing',
     });
 
-    // Call the existing document processor API
+    // Call the existing document processor API with generation config
     const processResponse = await fetch(
       `${process.env.NEXTAUTH_URL || ''}/api/document-processor/process`,
       {
@@ -51,6 +53,8 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           imageDataUrl,
           instruction,
+          aspectRatio: aspectRatio || '16:9',
+          imageSize: imageSize || '1K',
         }),
       }
     );
