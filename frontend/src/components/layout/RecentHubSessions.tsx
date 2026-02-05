@@ -144,7 +144,7 @@ export function RecentHubSessions() {
 
           return (
             <div
-              key={session.id}
+              key={session.sessionId}
               className="group relative"
             >
               <Button
