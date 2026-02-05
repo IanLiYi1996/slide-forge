@@ -8,10 +8,8 @@ import {
   ChevronRight,
   ZoomIn,
   Layers,
-  Sparkles,
   Play,
   Pause,
-  Edit3,
   Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,7 +34,6 @@ export function SlideGallery({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({});
 
   const readySlides = pages.filter((p) => p.outputImageUrl);
   const completionPercent = Math.round((readySlides.length / pages.length) * 100);
@@ -108,48 +105,40 @@ export function SlideGallery({
   return (
     <div className="space-y-6">
       {/* Gallery Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
-            <Layers className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              Slide Gallery
-              {completionPercent === 100 && (
-                <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
-                  <Sparkles className="h-3 w-3 mr-1" />
-                  Complete
-                </Badge>
-              )}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {readySlides.length} of {pages.length} slides ready
-            </p>
-          </div>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Layers className="h-5 w-5 text-muted-foreground" />
+          <span className="font-medium">
+            {readySlides.length} of {pages.length} slides
+          </span>
+          {completionPercent === 100 && (
+            <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20 text-xs">
+              Complete
+            </Badge>
+          )}
         </div>
 
-        {/* Progress indicator */}
-        <div className="flex items-center gap-3">
-          <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+        {/* Progress bar */}
+        <div className="flex items-center gap-2">
+          <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-500 ease-out"
+              className="h-full bg-primary transition-all duration-300"
               style={{ width: `${completionPercent}%` }}
             />
           </div>
-          <span className="text-sm font-medium text-muted-foreground w-10">
+          <span className="text-xs text-muted-foreground w-8">
             {completionPercent}%
           </span>
         </div>
       </div>
 
       {/* Grid Gallery */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         {pages.map((page, index) => (
           <div
             key={page.id}
             className={cn(
-              "group relative rounded-xl overflow-hidden cursor-pointer",
+              "group relative aspect-video rounded-xl overflow-hidden cursor-pointer",
               "transition-all duration-300 ease-out",
               "hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/10",
               "border-2",
@@ -158,7 +147,6 @@ export function SlideGallery({
                 : "border-border/50 hover:border-primary/50",
               !page.outputImageUrl && "bg-gradient-to-br from-muted to-muted/50"
             )}
-            style={{ aspectRatio: "16/9" }}
             onClick={() => {
               if (page.outputImageUrl) {
                 openLightbox(index);
@@ -169,76 +157,48 @@ export function SlideGallery({
           >
             {page.outputImageUrl ? (
               <>
-                {/* Image with loading state */}
-                <div className="absolute inset-0">
-                  {!imageLoaded[index] && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-muted">
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-                  <img
-                    src={page.outputImageUrl}
-                    alt={`Slide ${index + 1}`}
-                    className={cn(
-                      "w-full h-full object-cover transition-opacity duration-300",
-                      imageLoaded[index] ? "opacity-100" : "opacity-0"
-                    )}
-                    onLoad={() => setImageLoaded((prev) => ({ ...prev, [index]: true }))}
-                  />
-                </div>
+                {/* Image */}
+                <img
+                  src={page.outputImageUrl}
+                  alt={`Slide ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
 
-                {/* Gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-                {/* Hover content */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
-                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 mb-2 transform scale-75 group-hover:scale-100 transition-transform duration-300">
-                    <ZoomIn className="h-6 w-6 text-white" />
-                  </div>
-                  <span className="text-xs text-white/90 font-medium">Click to preview</span>
+                {/* Hover overlay */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-200 flex items-center justify-center">
+                  <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                 </div>
 
                 {/* Slide number badge */}
-                <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-sm text-white text-xs font-medium flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded bg-black/70 text-white text-xs font-medium">
                   {index + 1}
                 </div>
 
                 {/* Modification count */}
                 {page.modificationCount > 0 && (
-                  <div className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-primary/90 backdrop-blur-sm text-primary-foreground text-xs font-medium flex items-center gap-1">
-                    <Edit3 className="h-3 w-3" />
-                    {page.modificationCount}
+                  <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-xs font-medium">
+                    {page.modificationCount}x
                   </div>
                 )}
 
                 {/* Current indicator */}
                 {index === currentIndex && (
-                  <div className="absolute top-2 left-2 px-2 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-medium">
+                  <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-xs font-medium">
                     Current
                   </div>
                 )}
               </>
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center p-3 gap-2">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
                 {page.status === "processing" ? (
                   <>
-                    <div className="relative">
-                      <div className="w-10 h-10 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-                      <Sparkles className="h-4 w-4 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                    </div>
-                    <span className="text-xs text-muted-foreground font-medium">
-                      Generating...
-                    </span>
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="text-xs text-muted-foreground">Generating...</span>
                   </>
                 ) : (
                   <>
-                    <div className="w-10 h-10 rounded-full bg-muted-foreground/10 flex items-center justify-center">
-                      <span className="text-sm font-bold text-muted-foreground/50">{index + 1}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      Pending
-                    </span>
+                    <span className="text-lg font-bold text-muted-foreground/40">{index + 1}</span>
+                    <span className="text-xs text-muted-foreground">Pending</span>
                   </>
                 )}
               </div>
@@ -253,7 +213,7 @@ export function SlideGallery({
         if (!open) setIsAutoPlaying(false);
       }}>
         <DialogContent
-          className="max-w-[100vw] max-h-[100vh] w-screen h-screen p-0 bg-black border-none rounded-none z-[100] fixed inset-0"
+          className="max-w-[95vw] max-h-[95vh] w-[95vw] h-[95vh] p-0 bg-black/95 border-none rounded-xl"
         >
           <DialogTitle className="sr-only">
             Slide {lightboxIndex + 1} of {readySlides.length}
@@ -324,12 +284,12 @@ export function SlideGallery({
             </div>
           </div>
 
-          {/* Main image */}
-          <div className="w-full h-full flex items-center justify-center px-4 sm:px-16 py-20">
+          {/* Main image container */}
+          <div className="flex-1 flex items-center justify-center p-4 pt-16 pb-24 overflow-hidden">
             <img
               src={readySlides[lightboxIndex]?.outputImageUrl}
               alt={`Slide ${lightboxIndex + 1}`}
-              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in fade-in duration-300"
+              className="max-w-full max-h-full object-contain rounded-lg"
               key={lightboxIndex}
             />
           </div>
@@ -340,45 +300,34 @@ export function SlideGallery({
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 z-50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-md h-14 w-14 rounded-full border border-white/10 transition-all hover:scale-105"
+                className="absolute left-2 top-1/2 -translate-y-1/2 text-white bg-black/50 hover:bg-black/70 h-10 w-10 rounded-full"
                 onClick={prevSlide}
               >
-                <ChevronLeft className="h-8 w-8" />
+                <ChevronLeft className="h-6 w-6" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 z-50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-md h-14 w-14 rounded-full border border-white/10 transition-all hover:scale-105"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-white bg-black/50 hover:bg-black/70 h-10 w-10 rounded-full"
                 onClick={nextSlide}
               >
-                <ChevronRight className="h-8 w-8" />
+                <ChevronRight className="h-6 w-6" />
               </Button>
             </>
           )}
 
-          {/* Bottom bar with thumbnails */}
-          <div className="absolute bottom-0 left-0 right-0 z-50 bg-gradient-to-t from-black/80 to-transparent pt-8 pb-6">
-            {/* Progress bar */}
-            <div className="w-full px-6 mb-4">
-              <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-white transition-all duration-300 ease-out"
-                  style={{ width: `${((lightboxIndex + 1) / readySlides.length) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Thumbnail strip */}
-            <div className="flex justify-center gap-2 px-6 overflow-x-auto">
+          {/* Bottom thumbnails */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent">
+            <div className="flex justify-center gap-1.5 overflow-x-auto pb-1">
               {readySlides.map((slide, idx) => (
                 <button
                   key={slide.id}
                   className={cn(
-                    "flex-shrink-0 w-20 h-12 rounded-lg overflow-hidden transition-all duration-200",
-                    "border-2 hover:border-white/60",
+                    "flex-shrink-0 w-16 h-10 rounded overflow-hidden transition-all",
+                    "border-2",
                     idx === lightboxIndex
-                      ? "border-white ring-2 ring-white/30 scale-105"
-                      : "border-white/20 opacity-50 hover:opacity-80"
+                      ? "border-white opacity-100"
+                      : "border-transparent opacity-50 hover:opacity-80"
                   )}
                   onClick={() => setLightboxIndex(idx)}
                 >
@@ -389,13 +338,6 @@ export function SlideGallery({
                   />
                 </button>
               ))}
-            </div>
-
-            {/* Keyboard hint */}
-            <div className="flex justify-center gap-4 mt-4 text-white/40 text-xs">
-              <span>← → Navigate</span>
-              <span>Space Slideshow</span>
-              <span>Esc Close</span>
             </div>
           </div>
         </DialogContent>
