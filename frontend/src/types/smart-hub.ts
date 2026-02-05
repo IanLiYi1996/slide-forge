@@ -68,6 +68,13 @@ export type PageStatus = 'pending' | 'processing' | 'ready' | 'error';
 /** Source type for a page */
 export type PageSourceType = 'text' | 'image' | 'extracted';
 
+/** Image storage URLs with backup */
+export interface ImageUrls {
+  primary: string;      // Primary URL (UploadThing)
+  backup?: string;      // Backup URL (S3)
+  s3Key?: string;       // S3 object key for direct access
+}
+
 /** Unified page/slide structure */
 export interface HubPage {
   id: string;
@@ -83,7 +90,8 @@ export interface HubPage {
   errorMessage?: string;
 
   // Output
-  outputImageUrl?: string; // Generated/processed image URL
+  outputImageUrl?: string; // Generated/processed image URL (primary)
+  outputImageUrls?: ImageUrls; // Both primary and backup URLs
   extractedContent?: string; // Extracted text from image
 
   // Conversation history for iterative refinement

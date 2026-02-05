@@ -8,6 +8,8 @@ import type {
   ImageGenerationResponse,
   ConversationMessage,
 } from "./image-generator-service";
+import { uploadFromUrlToDualStorage } from "./dual-storage-service";
+import type { ImageUrls } from "@/types/smart-hub";
 
 // z-image-turbo API 响应类型
 interface ZImageTurboResponse {
@@ -132,8 +134,18 @@ export class ZImageTurboService implements IImageGeneratorService {
 
       console.log(`[z-image-turbo] Image URL received: ${imageUrl.substring(0, 50)}...`);
 
-      // 上传到 UploadThing（与 yunwu 保持一致）
-      const permanentUrl = await this.uploadToStorage(imageUrl);
+      // 上传到双重存储 (UploadThing + S3)
+      const filename = `z-image-turbo_${Date.now()}.png`;
+      const uploadResult = await uploadFromUrlToDualStorage(imageUrl, filename);
+
+      if (!uploadResult.success || !uploadResult.urls) {
+        throw new Error(uploadResult.error || "Failed to upload image");
+      }
+
+      const imageUrls: ImageUrls = uploadResult.urls;
+      const primaryUrl = imageUrls.primary;
+
+      console.log(`[z-image-turbo] Dual storage success - Primary: ${primaryUrl}, Backup: ${imageUrls.backup || 'N/A'}`);
 
       // 构建对话历史
       const newUserMessage: ConversationMessage = {
@@ -148,7 +160,7 @@ export class ZImageTurboService implements IImageGeneratorService {
           {
             inlineData: {
               mimeType: "image/png",
-              url: permanentUrl,
+              url: primaryUrl,
             },
           },
         ],
@@ -162,8 +174,9 @@ export class ZImageTurboService implements IImageGeneratorService {
 
       return {
         success: true,
-        imageUrl: permanentUrl,
-        image: { url: permanentUrl, id: `z-image-turbo-${Date.now()}` },
+        imageUrl: primaryUrl,
+        imageUrls: imageUrls,
+        image: { url: primaryUrl, id: `z-image-turbo-${Date.now()}` },
         responseText: responseText || "Image generated successfully",
         conversationHistory: updatedHistory,
       };
@@ -202,40 +215,4 @@ export class ZImageTurboService implements IImageGeneratorService {
     return `${newWidth}*${newHeight}`;
   }
 
-  /**
-   * 上传图片到 UploadThing（复用现有逻辑）
-   */
-  private async uploadToStorage(imageUrl: string): Promise<string> {
-    console.log(`[z-image-turbo] Downloading image from: ${imageUrl.substring(0, 50)}...`);
-
-    // 下载图片
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to download image: ${response.statusText}`);
-    }
-
-    const imageBuffer = Buffer.from(await response.arrayBuffer());
-    console.log(`[z-image-turbo] Image size: ${imageBuffer.length} bytes`);
-
-    // 上传到 UploadThing
-    const filename = `z-image-turbo_${Date.now()}.png`;
-    const { utapi } = await import("@/app/api/uploadthing/core");
-    const { UTFile } = await import("uploadthing/server");
-
-    const uint8Array = new Uint8Array(imageBuffer);
-    const utFile = new UTFile([uint8Array], filename);
-
-    console.log(`[z-image-turbo] Uploading to UploadThing...`);
-    const uploadResult = await utapi.uploadFiles([utFile]);
-
-    if (!uploadResult[0]?.data?.ufsUrl) {
-      console.error(`[z-image-turbo] Upload error:`, uploadResult[0]?.error);
-      throw new Error("Failed to upload to UploadThing");
-    }
-
-    const permanentUrl = uploadResult[0].data.ufsUrl;
-    console.log(`[z-image-turbo] Upload successful: ${permanentUrl}`);
-
-    return permanentUrl;
-  }
 }

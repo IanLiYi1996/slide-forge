@@ -8,6 +8,8 @@ import type {
   ImageGenerationResponse,
   ConversationMessage,
 } from "./image-generator-service";
+import { uploadBase64ToDualStorage } from "./dual-storage-service";
+import type { ImageUrls } from "@/types/smart-hub";
 
 // yunwu API 响应类型（保持原有定义）
 interface YunwuApiResponse {
@@ -110,8 +112,18 @@ export class YunwuService implements IImageGeneratorService {
         throw new Error("No image data in yunwu API response");
       }
 
-      // 上传到 UploadThing
-      const permanentUrl = await this.uploadBase64Image(imageBase64);
+      // 上传到双重存储 (UploadThing + S3)
+      const filename = `yunwu_${Date.now()}.png`;
+      const uploadResult = await uploadBase64ToDualStorage(imageBase64, filename);
+
+      if (!uploadResult.success || !uploadResult.urls) {
+        throw new Error(uploadResult.error || "Failed to upload image");
+      }
+
+      const imageUrls: ImageUrls = uploadResult.urls;
+      const primaryUrl = imageUrls.primary;
+
+      console.log(`[yunwu] Dual storage success - Primary: ${primaryUrl}, Backup: ${imageUrls.backup || 'N/A'}`);
 
       // 构建对话历史
       const newUserMessage: ConversationMessage = {
@@ -126,7 +138,7 @@ export class YunwuService implements IImageGeneratorService {
           {
             inlineData: {
               mimeType: "image/png",
-              url: permanentUrl,
+              url: primaryUrl,
             },
           },
         ],
@@ -140,8 +152,9 @@ export class YunwuService implements IImageGeneratorService {
 
       return {
         success: true,
-        imageUrl: permanentUrl,
-        image: { url: permanentUrl, id: `yunwu-${Date.now()}` },
+        imageUrl: primaryUrl,
+        imageUrls: imageUrls,
+        image: { url: primaryUrl, id: `yunwu-${Date.now()}` },
         responseText: responseText || "Image generated successfully",
         conversationHistory: updatedHistory,
       };
@@ -154,31 +167,4 @@ export class YunwuService implements IImageGeneratorService {
     }
   }
 
-  /**
-   * 上传 base64 编码的图片到 UploadThing
-   */
-  private async uploadBase64Image(base64Data: string): Promise<string> {
-    const imageBuffer = Buffer.from(base64Data, "base64");
-    console.log(`[yunwu] Image buffer size: ${imageBuffer.length} bytes`);
-
-    const filename = `yunwu_${Date.now()}.png`;
-    const { utapi } = await import("@/app/api/uploadthing/core");
-    const { UTFile } = await import("uploadthing/server");
-
-    const uint8Array = new Uint8Array(imageBuffer);
-    const utFile = new UTFile([uint8Array], filename);
-
-    console.log(`[yunwu] Uploading to UploadThing...`);
-    const uploadResult = await utapi.uploadFiles([utFile]);
-
-    if (!uploadResult[0]?.data?.ufsUrl) {
-      console.error(`[yunwu] Upload error:`, uploadResult[0]?.error);
-      throw new Error("Failed to upload to UploadThing");
-    }
-
-    const permanentUrl = uploadResult[0].data.ufsUrl;
-    console.log(`[yunwu] Upload successful: ${permanentUrl}`);
-
-    return permanentUrl;
-  }
 }

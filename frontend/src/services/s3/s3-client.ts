@@ -315,4 +315,80 @@ export async function withOptimisticLock<T, R>(
   throw new Error(`Optimistic lock failed after ${maxRetries} retries for key: ${key}`);
 }
 
-export { BUCKET_NAME, DATA_PREFIX };
+// ==================== Image/Binary File Storage ====================
+
+const IMAGES_PREFIX = 'images/generated/';
+
+/**
+ * Upload a binary file (e.g., image) to S3
+ * Returns the S3 key for the uploaded file
+ */
+export async function uploadImageToS3(
+  imageBuffer: Buffer,
+  filename: string,
+  contentType: string = 'image/png'
+): Promise<{ key: string; url: string }> {
+  const key = `${IMAGES_PREFIX}${filename}`;
+
+  return withRetry(async () => {
+    const command = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: imageBuffer,
+      ContentType: contentType,
+    });
+
+    await s3Client.send(command);
+
+    // Generate S3 URL (can be accessed via CloudFront or direct S3)
+    const url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+
+    console.log(`[S3] Image uploaded: ${key}`);
+    return { key, url };
+  });
+}
+
+/**
+ * Download an image from S3 by key
+ */
+export async function getImageFromS3(key: string): Promise<Buffer | null> {
+  return withRetry(async () => {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+      });
+
+      const response = await s3Client.send(command);
+      const bytes = await response.Body?.transformToByteArray();
+
+      if (!bytes) {
+        return null;
+      }
+
+      return Buffer.from(bytes);
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'NoSuchKey') {
+        return null;
+      }
+      throw error;
+    }
+  });
+}
+
+/**
+ * Delete an image from S3
+ */
+export async function deleteImageFromS3(key: string): Promise<void> {
+  return withRetry(async () => {
+    const command = new DeleteObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    });
+
+    await s3Client.send(command);
+    console.log(`[S3] Image deleted: ${key}`);
+  });
+}
+
+export { BUCKET_NAME, DATA_PREFIX, IMAGES_PREFIX };

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, Sparkles, Settings2, Send, RotateCcw, MessageSquare, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { Loader2, ArrowLeft, Sparkles, Settings2, Send, RotateCcw, MessageSquare, Plus, Trash2, ChevronUp, ChevronDown, Grid, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +13,7 @@ import { PageNavigator } from "@/components/smart-hub/shared/PageNavigator";
 import { ProgressTracker } from "@/components/smart-hub/shared/ProgressTracker";
 import { ExportDialog } from "@/components/smart-hub/shared/ExportDialog";
 import { GenerateConfigDialog } from "@/components/smart-hub/shared/GenerateConfigDialog";
+import { SlideGallery } from "@/components/smart-hub/shared/SlideGallery";
 import { type HubSession, type GenerateConfig } from "@/types/smart-hub";
 import { DEFAULT_GENERATE_CONFIG } from "@/types/smart-hub";
 
@@ -47,6 +48,9 @@ export default function GeneratePage() {
   // Slide modification state
   const [modificationInput, setModificationInput] = useState("");
   const [isModifying, setIsModifying] = useState(false);
+
+  // View mode: 'single' for single slide view, 'gallery' for all slides grid
+  const [viewMode, setViewMode] = useState<"single" | "gallery">("single");
 
   // Load session on mount
   useEffect(() => {
@@ -263,6 +267,29 @@ export default function GeneratePage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* View mode toggle - only show in slide phase */}
+          {isSlidePhase && localSession.pages.length > 0 && (
+            <div className="flex items-center border rounded-lg p-1">
+              <Button
+                variant={viewMode === "single" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => setViewMode("single")}
+                title="Single slide view"
+              >
+                <LayoutDashboard className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "gallery" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => setViewMode("gallery")}
+                title="Gallery view"
+              >
+                <Grid className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           <Button
             variant="outline"
             size="icon"
@@ -467,106 +494,128 @@ export default function GeneratePage() {
       {/* Slide Generation Phase */}
       {isSlidePhase && localSession.pages.length > 0 && (
         <div className="space-y-6">
-          {/* Current Slide Preview */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center relative">
-                {localSession.pages[currentPageIndex]?.outputImageUrl ? (
-                  <>
-                    <img
-                      src={localSession.pages[currentPageIndex].outputImageUrl}
-                      alt={`Slide ${currentPageIndex + 1}`}
-                      className="w-full h-full object-contain"
-                    />
-                    {/* Modification count badge */}
-                    {localSession.pages[currentPageIndex]?.modificationCount > 0 && (
-                      <div className="absolute top-2 right-2 bg-primary/90 text-primary-foreground px-2 py-1 rounded-full text-xs font-medium">
-                        {localSession.pages[currentPageIndex].modificationCount} edits
+          {/* Gallery View */}
+          {viewMode === "gallery" && (
+            <Card>
+              <CardContent className="p-6">
+                <SlideGallery
+                  pages={localSession.pages}
+                  currentIndex={currentPageIndex}
+                  onSlideClick={(index) => {
+                    setCurrentPageIndex(index);
+                    setViewMode("single");
+                  }}
+                  title={localSession.title}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Single Slide View */}
+          {viewMode === "single" && (
+            <>
+              {/* Current Slide Preview */}
+              <Card>
+                <CardContent className="p-6">
+                  <div className="aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center relative">
+                    {localSession.pages[currentPageIndex]?.outputImageUrl ? (
+                      <>
+                        <img
+                          src={localSession.pages[currentPageIndex].outputImageUrl}
+                          alt={`Slide ${currentPageIndex + 1}`}
+                          className="w-full h-full object-contain"
+                        />
+                        {/* Modification count badge */}
+                        {localSession.pages[currentPageIndex]?.modificationCount > 0 && (
+                          <div className="absolute top-2 right-2 bg-primary/90 text-primary-foreground px-2 py-1 rounded-full text-xs font-medium">
+                            {localSession.pages[currentPageIndex].modificationCount} edits
+                          </div>
+                        )}
+                      </>
+                    ) : localSession.pages[currentPageIndex]?.status === "processing" || isModifying ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                        <span className="text-sm text-muted-foreground">
+                          {isModifying ? "Applying modification..." : "Generating slide..."}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <span className="text-muted-foreground">
+                          {localSession.pages[currentPageIndex]?.textContent || `Slide ${currentPageIndex + 1}`}
+                        </span>
+                        <Button
+                          size="sm"
+                          onClick={() => handleGenerateSlide(currentPageIndex)}
+                          disabled={isGeneratingPage}
+                        >
+                          Generate This Slide
+                        </Button>
                       </div>
                     )}
-                  </>
-                ) : localSession.pages[currentPageIndex]?.status === "processing" || isModifying ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                    <span className="text-sm text-muted-foreground">
-                      {isModifying ? "Applying modification..." : "Generating slide..."}
-                    </span>
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="text-muted-foreground">
-                      {localSession.pages[currentPageIndex]?.textContent || `Slide ${currentPageIndex + 1}`}
-                    </span>
-                    <Button
-                      size="sm"
-                      onClick={() => handleGenerateSlide(currentPageIndex)}
-                      disabled={isGeneratingPage}
-                    >
-                      Generate This Slide
-                    </Button>
-                  </div>
-                )}
-              </div>
 
-              {/* Slide Modification Controls - Show when slide is ready */}
-              {localSession.pages[currentPageIndex]?.outputImageUrl && (
-                <div className="mt-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Modify this slide</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      value={modificationInput}
-                      onChange={(e) => setModificationInput(e.target.value)}
-                      placeholder="e.g., Make the title larger, change background color to blue..."
-                      disabled={isModifying}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleModifySlide();
-                        }
-                      }}
-                    />
-                    <Button
-                      size="icon"
-                      onClick={handleModifySlide}
-                      disabled={isModifying || !modificationInput.trim()}
-                      title="Apply modification"
-                    >
-                      {isModifying ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={handleRegenerateSlide}
-                      disabled={isModifying}
-                      title="Regenerate slide with fresh design"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Describe what changes you want to make to this slide. Press Enter to apply.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                  {/* Slide Modification Controls - Show when slide is ready */}
+                  {localSession.pages[currentPageIndex]?.outputImageUrl && (
+                    <div className="mt-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Modify this slide</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          value={modificationInput}
+                          onChange={(e) => setModificationInput(e.target.value)}
+                          placeholder="e.g., Make the title larger, change background color to blue..."
+                          disabled={isModifying}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleModifySlide();
+                            }
+                          }}
+                        />
+                        <Button
+                          size="icon"
+                          onClick={handleModifySlide}
+                          disabled={isModifying || !modificationInput.trim()}
+                          title="Apply modification"
+                        >
+                          {isModifying ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={handleRegenerateSlide}
+                          disabled={isModifying}
+                          title="Regenerate slide with fresh design"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Describe what changes you want to make to this slide. Press Enter to apply.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-          {/* Navigation */}
-          <PageNavigator
-            pages={localSession.pages}
-            currentIndex={currentPageIndex}
-            onPageChange={setCurrentPageIndex}
-            showStatus
-          />
+              {/* Navigation */}
+              <PageNavigator
+                pages={localSession.pages}
+                currentIndex={currentPageIndex}
+                onPageChange={setCurrentPageIndex}
+                showStatus
+              />
+            </>
+          )}
 
-          {/* Generate All Button */}
+          {/* Generate All Button - show in both views */}
           {!allSlidesReady && (
             <div className="flex justify-center">
               <Button
@@ -582,6 +631,20 @@ export default function GeneratePage() {
                 ) : (
                   "Generate All Remaining Slides"
                 )}
+              </Button>
+            </div>
+          )}
+
+          {/* Show Gallery hint when all slides are ready and in single view */}
+          {allSlidesReady && viewMode === "single" && (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                onClick={() => setViewMode("gallery")}
+                className="gap-2"
+              >
+                <Grid className="h-4 w-4" />
+                View All Slides
               </Button>
             </div>
           )}

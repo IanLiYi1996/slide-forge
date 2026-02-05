@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       ],
     });
 
-    // Update page with modified image
+    // Update page with modified image (including backup URLs)
     const updatedSession = await updatePageInSession(
       sessionId,
       session.user.id,
@@ -138,6 +138,7 @@ export async function POST(request: NextRequest) {
       {
         status: 'ready',
         outputImageUrl: result.imageUrl,
+        outputImageUrls: result.imageUrls, // Store both primary and backup URLs
         conversationHistory: result.conversationHistory || conversationHistory,
         modificationCount: (page.modificationCount || 0) + 1,
       }
