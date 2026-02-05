@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, Sparkles, Settings2, Send, RotateCcw, MessageSquare, Plus, Trash2, ChevronUp, ChevronDown, Grid, LayoutDashboard } from "lucide-react";
+import { Loader2, ArrowLeft, Sparkles, Settings2, Send, RotateCcw, MessageSquare, Plus, Trash2, ChevronUp, ChevronDown, Grid, LayoutDashboard, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,6 +51,10 @@ export default function GeneratePage() {
 
   // View mode: 'single' for single slide view, 'gallery' for all slides grid
   const [viewMode, setViewMode] = useState<"single" | "gallery">("single");
+
+  // Title editing state
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState("");
 
   // Load session on mount
   useEffect(() => {
@@ -161,6 +165,46 @@ export default function GeneratePage() {
     }
   };
 
+  // Handle title editing
+  const handleStartEditTitle = () => {
+    setEditedTitle(localSession?.title || "");
+    setIsEditingTitle(true);
+  };
+
+  const handleSaveTitle = async () => {
+    if (!localSession || !editedTitle.trim()) return;
+
+    try {
+      const response = await fetch(`/api/smart-hub/session/${localSession.sessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: editedTitle.trim() }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setLocalSession(data.session);
+        toast({
+          title: "Title updated",
+          description: "Presentation title has been saved",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to save title:", error);
+      toast({
+        title: "Failed to update title",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEditingTitle(false);
+    }
+  };
+
+  const handleCancelEditTitle = () => {
+    setIsEditingTitle(false);
+    setEditedTitle("");
+  };
+
   // Handle config change with persistence
   const handleConfigChange = async (newConfig: GenerateConfig) => {
     setGenerateConfig(newConfig);
@@ -258,10 +302,36 @@ export default function GeneratePage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <Sparkles className="h-5 w-5" />
-              {localSession.title}
-            </h1>
+            {isEditingTitle ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  className="h-8 text-lg font-bold w-64"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveTitle();
+                    if (e.key === "Escape") handleCancelEditTitle();
+                  }}
+                />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSaveTitle}>
+                  <Check className="h-4 w-4 text-green-600" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCancelEditTitle}>
+                  <X className="h-4 w-4 text-red-600" />
+                </Button>
+              </div>
+            ) : (
+              <h1
+                className="text-xl font-bold flex items-center gap-2 group cursor-pointer hover:text-primary transition-colors"
+                onClick={handleStartEditTitle}
+                title="Click to edit title"
+              >
+                <Sparkles className="h-5 w-5" />
+                {localSession.title}
+                <Pencil className="h-4 w-4 opacity-0 group-hover:opacity-50 transition-opacity" />
+              </h1>
+            )}
             <p className="text-sm text-muted-foreground">Generate Mode</p>
           </div>
         </div>

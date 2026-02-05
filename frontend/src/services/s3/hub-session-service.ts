@@ -356,6 +356,7 @@ export async function initializePagesFromOutline(
     pages,
     outline,
     outlineTitle: title,
+    title: title || session.title, // Update main title if provided
     status: 'outline_generation',
   });
 }
