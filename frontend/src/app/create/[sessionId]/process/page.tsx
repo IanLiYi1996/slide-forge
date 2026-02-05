@@ -792,7 +792,7 @@ export default function ProcessPage() {
                 <button
                   key={page.id}
                   className={cn(
-                    "flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden transition-all",
+                    "relative flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden transition-all",
                     "border-2",
                     index === currentPageIndex
                       ? "border-primary ring-2 ring-primary/30"
