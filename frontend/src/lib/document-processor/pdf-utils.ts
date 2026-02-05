@@ -1,15 +1,27 @@
 "use client";
 
-import * as pdfjsLib from "pdfjs-dist";
+// pdfjs-dist is dynamically imported to avoid DOMMatrix error during SSR
+let pdfjsLib: typeof import("pdfjs-dist") | null = null;
+let pdfjsInitialized = false;
 
-// Set worker path - using local file for best reliability
-if (typeof window !== "undefined") {
-  // Use local worker file from public directory (most reliable)
-  // This file is copied during build from node_modules/pdfjs-dist/build/
+async function initPdfjs() {
+  if (pdfjsInitialized && pdfjsLib) return pdfjsLib;
+
+  if (typeof window === "undefined") {
+    throw new Error("PDF.js can only be used in browser environment");
+  }
+
+  // Dynamic import to avoid SSR issues with DOMMatrix
+  pdfjsLib = await import("pdfjs-dist");
+
+  // Set worker path - using local file from public directory
   pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
   console.log("PDF.js worker initialized:", pdfjsLib.GlobalWorkerOptions.workerSrc);
   console.log("PDF.js version:", pdfjsLib.version);
+
+  pdfjsInitialized = true;
+  return pdfjsLib;
 }
 
 export interface PageImage {
@@ -26,10 +38,13 @@ export async function convertPdfToImages(file: File): Promise<PageImage[]> {
   try {
     console.log("Starting PDF conversion for:", file.name, "size:", file.size);
 
+    // Initialize pdfjs dynamically
+    const pdfjs = await initPdfjs();
+
     const arrayBuffer = await file.arrayBuffer();
     console.log("ArrayBuffer created, loading PDF document...");
 
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
     console.log(`PDF loaded successfully. Pages: ${pdf.numPages}`);
 
