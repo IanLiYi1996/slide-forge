@@ -59,6 +59,12 @@ export interface AgentCoreConstructProps {
    * @default PUBLIC
    */
   networkMode?: 'PUBLIC' | 'PRIVATE';
+
+  /**
+   * Skip runtime creation (for initial deployment when image doesn't exist yet)
+   * @default false
+   */
+  skipRuntimeCreation?: boolean;
 }
 
 export class AgentCoreConstruct extends Construct {
@@ -280,16 +286,13 @@ export class AgentCoreConstruct extends Construct {
       logRetention: logs.RetentionDays.ONE_WEEK,
     });
 
-    // Grant Lambda permissions to manage AgentCore
+    // Grant Lambda permissions to manage AgentCore (full access to all AgentCore operations)
     agentCoreManagerFunction.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
-          'bedrock-agentcore-control:CreateAgentRuntime',
-          'bedrock-agentcore-control:UpdateAgentRuntime',
-          'bedrock-agentcore-control:DeleteAgentRuntime',
-          'bedrock-agentcore-control:GetAgentRuntime',
-          'bedrock-agentcore-control:ListAgentRuntimes',
+          'bedrock-agentcore:*',
+          'bedrock-agentcore-control:*',
         ],
         resources: ['*'],
       })
@@ -316,45 +319,54 @@ export class AgentCoreConstruct extends Construct {
     // Construct discovery URL for Cognito
     const cognitoDiscoveryUrl = `https://cognito-idp.${region}.amazonaws.com/${props.cognitoUserPoolId}/.well-known/openid-configuration`;
 
-    // Build environment variables string
-    const envVarsArray: string[] = [`AWS_DEFAULT_REGION=${region}`];
+    // Build environment variables as a dictionary (JSON string for Lambda)
+    const envVarsDict: Record<string, string> = {
+      AWS_DEFAULT_REGION: region,
+    };
     if (props.environmentVariables) {
       Object.entries(props.environmentVariables).forEach(([key, value]) => {
         if (value) {
-          envVarsArray.push(`${key}=${value}`);
+          envVarsDict[key] = value;
         }
       });
     }
-    envVarsArray.push(`S3_WORKSPACE_BUCKET=${props.workspaceBucket.bucketName}`);
+    envVarsDict['S3_WORKSPACE_BUCKET'] = props.workspaceBucket.bucketName;
 
     // Determine Docker image URI
     const dockerImageUri = props.dockerImageUri || `${this.ecrRepository.repositoryUri}:latest`;
 
     // =========================================================================
-    // 5. AgentCore Runtime Custom Resource
+    // 5. AgentCore Runtime Custom Resource (conditionally created)
     // =========================================================================
 
-    const agentCoreRuntime = new cdk.CustomResource(this, 'AgentCoreRuntime', {
-      serviceToken: provider.serviceToken,
-      properties: {
-        RuntimeName: props.runtimeName,
-        DockerImageUri: dockerImageUri,
-        RoleArn: this.runtimeRole.roleArn,
-        NetworkMode: props.networkMode || 'PUBLIC',
-        EnvironmentVariables: envVarsArray.join(','),
-        CognitoDiscoveryUrl: cognitoDiscoveryUrl,
-        CognitoClientId: props.cognitoClientId,
-        // Add timestamp to force update when properties change
-        Timestamp: Date.now().toString(),
-      },
-    });
+    if (props.skipRuntimeCreation) {
+      // Skip runtime creation - just set placeholder values
+      // User should push image to ECR and deploy again with skipRuntimeCreation=false
+      this.runtimeArn = 'PENDING_IMAGE_PUSH';
+      this.runtimeUrl = 'PENDING_IMAGE_PUSH';
+    } else {
+      const agentCoreRuntime = new cdk.CustomResource(this, 'AgentCoreRuntime', {
+        serviceToken: provider.serviceToken,
+        properties: {
+          RuntimeName: props.runtimeName,
+          DockerImageUri: dockerImageUri,
+          RoleArn: this.runtimeRole.roleArn,
+          NetworkMode: props.networkMode || 'PUBLIC',
+          EnvironmentVariables: JSON.stringify(envVarsDict),
+          CognitoDiscoveryUrl: cognitoDiscoveryUrl,
+          CognitoClientId: props.cognitoClientId,
+          // Add timestamp to force update when properties change
+          Timestamp: Date.now().toString(),
+        },
+      });
 
-    // Ensure runtime is created after the role
-    agentCoreRuntime.node.addDependency(this.runtimeRole);
+      // Ensure runtime is created after the role
+      agentCoreRuntime.node.addDependency(this.runtimeRole);
 
-    // Store runtime outputs
-    this.runtimeArn = agentCoreRuntime.getAttString('RuntimeArn');
-    this.runtimeUrl = agentCoreRuntime.getAttString('RuntimeUrl');
+      // Store runtime outputs
+      this.runtimeArn = agentCoreRuntime.getAttString('RuntimeArn');
+      this.runtimeUrl = agentCoreRuntime.getAttString('RuntimeUrl');
+    }
 
     // =========================================================================
     // Outputs
@@ -413,7 +425,9 @@ def handler(event, context):
     docker_image_uri = properties['DockerImageUri']
     role_arn = properties['RoleArn']
     network_mode = properties.get('NetworkMode', 'PUBLIC')
-    env_vars = properties.get('EnvironmentVariables', '')
+    env_vars_str = properties.get('EnvironmentVariables', '{}')
+    # Parse environment variables from JSON string to dict
+    env_vars = json.loads(env_vars_str) if env_vars_str else {}
     cognito_discovery_url = properties['CognitoDiscoveryUrl']
     cognito_client_id = properties['CognitoClientId']
 
@@ -464,9 +478,6 @@ def create_runtime(client, runtime_name, docker_image_uri, role_arn, network_mod
             'networkMode': network_mode
         },
         roleArn=role_arn,
-        requestHeaderConfiguration={
-            'requestHeaderAllowlist': ['Authorization']
-        },
         environmentVariables=env_vars,
         authorizerConfiguration={
             'customJWTAuthorizer': {
@@ -505,9 +516,6 @@ def update_runtime(client, physical_resource_id, runtime_name, docker_image_uri,
                 'networkMode': network_mode
             },
             roleArn=role_arn,
-            requestHeaderConfiguration={
-                'requestHeaderAllowlist': ['Authorization']
-            },
             environmentVariables=env_vars,
             authorizerConfiguration={
                 'customJWTAuthorizer': {

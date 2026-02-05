@@ -1,318 +1,258 @@
 # Slide-Forge AWS Infrastructure
 
-AWS CDK infrastructure for deploying Slide-Forge to AWS with a hybrid architecture:
-- **Static assets**: S3 + CloudFront
-- **API routes**: ECS EC2 + ALB
-- **Data storage**: S3 (serverless, no database required)
-- **AI Services**: AWS Bedrock + Claude Agent SDK + OpenAI API
-- **Authentication**: Amazon Cognito
+AWS CDK infrastructure for deploying Slide-Forge with a modern serverless architecture:
 
-## ⚡ 快速部署（新）
+- **Frontend**: ECS Fargate (Stateless Next.js)
+- **Backend**: AWS Bedrock AgentCore Runtime (Strands Agent + Claude)
+- **CDN**: CloudFront with VPC Origin
+- **Auth**: Amazon Cognito (OIDC + JWT)
+- **Storage**: S3 (serverless, no database required)
 
-### 使用环境变量部署
-
-```bash
-# 1. 配置环境变量
-cp .env.example .env
-nano .env  # 填入你的 API keys
-
-# 2. 部署
-pnpm install
-pnpm deploy
-
-# CDK 会自动读取 .env 并配置所有服务
-```
-
-**最简配置** - 只需要以下之一:
-```bash
-# 使用 AWS Bedrock
-CLAUDE_CODE_USE_BEDROCK=1
-AWS_REGION=us-east-1
-
-# 或使用 Anthropic API
-ANTHROPIC_API_KEY=sk-ant-api03-...
-AWS_REGION=us-east-1
-```
-
-详见: [QUICK_DEPLOY.md](./QUICK_DEPLOY.md)
-
-## 📁 Project Structure
+## Architecture Overview
 
 ```
-infrastructure/
-├── bin/
-│   └── slide-forge.ts           # CDK app entry point
-├── lib/
-│   ├── slide-forge-stack.ts     # Main stack
-│   ├── network/vpc.ts           # VPC with 3 AZs
-│   ├── compute/ecs-nextjs-service.ts  # ECS EC2 service
-│   ├── storage/
-│   │   └── s3-buckets.ts        # Static, uploads, logs buckets
-│   ├── auth/
-│   │   ├── cognito.ts           # Cognito User Pool
-│   │   ├── admin-user-creator.ts
-│   │   └── agent-sdk-role.ts
-│   ├── cdn/cloudfront.ts        # CloudFront distribution
-│   └── common/constants.ts      # Shared configuration
-├── docker/
-│   ├── Dockerfile.nextjs        # Production Docker image
-│   └── .dockerignore
-├── config/
-│   ├── dev.json                 # Development config
-│   └── prod.json                # Production config
-├── cdk.json
-├── package.json
-└── tsconfig.json
+                         Internet (HTTPS)
+                              │
+                    ┌─────────▼─────────┐
+                    │    CloudFront     │
+                    │  (CDN + Caching)  │
+                    └─────────┬─────────┘
+                              │
+         ┌────────────────────┼────────────────────┐
+         │                    │                    │
+         ▼                    ▼                    ▼
+   ┌───────────┐      ┌─────────────┐      ┌───────────┐
+   │ S3 Static │      │ Private ALB │      │  Cognito  │
+   │  Bucket   │      │ (VPC Origin)│      │ User Pool │
+   └───────────┘      └──────┬──────┘      └───────────┘
+                             │
+                    ┌────────▼────────┐
+                    │   ECS Fargate   │
+                    │  (Next.js 1-4)  │
+                    │   Stateless     │
+                    └────────┬────────┘
+                             │
+            ┌────────────────┼────────────────┐
+            │                │                │
+            ▼                ▼                ▼
+    ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+    │  AgentCore  │  │  S3 Uploads │  │   Secrets   │
+    │   Runtime   │  │  (Sessions) │  │   Manager   │
+    │  (Claude)   │  │             │  │             │
+    └─────────────┘  └─────────────┘  └─────────────┘
 ```
 
-## 🚀 Quick Start
+## Key Features
+
+- **Stateless Frontend**: Fargate tasks auto-scale 1-4, no sticky sessions needed
+- **AI-Powered Backend**: Bedrock AgentCore manages Claude agent sessions
+- **JWT Auth with Auto-Refresh**: Cognito tokens refresh automatically before expiry
+- **No Database**: All data stored in S3 with KMS encryption
+- **SSE Streaming**: 300s ALB timeout for long-running agent responses
+
+## Quick Start
 
 ### Prerequisites
 
-1. **AWS CLI** configured with credentials
-2. **Node.js** 20+ and npm/pnpm
-3. **Docker** for building images
-4. **AWS CDK** CLI: `npm install -g aws-cdk`
+- AWS CLI configured with credentials
+- Node.js 20+ and pnpm
+- Docker (for building images)
+- AWS CDK CLI: `npm install -g aws-cdk`
 
-### Installation
+### 1. Configure Environment
 
 ```bash
 cd infrastructure
-npm install
+cp .env.example .env
+# Edit .env with your configuration
 ```
 
-### Bootstrap CDK (first time only)
+**Minimum required:**
+```bash
+# Cognito Admin Email (receives initial password)
+COGNITO_ADMIN_EMAIL=your-email@example.com
+
+# AI Configuration (choose one)
+CLAUDE_CODE_USE_BEDROCK=1  # Use AWS Bedrock (recommended)
+# OR
+ANTHROPIC_API_KEY=sk-ant-...  # Use Anthropic API directly
+```
+
+### 2. Bootstrap CDK (first time only)
 
 ```bash
-# Bootstrap for your AWS account/region
 cdk bootstrap aws://ACCOUNT_ID/REGION
-
-# Example
-cdk bootstrap aws://123456789012/us-east-1
 ```
 
-## 📦 Deployment Steps
-
-### 1. Create Required Secrets
-
-Before deploying, create these secrets in AWS Secrets Manager:
+### 3. Deploy Infrastructure
 
 ```bash
-# OpenAI API Key (or other LLM provider)
-aws secretsmanager create-secret \
-  --name slide-forge-development/openai-api-key \
-  --secret-string "sk-..."
-
-# Yunwu API Key (for image generation)
-aws secretsmanager create-secret \
-  --name slide-forge-development/yunwu-api-key \
-  --secret-string "sk-..."
-
-# Tavily API Key (for search)
-aws secretsmanager create-secret \
-  --name slide-forge-development/tavily-api-key \
-  --secret-string "tvly-..."
-
-# UploadThing Token
-aws secretsmanager create-secret \
-  --name slide-forge-development/uploadthing-token \
-  --secret-string "sk_live_..."
+pnpm install
+pnpm deploy
 ```
 
-### 2. Deploy Infrastructure
+### 4. Build and Push AgentCore Container
+
+After deployment, build and push the AgentCore container:
 
 ```bash
-# Development environment
-npm run deploy
+# Get ECR repository URI from CDK output
+export ECR_REPO="123456789012.dkr.ecr.us-east-1.amazonaws.com/slide-forge-agentcore"
 
-# Or with explicit environment
-cdk deploy --context environment=development
-
-# Production environment
-cdk deploy --context environment=production
+# Build and push
+cd ../backend
+docker build -t $ECR_REPO:latest .
+aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_REPO
+docker push $ECR_REPO:latest
 ```
 
-### 3. Build and Upload Static Assets
+### 5. Upload Static Assets
 
 ```bash
-# Build Next.js application (from frontend directory)
 cd ../frontend
 pnpm build
 
 # Get bucket name from CDK output
 export STATIC_BUCKET="slide-forge-development-static-..."
-
-# Upload static assets
 aws s3 sync .next/static s3://$STATIC_BUCKET/_next/static
 aws s3 sync public s3://$STATIC_BUCKET/public
 ```
 
-### 4. Invalidate CloudFront Cache
-
-```bash
-# Get distribution ID from CDK output
-export DISTRIBUTION_ID="E123456789ABCD"
-
-# Invalidate cache
-aws cloudfront create-invalidation \
-  --distribution-id $DISTRIBUTION_ID \
-  --paths "/*"
-```
-
-### 5. Access Your Application
+### 6. Access Application
 
 The CloudFront URL will be in the CDK output:
 ```
 https://d1234567890abc.cloudfront.net
 ```
 
-## 🔧 Configuration
+## Project Structure
 
-### Environment Variables in ECS
-
-The following environment variables are configured in `lib/compute/ecs-nextjs-service.ts`:
-
-**From Secrets Manager** (secure):
-- `NEXTAUTH_SECRET` - NextAuth.js secret
-- `COGNITO_CLIENT_SECRET` - Cognito OAuth client secret
-- `LLM_API_KEY` - OpenAI/compatible API key (optional)
-- `UPLOADTHING_TOKEN` - File upload service token (optional)
-- `TAVILY_API_KEY` - Search API key (optional)
-
-**Note**: Data storage uses S3 instead of a database. All presentation data, user profiles, and sessions are stored in the uploads S3 bucket.
-
-**Environment Variables**:
-- `NODE_ENV=production`
-- `AWS_REGION` - Automatically set
-- `CLAUDE_CODE_USE_BEDROCK=1` - Enable Bedrock
-- `UPLOADS_BUCKET` - S3 bucket name
-
-### Customizing Configuration
-
-Edit `config/dev.json` or `config/prod.json`:
-
-```json
-{
-  "environment": "development",
-  "vpc": {
-    "maxAzs": 3,
-    "natGateways": 1
-  },
-  "ecs": {
-    "cpu": 1024,
-    "memory": 2048,
-    "desiredCount": 1
-  }
-}
+```
+infrastructure/
+├── bin/
+│   └── slide-forge.ts              # CDK app entry point
+├── lib/
+│   ├── slide-forge-stack.ts        # Main stack orchestration
+│   ├── network/
+│   │   └── vpc.ts                  # VPC with 3 AZs
+│   ├── compute/
+│   │   ├── fargate-nextjs-service.ts  # Stateless Fargate frontend
+│   │   └── agentcore-construct.ts     # Bedrock AgentCore Runtime
+│   ├── storage/
+│   │   └── s3-buckets.ts           # Static, uploads, logs buckets
+│   ├── auth/
+│   │   ├── cognito.ts              # Cognito User Pool + Client
+│   │   └── admin-user-creator.ts   # Initial admin user
+│   ├── cdn/
+│   │   └── cloudfront.ts           # CloudFront with VPC Origin
+│   └── common/
+│       └── constants.ts            # Shared configuration
+├── config/
+│   └── env-config.ts               # Environment variable loader
+└── cdk.json
 ```
 
-## 💰 Cost Optimization
+## Configuration
 
-### Development Environment (~$50/month)
-- ECS EC2 (t3.large): ~$30
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `COGNITO_ADMIN_EMAIL` | Yes | Admin user email (receives login credentials) |
+| `CLAUDE_CODE_USE_BEDROCK` | No | Set to `1` to use AWS Bedrock |
+| `ANTHROPIC_API_KEY` | No | Anthropic API key (if not using Bedrock) |
+| `TAVILY_API_KEY` | No | Tavily API key for web search |
+| `UNSPLASH_ACCESS_KEY` | No | Unsplash API key for images |
+
+### Token Validity
+
+Cognito token lifetimes (configured in CDK):
+- **Access Token**: 1 day
+- **ID Token**: 1 day
+- **Refresh Token**: 30 days
+
+Tokens refresh automatically 60 seconds before expiry.
+
+## Cost Estimates
+
+### Development (~$80/month)
+- Fargate (1 task): ~$30
 - ALB: ~$20
 - NAT Gateway (1): ~$33
-- CloudFront (100GB): ~$10
-- S3 (data storage): ~$5
-- Other: ~$7
+- S3 + CloudFront: ~$15
+- AgentCore: Pay per invocation
 
-### Production Environment (~$150/month)
-- ECS EC2 (larger instance or multiple): ~$60
+### Production (~$180/month)
+- Fargate (2-4 tasks): ~$60-120
 - ALB: ~$20
-- NAT Gateway (2, HA): ~$64
-- CloudFront (500GB): ~$50
-- S3 (data storage): ~$10
-- Other: ~$20
+- NAT Gateway (2, HA): ~$66
+- S3 + CloudFront: ~$30
+- AgentCore: Pay per invocation
 
-### Cost Saving Tips
-1. Use S3 for data storage (no database costs)
-2. Use S3 lifecycle policies for old data
-3. CloudFront Price Class 100
-4. VPC Endpoints (reduce NAT costs)
-5. Spot Instances for non-production
-
-## 🛠️ Common Operations
+## Common Operations
 
 ### View Logs
 
 ```bash
-# ECS service logs
-aws logs tail /ecs/slide-forge-development --follow
+# Fargate service logs
+aws logs tail /ecs/slide-forge-development-fargate --follow
 
-# ALB access logs
-aws s3 ls s3://slide-forge-development-logs-.../alb-access-logs/
+# AgentCore runtime logs
+aws logs tail /aws/bedrock-agentcore/runtimes/slide-forge-agent --follow
 ```
 
-### Update ECS Service
+### Force Deployment
 
 ```bash
-# Force new deployment (pulls latest image)
 aws ecs update-service \
-  --cluster slide-forge-development-cluster \
-  --service slide-forge-development-service \
+  --cluster slide-forge-development-fargate-cluster \
+  --service slide-forge-development-fargate-service \
   --force-new-deployment
 ```
 
-### Scale ECS Service
+### Scale Service
 
 ```bash
-# Manual scaling
 aws ecs update-service \
-  --cluster slide-forge-development-cluster \
-  --service slide-forge-development-service \
+  --cluster slide-forge-development-fargate-cluster \
+  --service slide-forge-development-fargate-service \
   --desired-count 4
 ```
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
-### ECS Tasks Not Starting
+### Fargate Tasks Not Starting
+1. Check CloudWatch Logs: `/ecs/slide-forge-development-fargate`
+2. Verify health check: `GET /api/health`
+3. Check Secrets Manager access
+4. Verify ECR image exists
 
-1. Check CloudWatch Logs: `/ecs/slide-forge-development`
-2. Verify health check endpoint: `/api/health`
-3. Check security group rules
-4. Verify secrets exist in Secrets Manager
-5. Check S3 bucket permissions
+### AgentCore Auth Errors
+1. Verify Cognito tokens are valid
+2. Check AgentCore runtime status in AWS Console
+3. Review CloudWatch logs for JWT validation errors
 
-### CloudFront 404 Errors
+### SSE Streaming Issues
+1. ALB idle timeout is 300s (configured)
+2. CloudFront origin timeout is 180s (max for VPC origin)
+3. Check for proxy buffering issues
 
-1. Verify static assets uploaded to S3
-2. Check CloudFront origin configuration
-3. Wait 5-10 minutes for distribution deployment
-
-### S3 Data Access Issues
-
-1. Verify ECS task role has S3 permissions
-2. Check KMS key permissions for encrypted buckets
-3. Verify bucket name in environment variables (UPLOADS_BUCKET)
-
-## 🗑️ Cleanup
-
-To delete all resources:
+## Cleanup
 
 ```bash
-npm run destroy
+# Destroy all resources
+pnpm destroy
 
 # Or
 cdk destroy --all
 ```
 
-**Note**: Some resources like S3 buckets and log groups may need manual cleanup.
+**Note**: S3 buckets with data may need manual cleanup.
 
-## 📚 Additional Resources
+## Security
 
-- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
-- [Next.js Deployment](https://nextjs.org/docs/deployment)
-- [S3 Best Practices](https://docs.aws.amazon.com/AmazonS3/latest/userguide/best-practices-for-s3.html)
-- [CloudFront Best Practices](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/best-practices.html)
-- [Amazon Cognito](https://docs.aws.amazon.com/cognito/)
-
-## 🤝 Support
-
-For issues or questions:
-1. Check CloudWatch Logs
-2. Review CDK synthesis output: `cdk synth`
-3. Validate configuration: `cdk diff`
-
----
-
-**架构参考**: 基于 `resource/customer-due-diligence` 验证的生产级架构模式
+- All traffic encrypted (TLS 1.2+)
+- S3 buckets use KMS encryption with key rotation
+- Private ALB accessible only via CloudFront VPC Origin
+- Cognito Advanced Security Mode enabled
+- No self-signup (invite-only users)

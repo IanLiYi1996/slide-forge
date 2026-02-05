@@ -21,7 +21,7 @@ import { sessionManager } from "@/lib/agent/session-manager";
 import { NextResponse } from "next/server";
 import { type ChatRequest, type Message } from "@/lib/agent/types";
 import { extractSlidesFromMessages } from "@/lib/agent/utils/extract-slides";
-import { createAgentCoreClient } from "@/lib/agent/agentcore-client";
+import { createAgentCoreClient, AgentCoreAuthError } from "@/lib/agent/agentcore-client";
 import { env } from "@/env";
 
 // Configure route timeout for long-running agent operations
@@ -444,10 +444,20 @@ async function handleAgentCoreChat(
         controller.close();
       } catch (error) {
         console.error("[Agent Chat] Error in AgentCore stream:", error);
-        sendSSE("error", {
-          content:
-            error instanceof Error ? error.message : "Failed to process request",
-        });
+
+        // Handle authentication errors specially
+        if (error instanceof AgentCoreAuthError) {
+          sendSSE("error", {
+            content: "Your session has expired. Please sign in again.",
+            code: "AUTH_ERROR",
+            requiresReauth: true,
+          });
+        } else {
+          sendSSE("error", {
+            content:
+              error instanceof Error ? error.message : "Failed to process request",
+          });
+        }
 
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         controller.close();
@@ -883,7 +893,20 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Route to appropriate handler
+    // 3. Check for authentication errors (token refresh failed)
+    if (session.error === "RefreshTokenError") {
+      console.error("[Agent Chat] Session has RefreshTokenError, user must re-authenticate");
+      return NextResponse.json(
+        {
+          error: "Session expired",
+          code: "SESSION_EXPIRED",
+          message: "Your session has expired. Please sign in again.",
+        },
+        { status: 401 }
+      );
+    }
+
+    // 4. Route to appropriate handler
     if (isAgentCoreEnabled()) {
       console.log("[Agent Chat] Using AgentCore Runtime backend");
 
@@ -892,7 +915,15 @@ export async function POST(req: Request) {
       // which is present in access token but not in id token
       const accessToken = session.accessToken;
       if (!accessToken) {
-        console.warn("[Agent Chat] No access token available, user may need to re-authenticate");
+        console.error("[Agent Chat] No access token available");
+        return NextResponse.json(
+          {
+            error: "Authentication required",
+            code: "NO_TOKEN",
+            message: "No authentication token available. Please sign in again.",
+          },
+          { status: 401 }
+        );
       }
 
       return handleAgentCoreChat(req, session.user.id, chatRequest, accessToken);

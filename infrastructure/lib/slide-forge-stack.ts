@@ -81,9 +81,14 @@ export class SlideForgeStack extends cdk.Stack {
 
     // 4. Create AgentCore Backend (for AI agent processing)
     // AgentCore runs the Strands-based agent in Bedrock AgentCore Runtime
+    // Note: Runtime name must match pattern [a-zA-Z][a-zA-Z0-9_]{0,47}
+    // Set SKIP_AGENTCORE_RUNTIME=true to deploy infrastructure first without runtime
+    const skipRuntimeCreation = process.env.SKIP_AGENTCORE_RUNTIME === 'true';
+    const runtimeName = stackName.replace(/-/g, '_').slice(0, 40) + '_agent';
     const agentCoreConstruct = new AgentCoreConstruct(this, 'AgentCore', {
       stackName,
-      runtimeName: `${stackName}-agent-runtime`,
+      runtimeName,
+      skipRuntimeCreation,
       workspaceBucket: s3Construct.uploadsBucket,
       cognitoUserPoolId: cognitoConstruct.userPool.userPoolId,
       cognitoClientId: cognitoConstruct.oidc.clientId,

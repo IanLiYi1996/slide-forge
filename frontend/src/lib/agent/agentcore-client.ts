@@ -18,6 +18,16 @@
 import { env } from "@/env";
 
 /**
+ * Error types for AgentCore client
+ */
+export class AgentCoreAuthError extends Error {
+  constructor(message: string, public statusCode: number = 401) {
+    super(message);
+    this.name = "AgentCoreAuthError";
+  }
+}
+
+/**
  * Event types emitted by AgentCore streaming responses
  */
 export interface AgentCoreEvent {
@@ -170,13 +180,19 @@ export class AgentCoreClient {
     const invocationRequest: InvocationRequest = {
       path: "/sessions",
       method: "POST",
-      payload: request,
+      payload: request as unknown as Record<string, unknown>,
     };
 
     const response = await this.invoke(invocationRequest);
 
     if (!response.ok) {
       const errorText = await response.text();
+      if (response.status === 401 || response.status === 403) {
+        throw new AgentCoreAuthError(
+          `Authentication failed: ${response.status} - ${errorText}`,
+          response.status
+        );
+      }
       throw new Error(
         `Failed to create session: ${response.status} ${response.statusText} - ${errorText}`
       );
@@ -214,7 +230,7 @@ export class AgentCoreClient {
     const invocationRequest: InvocationRequest = {
       path: `/sessions/${sessionId}/messages`,
       method: "POST",
-      payload: request as Record<string, unknown>,
+      payload: request as unknown as Record<string, unknown>,
       path_params: { session_id: sessionId },
     };
 
@@ -222,6 +238,12 @@ export class AgentCoreClient {
 
     if (!response.ok) {
       const errorText = await response.text();
+      if (response.status === 401 || response.status === 403) {
+        throw new AgentCoreAuthError(
+          `Authentication failed: ${response.status} - ${errorText}`,
+          response.status
+        );
+      }
       throw new Error(
         `Failed to send message: ${response.status} ${response.statusText} - ${errorText}`
       );
@@ -253,7 +275,7 @@ export class AgentCoreClient {
     const invocationRequest: InvocationRequest = {
       path: `/sessions/${sessionId}/messages/stream`,
       method: "POST",
-      payload: request as Record<string, unknown>,
+      payload: request as unknown as Record<string, unknown>,
       path_params: { session_id: sessionId },
     };
 
@@ -280,6 +302,12 @@ export class AgentCoreClient {
 
     if (!response.ok) {
       const errorText = await response.text();
+      if (response.status === 401 || response.status === 403) {
+        throw new AgentCoreAuthError(
+          `Authentication failed: ${response.status} - ${errorText}`,
+          response.status
+        );
+      }
       throw new Error(
         `Failed to stream message: ${response.status} ${response.statusText} - ${errorText}`
       );
