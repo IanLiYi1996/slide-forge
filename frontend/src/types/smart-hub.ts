@@ -126,6 +126,7 @@ export interface GenerateConfig {
   templateId?: string;
   enableWebSearch: boolean;
   customInstructions?: string;
+  customStylePrompt?: string;  // Custom style description for AI generation
 }
 
 /** Configuration for process mode (image modification) */

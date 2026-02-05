@@ -137,9 +137,34 @@ function buildSlidePrompt(
   const style = config?.style || 'professional';
   const theme = config?.theme || 'default';
   const aspectRatio = config?.aspectRatio || '16:9';
+  const customStylePrompt = config?.customStylePrompt;
 
   const isFirstSlide = slideIndex === 0;
   const slideType = isFirstSlide ? 'title slide' : 'content slide';
+
+  // If custom style prompt is provided, use it instead of default styles
+  if (customStylePrompt && customStylePrompt.trim()) {
+    return `Create a presentation slide image with the following specifications:
+
+SLIDE TYPE: ${slideType} (Slide ${slideIndex + 1})
+
+CONTENT:
+${content}
+
+**CUSTOM STYLE:**
+${customStylePrompt}
+
+Apply this custom style consistently across all visual elements, colors, typography, and illustrations.
+
+REQUIREMENTS:
+- Design a visually appealing slide following the custom style description
+- Ensure text is readable with good contrast
+- Use the appropriate layout for a ${slideType}
+- Language: ${language.includes('zh') ? 'Chinese' : language.includes('ja') ? 'Japanese' : language.includes('ko') ? 'Korean' : 'English'}
+- Aspect ratio: ${aspectRatio}
+
+${isFirstSlide ? 'This is the title slide - make it impactful and visually striking.' : 'Present the key points clearly with supporting visuals.'}`;
+  }
 
   // Style-specific design instructions
   const styleInstructions: Record<string, string> = {

@@ -171,6 +171,7 @@ function buildModificationPrompt(
     style?: string;
     theme?: string;
     aspectRatio?: string;
+    customStylePrompt?: string;
   }
 ): string {
   const language = config?.language || 'en-US';
@@ -178,9 +179,19 @@ function buildModificationPrompt(
   const style = config?.style || 'professional';
   const theme = config?.theme || 'default';
   const aspectRatio = config?.aspectRatio || '16:9';
+  const customStylePrompt = config?.customStylePrompt;
 
   const isFirstSlide = slideIndex === 0;
   const slideType = isFirstSlide ? 'title slide' : 'content slide';
+
+  // If custom style is provided, include it in the prompt
+  const styleSection = customStylePrompt && customStylePrompt.trim()
+    ? `**CUSTOM STYLE:**
+${customStylePrompt}
+
+Apply this custom style consistently.`
+    : `- Style: ${style}
+- Theme: ${theme}`;
 
   return `Modify an existing presentation slide based on user feedback.
 
@@ -192,16 +203,15 @@ ${modification}
 
 SLIDE INFO:
 - Type: ${slideType} (Slide ${slideIndex + 1})
-- Style: ${style}
-- Theme: ${theme}
+${styleSection}
 - Tone: ${tone}
 - Aspect Ratio: ${aspectRatio}
 - Language: ${language.includes('zh') ? 'Chinese' : language.includes('ja') ? 'Japanese' : 'English'}
 
 INSTRUCTIONS:
-1. Keep the overall structure and the ${theme} color theme of the slide
+1. Keep the overall structure and visual style of the slide
 2. Apply the user's requested changes precisely
-3. Maintain visual consistency with the ${style} style and ${theme} color palette
+3. Maintain visual consistency with the existing design
 4. Ensure text remains readable with good contrast
 5. Preserve any existing design elements unless specifically asked to change them
 

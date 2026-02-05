@@ -21,13 +21,12 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings2, Image, Languages, Sparkles } from "lucide-react";
+import { Settings2, Image, Languages, Sparkles, Palette } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import {
   type GenerateConfig,
   type AspectRatio,
   type ImageSize,
-  type PresentationStyle,
-  type PresentationTheme,
   type ImageGenerationProvider,
 } from "@/types/smart-hub";
 import { DEFAULT_GENERATE_CONFIG } from "@/types/smart-hub";
@@ -58,20 +57,150 @@ const IMAGE_SIZE_OPTIONS: { value: ImageSize; label: string; description: string
   { value: "4K", label: "4K", description: "High quality, slower" },
 ];
 
-const STYLE_OPTIONS: { value: PresentationStyle; label: string; description: string }[] = [
-  { value: "professional", label: "Professional", description: "Clean, corporate look" },
-  { value: "creative", label: "Creative", description: "Bold colors and layouts" },
-  { value: "minimal", label: "Minimal", description: "Simple, focused design" },
-  { value: "bold", label: "Bold", description: "Eye-catching and impactful" },
-];
+// Preset style templates from old version
+const STYLE_PRESETS: { id: string; name: string; icon: string; description: string; colors: string[]; prompt: string }[] = [
+  {
+    id: "hand-drawn",
+    name: "Hand-Drawn Sketchbook",
+    icon: "✏️",
+    description: "Warm, hand-drawn illustration style",
+    colors: ["#3E3C38", "#FF7F7F", "#8FA87A"],
+    prompt: `Design Aesthetic: Warm hand-drawn illustration style, simulating an artist's sketchbook. Overall atmosphere is relaxed, friendly, and creative. Lines should have natural hand-drawn waves and imperfections, avoiding rigid geometric lines.
 
-const THEME_OPTIONS: { value: PresentationTheme; label: string; description: string; colors: string[] }[] = [
-  { value: "default", label: "Default", description: "Classic blue theme", colors: ["#3B82F6", "#1E40AF", "#DBEAFE"] },
-  { value: "corporate", label: "Corporate", description: "Formal navy & gray", colors: ["#1E3A5F", "#64748B", "#F1F5F9"] },
-  { value: "tech", label: "Tech", description: "Modern dark theme", colors: ["#0EA5E9", "#18181B", "#27272A"] },
-  { value: "nature", label: "Nature", description: "Earthy green tones", colors: ["#22C55E", "#166534", "#F0FDF4"] },
-  { value: "elegant", label: "Elegant", description: "Sophisticated purple", colors: ["#8B5CF6", "#4C1D95", "#F5F3FF"] },
-  { value: "vibrant", label: "Vibrant", description: "Bold & colorful", colors: ["#F97316", "#EC4899", "#FEF3C7"] },
+Background Color: Soft off-white with subtle watercolor paper texture, hex code #F9F7F2
+
+Primary Font: Similar to handwritten round style. Titles should appear casual but clear, like marker writing
+
+Color Palette:
+- Primary Text Color: Warm charcoal gray #3E3C38 (simulating pencil or ink)
+- Primary Accent Color: Soft coral red #FF7F7F and sage green #8FA87A for highlights
+
+Visual Elements: All charts, arrows, and borders should look hand-drawn with pencil or marker. Use simple stick figures, lightbulbs, stars, and wavy connectors. Shadows should use rough hatching rather than gradients.`,
+  },
+  {
+    id: "blueprint",
+    name: "Modern Blueprint",
+    icon: "📐",
+    description: "Technical architectural style with precise lines",
+    colors: ["#0F172A", "#3B82F6", "#06B6D4"],
+    prompt: `Design Aesthetic: Technical blueprint-style presentations with architectural precision.
+
+**STYLE:**
+- Clean, precise lines and geometric shapes
+- Technical diagrams with architectural precision
+- Grid-based layouts with exact measurements
+- Professional sans-serif fonts (similar to DIN or Helvetica)
+- Monochromatic blue color scheme with cyan accents
+- All elements aligned to strict grid system
+- Technical annotations and dimension lines where appropriate
+
+Color Palette:
+- Primary: Dark slate #0F172A
+- Secondary: Blueprint blue #3B82F6
+- Accent: Cyan #06B6D4
+- Background: Light slate #F8FAFC`,
+  },
+  {
+    id: "minimal",
+    name: "Minimal Modern",
+    icon: "▫️",
+    description: "Clean design with bold typography",
+    colors: ["#1A1A1A", "#666666", "#FFFFFF"],
+    prompt: `Design Aesthetic: Minimalist design focused on clarity through simplicity.
+
+**STYLE:**
+- Maximum white space for breathing room
+- Bold, oversized typography
+- Monochromatic color scheme
+- Simple geometric shapes only
+- No decorative elements
+- High contrast for impact
+- Modern sans-serif fonts (similar to Helvetica Neue or Inter)
+- Single focal point per slide
+
+Color Palette:
+- Primary: Almost black #1A1A1A
+- Secondary: Medium gray #666666
+- Background: Pure white #FFFFFF`,
+  },
+  {
+    id: "corporate",
+    name: "Corporate Professional",
+    icon: "💼",
+    description: "Traditional business presentation style",
+    colors: ["#1E3A8A", "#64748B", "#3B82F6"],
+    prompt: `Design Aesthetic: Corporate presentation designer creating formal business presentations.
+
+**STYLE:**
+- Professional and conservative design
+- Traditional layouts with clear hierarchy
+- Corporate color scheme (navy, gray, blue)
+- Formal serif or sans-serif fonts
+- Charts and graphs with business styling
+- Bullet points and numbered lists
+- Company-presentation aesthetic
+
+Color Palette:
+- Primary: Navy blue #1E3A8A
+- Secondary: Slate gray #64748B
+- Accent: Business blue #3B82F6
+- Background: Light gray #F1F5F9`,
+  },
+  {
+    id: "creative",
+    name: "Vibrant Creative",
+    icon: "🎨",
+    description: "Colorful, energetic, dynamic layouts",
+    colors: ["#EC4899", "#8B5CF6", "#F59E0B"],
+    prompt: `Design Aesthetic: Bold, colorful, energetic presentations.
+
+**STYLE:**
+- Vibrant, saturated colors
+- Asymmetric, dynamic layouts
+- Playful typography with varied sizes
+- Gradient backgrounds
+- Organic shapes and flowing lines
+- Mixed media aesthetic
+- Fun icons and illustrations
+- Energetic composition
+
+Color Palette:
+- Primary: Hot pink #EC4899
+- Secondary: Purple #8B5CF6
+- Accent: Amber #F59E0B
+- Background: Light yellow #FEFCE8`,
+  },
+  {
+    id: "tech-dark",
+    name: "Tech Dark Mode",
+    icon: "🌙",
+    description: "Modern dark theme with neon accents",
+    colors: ["#18181B", "#0EA5E9", "#22D3EE"],
+    prompt: `Design Aesthetic: Modern dark theme suitable for tech and startup presentations.
+
+**STYLE:**
+- Dark backgrounds with high contrast elements
+- Neon/cyan accent colors for highlights
+- Sleek, futuristic typography
+- Glowing effects and subtle gradients
+- Clean geometric shapes
+- Code-like or monospace elements where appropriate
+- Minimal but impactful visual elements
+
+Color Palette:
+- Background: Near black #18181B
+- Primary accent: Cyan #0EA5E9
+- Secondary accent: Light cyan #22D3EE
+- Text: White/light gray for contrast`,
+  },
+  {
+    id: "custom",
+    name: "Custom Style",
+    icon: "✨",
+    description: "Write your own style description",
+    colors: ["#6366F1", "#8B5CF6", "#A78BFA"],
+    prompt: "",
+  },
 ];
 
 const TONE_OPTIONS = [
@@ -132,10 +261,14 @@ export function GenerateConfigDialog({
         </DialogHeader>
 
         <Tabs defaultValue="content" className="mt-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="content" className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
               Content
+            </TabsTrigger>
+            <TabsTrigger value="style" className="flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              Style
             </TabsTrigger>
             <TabsTrigger value="image" className="flex items-center gap-2">
               <Image className="h-4 w-4" />
@@ -170,65 +303,6 @@ export function GenerateConfigDialog({
               <p className="text-xs text-muted-foreground">
                 Recommended: 5-15 slides for most presentations
               </p>
-            </div>
-
-            {/* Presentation Style */}
-            <div className="space-y-2">
-              <Label>Presentation Style</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {STYLE_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() =>
-                      setLocalConfig({ ...localConfig, style: option.value })
-                    }
-                    className={`p-3 rounded-lg border text-left transition-colors ${
-                      localConfig.style === option.value
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-accent"
-                    }`}
-                  >
-                    <p className="font-medium text-sm">{option.label}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {option.description}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Theme */}
-            <div className="space-y-2">
-              <Label>Color Theme</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {THEME_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() =>
-                      setLocalConfig({ ...localConfig, theme: option.value })
-                    }
-                    className={`p-3 rounded-lg border text-left transition-colors ${
-                      localConfig.theme === option.value
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-accent"
-                    }`}
-                  >
-                    <div className="flex gap-1 mb-2">
-                      {option.colors.map((color, i) => (
-                        <div
-                          key={i}
-                          className="w-4 h-4 rounded-full"
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
-                    <p className="font-medium text-sm">{option.label}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {option.description}
-                    </p>
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* Tone */}
@@ -270,6 +344,81 @@ export function GenerateConfigDialog({
                   setLocalConfig({ ...localConfig, enableWebSearch: checked })
                 }
               />
+            </div>
+          </TabsContent>
+
+          {/* Style Settings */}
+          <TabsContent value="style" className="space-y-6 mt-4">
+            {/* Style Presets */}
+            <div className="space-y-2">
+              <Label>Select a Style Template</Label>
+              <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
+                {STYLE_PRESETS.map((preset) => {
+                  const isSelected = preset.id === "custom"
+                    ? !STYLE_PRESETS.slice(0, -1).some(p => localConfig.customStylePrompt === p.prompt)
+                    : localConfig.customStylePrompt === preset.prompt;
+                  return (
+                    <button
+                      key={preset.id}
+                      onClick={() =>
+                        setLocalConfig({ ...localConfig, customStylePrompt: preset.prompt })
+                      }
+                      className={`p-3 rounded-lg border text-left transition-colors ${
+                        isSelected
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:bg-accent"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">{preset.icon}</span>
+                        <p className="font-medium text-sm">{preset.name}</p>
+                      </div>
+                      <div className="flex gap-1 mb-1">
+                        {preset.colors.map((color, i) => (
+                          <div
+                            key={i}
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {preset.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom Style Prompt Editor */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Style Prompt</Label>
+                {localConfig.customStylePrompt && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setLocalConfig({ ...localConfig, customStylePrompt: "" })}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+              <Textarea
+                value={localConfig.customStylePrompt || ""}
+                onChange={(e) =>
+                  setLocalConfig({ ...localConfig, customStylePrompt: e.target.value })
+                }
+                placeholder="Select a preset above or write your own style description...
+
+Example: 'Use a futuristic cyberpunk theme with neon colors, dark backgrounds, and holographic effects. Typography should be bold and angular.'"
+                className="min-h-[150px] font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                The AI will follow this style description for all generated slides. You can select a preset and customize it.
+              </p>
             </div>
           </TabsContent>
 
