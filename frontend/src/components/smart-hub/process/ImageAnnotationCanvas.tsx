@@ -38,8 +38,8 @@ interface Annotation {
 export function ImageAnnotationCanvas({
   imageDataUrl,
   onAnnotationComplete,
-  width = 800,
-  height = 600,
+  width: maxWidth = 800,
+  height: maxHeight = 600,
 }: ImageAnnotationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const exportCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,19 +53,35 @@ export function ImageAnnotationCanvas({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [penPath, setPenPath] = useState<number[]>([]);
   const [originalSize, setOriginalSize] = useState({ width: 800, height: 600 });
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
 
-  // Load image and get original dimensions
+  // Load image and get original dimensions, calculate canvas size to maintain aspect ratio
   useEffect(() => {
     const img = new Image();
     img.onload = () => {
       imageRef.current = img;
       // Store original image dimensions
-      setOriginalSize({ width: img.naturalWidth, height: img.naturalHeight });
+      const origWidth = img.naturalWidth;
+      const origHeight = img.naturalHeight;
+      setOriginalSize({ width: origWidth, height: origHeight });
+
+      // Calculate canvas size maintaining aspect ratio
+      const aspectRatio = origWidth / origHeight;
+      let newWidth = maxWidth;
+      let newHeight = maxWidth / aspectRatio;
+
+      // If height exceeds max, scale down based on height
+      if (newHeight > maxHeight) {
+        newHeight = maxHeight;
+        newWidth = maxHeight * aspectRatio;
+      }
+
+      setCanvasSize({ width: Math.round(newWidth), height: Math.round(newHeight) });
       setImageLoaded(true);
-      redrawCanvas();
     };
     img.src = imageDataUrl;
-  }, [imageDataUrl]);
+  }, [imageDataUrl, maxWidth, maxHeight]);
+
 
   // Redraw canvas
   const redrawCanvas = () => {
@@ -165,11 +181,12 @@ export function ImageAnnotationCanvas({
     ctx.stroke();
   };
 
+  // Redraw when canvas size, image, or annotations change
   useEffect(() => {
     if (imageLoaded) {
       redrawCanvas();
     }
-  }, [annotations, imageLoaded]);
+  }, [annotations, imageLoaded, canvasSize]);
 
   // Get mouse position relative to canvas
   const getMousePos = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -479,8 +496,8 @@ export function ImageAnnotationCanvas({
       <div className="relative bg-muted rounded-lg overflow-hidden border-2 border-border">
         <canvas
           ref={canvasRef}
-          width={width}
-          height={height}
+          width={canvasSize.width}
+          height={canvasSize.height}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
