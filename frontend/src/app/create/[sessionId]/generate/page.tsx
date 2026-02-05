@@ -517,7 +517,7 @@ export default function GeneratePage() {
               {/* Current Slide Preview */}
               <Card>
                 <CardContent className="p-6">
-                  <div className="aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center relative">
+                  <div className="aspect-video max-h-[60vh] w-full bg-muted rounded-lg overflow-hidden flex items-center justify-center relative mx-auto">
                     {localSession.pages[currentPageIndex]?.outputImageUrl ? (
                       <>
                         <img
