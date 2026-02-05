@@ -42,6 +42,7 @@ export function ImageAnnotationCanvas({
   height = 600,
 }: ImageAnnotationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const exportCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [currentAnnotation, setCurrentAnnotation] = useState<Annotation | null>(null);
@@ -51,12 +52,15 @@ export function ImageAnnotationCanvas({
   const [imageLoaded, setImageLoaded] = useState(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [penPath, setPenPath] = useState<number[]>([]);
+  const [originalSize, setOriginalSize] = useState({ width: 800, height: 600 });
 
-  // Load image
+  // Load image and get original dimensions
   useEffect(() => {
     const img = new Image();
     img.onload = () => {
       imageRef.current = img;
+      // Store original image dimensions
+      setOriginalSize({ width: img.naturalWidth, height: img.naturalHeight });
       setImageLoaded(true);
       redrawCanvas();
     };
@@ -363,11 +367,110 @@ export function ImageAnnotationCanvas({
 
   const handleSave = () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !imageRef.current) return;
 
-    // Get annotated image as data URL
-    const annotatedImageDataUrl = canvas.toDataURL('image/png');
+    // Create a high-resolution export canvas with original image dimensions
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = originalSize.width;
+    exportCanvas.height = originalSize.height;
+    const exportCtx = exportCanvas.getContext('2d');
+    if (!exportCtx) return;
+
+    // Draw original image at full resolution
+    exportCtx.drawImage(imageRef.current, 0, 0, originalSize.width, originalSize.height);
+
+    // Calculate scale factor between display canvas and original image
+    const scaleX = originalSize.width / canvas.width;
+    const scaleY = originalSize.height / canvas.height;
+    const scale = Math.max(scaleX, scaleY);
+
+    // Draw all annotations scaled to original resolution
+    annotations.forEach((annotation) => {
+      exportCtx.strokeStyle = annotation.color;
+      exportCtx.lineWidth = annotation.lineWidth * scale;
+      exportCtx.lineCap = 'round';
+      exportCtx.lineJoin = 'round';
+
+      switch (annotation.type) {
+        case 'circle': {
+          const [x, y, radius] = annotation.points;
+          if (x !== undefined && y !== undefined && radius !== undefined) {
+            exportCtx.beginPath();
+            exportCtx.arc(x * scaleX, y * scaleY, radius * scale, 0, 2 * Math.PI);
+            exportCtx.stroke();
+          }
+          break;
+        }
+        case 'rectangle': {
+          const [x1, y1, x2, y2] = annotation.points;
+          if (x1 !== undefined && y1 !== undefined && x2 !== undefined && y2 !== undefined) {
+            exportCtx.beginPath();
+            exportCtx.rect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
+            exportCtx.stroke();
+          }
+          break;
+        }
+        case 'arrow': {
+          const [startX, startY, endX, endY] = annotation.points;
+          if (startX !== undefined && startY !== undefined && endX !== undefined && endY !== undefined) {
+            drawArrowOnContext(exportCtx, startX * scaleX, startY * scaleY, endX * scaleX, endY * scaleY, scale);
+          }
+          break;
+        }
+        case 'pen': {
+          if (annotation.points.length < 4) break;
+          const p0 = annotation.points[0];
+          const p1 = annotation.points[1];
+          if (p0 === undefined || p1 === undefined) break;
+          exportCtx.beginPath();
+          exportCtx.moveTo(p0 * scaleX, p1 * scaleY);
+          for (let i = 2; i < annotation.points.length; i += 2) {
+            const px = annotation.points[i];
+            const py = annotation.points[i + 1];
+            if (px !== undefined && py !== undefined) {
+              exportCtx.lineTo(px * scaleX, py * scaleY);
+            }
+          }
+          exportCtx.stroke();
+          break;
+        }
+      }
+    });
+
+    // Get annotated image as data URL at original resolution
+    const annotatedImageDataUrl = exportCanvas.toDataURL('image/png');
     onAnnotationComplete(annotatedImageDataUrl);
+  };
+
+  // Helper to draw arrow on any context with scale
+  const drawArrowOnContext = (
+    ctx: CanvasRenderingContext2D,
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    scale: number = 1
+  ) => {
+    const headLength = 20 * scale;
+    const angle = Math.atan2(endY - startY, endX - startX);
+
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(
+      endX - headLength * Math.cos(angle - Math.PI / 6),
+      endY - headLength * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(
+      endX - headLength * Math.cos(angle + Math.PI / 6),
+      endY - headLength * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.stroke();
   };
 
   return (
@@ -501,6 +604,9 @@ export function ImageAnnotationCanvas({
         <p>• <strong>Arrow</strong>: Click start point and drag to end point</p>
         <p>• <strong>Pen</strong>: Click and drag to draw freehand</p>
         <p className="mt-2 text-primary">Annotations help AI understand what to focus on. They will be automatically removed after processing.</p>
+        <p className="mt-1 text-muted-foreground/70">
+          Original resolution: {originalSize.width} × {originalSize.height}px (annotations will be exported at full resolution)
+        </p>
       </div>
     </div>
   );
