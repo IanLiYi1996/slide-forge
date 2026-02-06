@@ -155,7 +155,7 @@ async function handleAgentCoreChat(
         let slideBuffer = "";
         const detectedSlides = new Map<
           number,
-          { index: number; html: string }
+          { index: number; html: string; imageUrl?: string; slideType?: string }
         >();
 
         /**
@@ -216,6 +216,33 @@ async function handleAgentCoreChat(
               `[Agent Chat] Processed ${matches.length} slides, buffer remaining: ${slideBuffer.length} chars`
             );
           }
+
+          // Also detect image slides
+          const imageSlideRegex =
+            /🖼️IMAGE_SLIDE_START:(\d+)🖼️([\s\S]*?)🖼️IMAGE_SLIDE_END:\1🖼️/g;
+          let imgMatch;
+          while ((imgMatch = imageSlideRegex.exec(slideBuffer)) !== null) {
+            const imgSlideIndex = parseInt(imgMatch[1]!, 10);
+            try {
+              const imgData = JSON.parse(imgMatch[2]!.trim());
+              if (imgData.image_url) {
+                detectedSlides.set(imgSlideIndex, {
+                  index: imgSlideIndex,
+                  html: "",
+                  imageUrl: imgData.image_url,
+                  slideType: "image",
+                });
+
+                sendSSE("slide_complete", {
+                  slideIndex: imgSlideIndex,
+                  html: "",
+                  imageUrl: imgData.image_url,
+                  slideType: "image",
+                  timestamp: Date.now(),
+                });
+              }
+            } catch {}
+          }
         };
 
         // Stream the message
@@ -251,16 +278,20 @@ async function handleAgentCoreChat(
               // AgentCore already detected a slide - forward and track it
               if (
                 event.slide_index !== undefined &&
-                event.html
+                (event.html || event.image_url)
               ) {
                 detectedSlides.set(event.slide_index, {
                   index: event.slide_index,
-                  html: event.html,
+                  html: event.html || "",
+                  imageUrl: event.image_url,
+                  slideType: event.slide_type || "html",
                 });
 
                 sendSSE("slide_complete", {
                   slideIndex: event.slide_index,
-                  html: event.html,
+                  html: event.html || "",
+                  imageUrl: event.image_url,
+                  slideType: event.slide_type || "html",
                   timestamp: event.timestamp || Date.now(),
                 });
               }
@@ -333,6 +364,8 @@ async function handleAgentCoreChat(
                           id: `slide-${index}`,
                           index,
                           html: data.html,
+                          imageUrl: data.imageUrl,
+                          slideType: data.slideType || "html",
                           status: "ready" as const,
                           outlineContent:
                             existingSlide?.outlineContent || `Slide ${index + 1}`,
@@ -577,7 +610,7 @@ async function handleLocalAgentChat(
         let slideBuffer = "";
         const detectedSlides = new Map<
           number,
-          { index: number; html: string }
+          { index: number; html: string; imageUrl?: string; slideType?: string }
         >();
 
         const listener = (chunk: {
@@ -641,6 +674,33 @@ async function handleLocalAgentChat(
                   slideBuffer = slideBuffer.substring(lastMatchEnd);
                 }
 
+                // Also detect image slides
+                const imageSlideRegex =
+                  /🖼️IMAGE_SLIDE_START:(\d+)🖼️([\s\S]*?)🖼️IMAGE_SLIDE_END:\1🖼️/g;
+                let imgMatch;
+                while ((imgMatch = imageSlideRegex.exec(slideBuffer)) !== null) {
+                  const imgSlideIndex = parseInt(imgMatch[1]!, 10);
+                  try {
+                    const imgData = JSON.parse(imgMatch[2]!.trim());
+                    if (imgData.image_url) {
+                      detectedSlides.set(imgSlideIndex, {
+                        index: imgSlideIndex,
+                        html: "",
+                        imageUrl: imgData.image_url,
+                        slideType: "image",
+                      });
+
+                      sendSSE("slide_complete", {
+                        slideIndex: imgSlideIndex,
+                        html: "",
+                        imageUrl: imgData.image_url,
+                        slideType: "image",
+                        timestamp: Date.now(),
+                      });
+                    }
+                  } catch {}
+                }
+
                 sendSSE("assistant_message", { content });
               } else if (Array.isArray(content)) {
                 for (const block of content) {
@@ -689,6 +749,33 @@ async function handleLocalAgentChat(
                     if (matches.length > 0) {
                       const lastMatchEnd = matches[matches.length - 1]!.matchEnd;
                       slideBuffer = slideBuffer.substring(lastMatchEnd);
+                    }
+
+                    // Also detect image slides
+                    const imageSlideRegex =
+                      /🖼️IMAGE_SLIDE_START:(\d+)🖼️([\s\S]*?)🖼️IMAGE_SLIDE_END:\1🖼️/g;
+                    let imgMatch;
+                    while ((imgMatch = imageSlideRegex.exec(slideBuffer)) !== null) {
+                      const imgSlideIndex = parseInt(imgMatch[1]!, 10);
+                      try {
+                        const imgData = JSON.parse(imgMatch[2]!.trim());
+                        if (imgData.image_url) {
+                          detectedSlides.set(imgSlideIndex, {
+                            index: imgSlideIndex,
+                            html: "",
+                            imageUrl: imgData.image_url,
+                            slideType: "image",
+                          });
+
+                          sendSSE("slide_complete", {
+                            slideIndex: imgSlideIndex,
+                            html: "",
+                            imageUrl: imgData.image_url,
+                            slideType: "image",
+                            timestamp: Date.now(),
+                          });
+                        }
+                      } catch {}
                     }
 
                     sendSSE("assistant_message", { content: block.text });
@@ -760,6 +847,8 @@ async function handleLocalAgentChat(
                           id: `slide-${index}`,
                           index,
                           html: data.html,
+                          imageUrl: data.imageUrl,
+                          slideType: data.slideType || "html",
                           status: "ready" as const,
                           outlineContent:
                             existingSlide?.outlineContent || `Slide ${index + 1}`,

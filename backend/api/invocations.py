@@ -387,6 +387,15 @@ async def handle_invocation(request: InvocationRequest, http_request: Request):
             return await delete_mcp_server(server_name)
 
         # ========================================
+        # Image Generation Routes
+        # ========================================
+
+        if path == "/generate-slide-image" and method == "POST":
+            from .image_generation import generate_slide_image, GenerateImageRequest
+            img_request = GenerateImageRequest(**payload)
+            return await generate_slide_image(img_request)
+
+        # ========================================
         # Route Not Found
         # ========================================
 

@@ -29,6 +29,7 @@ export interface SlideData {
   status: "pending" | "generating" | "ready" | "error";
   infographicDSL?: string;
   imageUrl?: string;
+  slideType?: "html" | "image";
   imageQuery?: string;
   imageAuthor?: string;
   imageAuthorUrl?: string;

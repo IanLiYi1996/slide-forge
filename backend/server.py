@@ -154,6 +154,10 @@ app.include_router(env_vars_router, tags=["env-vars"])
 # MCP servers endpoints
 app.include_router(mcp_servers_router, tags=["mcp-servers"])
 
+# Image generation endpoint
+from .api import image_generation_router
+app.include_router(image_generation_router, tags=["image-generation"])
+
 
 # ============================================================================
 # Health Check

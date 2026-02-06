@@ -35,9 +35,9 @@ function CollapsibleCodeBlock({ language, children }: { language?: string; child
     return (
       <pre className="overflow-x-auto my-1 rounded bg-muted/50 border max-w-full">
         <div className="flex items-center justify-between px-1.5 py-1 border-b bg-muted/30">
-          <span className="text-[10px] font-mono text-muted-foreground">{language || "code"}</span>
+          <span className="text-xs font-mono text-muted-foreground">{language || "code"}</span>
         </div>
-        <code className="block p-1.5 text-[10px] font-mono whitespace-pre">
+        <code className="block p-1.5 text-xs font-mono whitespace-pre">
           {children}
         </code>
       </pre>
@@ -49,10 +49,10 @@ function CollapsibleCodeBlock({ language, children }: { language?: string; child
   return (
     <pre className="overflow-x-auto my-1 rounded bg-muted/50 border max-w-full">
       <div className="flex items-center justify-between px-1.5 py-1 border-b bg-muted/30">
-        <span className="text-[10px] font-mono text-muted-foreground">{language || "code"}</span>
+        <span className="text-xs font-mono text-muted-foreground">{language || "code"}</span>
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
         >
           {isExpanded ? (
             <>
@@ -67,7 +67,7 @@ function CollapsibleCodeBlock({ language, children }: { language?: string; child
           )}
         </button>
       </div>
-      <code className="block p-1.5 text-[10px] font-mono whitespace-pre">
+      <code className="block p-1.5 text-xs font-mono whitespace-pre">
         {displayText}
         {!isExpanded && (
           <span className="block mt-1 text-muted-foreground italic">
@@ -135,14 +135,14 @@ export function MarkdownMessage({ content, className = "" }: MarkdownMessageProp
         // 自定义列表样式
         ul({ node, children, ...props }) {
           return (
-            <ul className="list-disc list-inside space-y-0 my-1 text-xs" {...props}>
+            <ul className="list-disc list-inside space-y-0 my-1 text-sm" {...props}>
               {children}
             </ul>
           );
         },
         ol({ node, children, ...props }) {
           return (
-            <ol className="list-decimal list-inside space-y-0 my-1 text-xs" {...props}>
+            <ol className="list-decimal list-inside space-y-0 my-1 text-sm" {...props}>
               {children}
             </ol>
           );
@@ -158,7 +158,7 @@ export function MarkdownMessage({ content, className = "" }: MarkdownMessageProp
         table({ node, children, ...props }) {
           return (
             <div className="overflow-x-auto my-1.5 max-w-full">
-              <table className="divide-y divide-border text-[10px]" {...props}>
+              <table className="divide-y divide-border text-xs" {...props}>
                 {children}
               </table>
             </div>
@@ -166,14 +166,14 @@ export function MarkdownMessage({ content, className = "" }: MarkdownMessageProp
         },
         th({ node, children, ...props }) {
           return (
-            <th className="px-1.5 py-0.5 bg-muted font-semibold text-left" {...props}>
+            <th className="px-2 py-1 bg-muted font-semibold text-left" {...props}>
               {children}
             </th>
           );
         },
         td({ node, children, ...props }) {
           return (
-            <td className="px-1.5 py-0.5 border-t" {...props}>
+            <td className="px-2 py-1 border-t" {...props}>
               {children}
             </td>
           );
@@ -181,21 +181,21 @@ export function MarkdownMessage({ content, className = "" }: MarkdownMessageProp
         // 自定义标题样式
         h1({ node, children, ...props }) {
           return (
-            <h1 className="text-sm font-bold mt-2 mb-1" {...props}>
+            <h1 className="text-lg font-bold mt-2 mb-1" {...props}>
               {children}
             </h1>
           );
         },
         h2({ node, children, ...props }) {
           return (
-            <h2 className="text-xs font-semibold mt-1.5 mb-1" {...props}>
+            <h2 className="text-base font-semibold mt-1.5 mb-1" {...props}>
               {children}
             </h2>
           );
         },
         h3({ node, children, ...props }) {
           return (
-            <h3 className="text-xs font-semibold mt-1.5 mb-0.5" {...props}>
+            <h3 className="text-sm font-semibold mt-1.5 mb-0.5" {...props}>
               {children}
             </h3>
           );
@@ -203,7 +203,7 @@ export function MarkdownMessage({ content, className = "" }: MarkdownMessageProp
         // 自定义段落样式
         p({ node, children, ...props }) {
           return (
-            <p className="my-1 leading-relaxed text-xs" {...props}>
+            <p className="my-1 leading-relaxed text-sm" {...props}>
               {children}
             </p>
           );
@@ -212,7 +212,7 @@ export function MarkdownMessage({ content, className = "" }: MarkdownMessageProp
         blockquote({ node, children, ...props }) {
           return (
             <blockquote
-              className="border-l-2 border-primary/40 pl-2 italic my-1.5 text-muted-foreground text-xs"
+              className="border-l-2 border-primary/40 pl-2 italic my-1.5 text-muted-foreground text-sm"
               {...props}
             >
               {children}

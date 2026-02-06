@@ -558,12 +558,16 @@ class AgentSession:
 
                         # Emit slide_complete events for detected slides
                         for slide in new_slides:
-                            yield {
+                            event = {
                                 "type": "slide_complete",
                                 "slide_index": slide.index,
                                 "html": slide.html,
+                                "slide_type": slide.slide_type,
                                 "timestamp": int(time.time() * 1000),
                             }
+                            if slide.image_url:
+                                event["image_url"] = slide.image_url
+                            yield event
                             print(f"[Session] Slide {slide.index} detected and streamed")
 
                         # Also emit the text content

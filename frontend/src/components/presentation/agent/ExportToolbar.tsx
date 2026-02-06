@@ -27,7 +27,7 @@ export function ExportToolbar({ slides, sessionId }: ExportToolbarProps) {
     return null;
   }
 
-  const readySlides = slides.filter((s) => s.html && s.status === "ready");
+  const readySlides = slides.filter((s) => (s.html || s.imageUrl) && s.status === "ready");
 
   // 生成文件名：优先使用会话标题，否则使用第一张幻灯片标题或默认名
   const presentationTitle = useMemo(() => {

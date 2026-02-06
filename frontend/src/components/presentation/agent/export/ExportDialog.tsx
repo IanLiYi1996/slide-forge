@@ -51,7 +51,7 @@ export function ExportDialog({
 
     try {
       const slidesData = slides
-        .filter((s) => s.html)
+        .filter((s) => s.html || s.imageUrl)
         .map((s) => ({
           html: s.html!,
           index: s.index,
@@ -110,7 +110,7 @@ export function ExportDialog({
     }
   };
 
-  const validSlidesCount = slides.filter((s) => s.html).length;
+  const validSlidesCount = slides.filter((s) => s.html || s.imageUrl).length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -25,6 +25,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { SlideHTMLRenderer } from './slides/SlideHTMLRenderer';
+import { ImageSlideRenderer } from './slides/ImageSlideRenderer';
 import type { SlideData } from '@/lib/agent/types/workflow';
 
 interface SlidesPreviewDialogProps {
@@ -37,7 +38,7 @@ export function SlidesPreviewDialog({ slides, trigger }: SlidesPreviewDialogProp
   const [selectedSlideIndex, setSelectedSlideIndex] = useState<number | null>(null);
 
   // Filter slides that have HTML content
-  const validSlides = slides.filter((slide) => slide.html);
+  const validSlides = slides.filter((slide) => slide.html || slide.imageUrl);
 
   if (validSlides.length === 0) {
     return null;
@@ -78,10 +79,17 @@ export function SlidesPreviewDialog({ slides, trigger }: SlidesPreviewDialogProp
                   >
                     {/* Slide Preview */}
                     <div className="w-full h-full">
-                      <SlideHTMLRenderer
-                        html={slide.html!}
-                        slideId={slide.id}
-                      />
+                      {slide.slideType === "image" && slide.imageUrl ? (
+                        <ImageSlideRenderer
+                          imageUrl={slide.imageUrl}
+                          slideId={slide.id}
+                        />
+                      ) : (
+                        <SlideHTMLRenderer
+                          html={slide.html!}
+                          slideId={slide.id}
+                        />
+                      )}
                     </div>
 
                     {/* Overlay on hover */}
@@ -141,11 +149,19 @@ export function SlidesPreviewDialog({ slides, trigger }: SlidesPreviewDialogProp
             <div className="flex-1 overflow-auto p-6 bg-muted/30 flex items-center justify-center">
               {/* ✅ 移除 max-w-5xl 限制，使用 w-fit 适配内容宽度 */}
               <div className="w-fit mx-auto">
-                <SlideHTMLRenderer
-                  html={validSlides[selectedSlideIndex]!.html!}
-                  slideId={validSlides[selectedSlideIndex]!.id}
-                  fixedSize={true}
-                />
+                {validSlides[selectedSlideIndex]!.slideType === "image" && validSlides[selectedSlideIndex]!.imageUrl ? (
+                  <ImageSlideRenderer
+                    imageUrl={validSlides[selectedSlideIndex]!.imageUrl!}
+                    slideId={validSlides[selectedSlideIndex]!.id}
+                    fixedSize={true}
+                  />
+                ) : (
+                  <SlideHTMLRenderer
+                    html={validSlides[selectedSlideIndex]!.html!}
+                    slideId={validSlides[selectedSlideIndex]!.id}
+                    fixedSize={true}
+                  />
+                )}
               </div>
             </div>
 

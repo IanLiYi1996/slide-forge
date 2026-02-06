@@ -1,6 +1,7 @@
 """API endpoint routers."""
 
 from .env_vars import router as env_vars_router
+from .image_generation import router as image_generation_router
 from .invocations import router as invocations_router
 from .mcp_servers import router as mcp_servers_router
 from .messages import router as messages_router
@@ -14,4 +15,5 @@ __all__ = [
     "invocations_router",
     "env_vars_router",
     "mcp_servers_router",
+    "image_generation_router",
 ]

@@ -5,6 +5,7 @@ Extracts slide HTML content from agent responses using regex patterns.
 Ported from the Next.js frontend implementation.
 """
 
+import json
 import re
 from dataclasses import dataclass
 from typing import Optional
@@ -17,6 +18,8 @@ class DetectedSlide:
     index: int
     html: str
     raw_content: str
+    image_url: Optional[str] = None
+    slide_type: str = "html"
 
 
 class SlideDetector:
@@ -48,6 +51,17 @@ class SlideDetector:
 
     # Fallback pattern for regular html code blocks
     HTML_PATTERN = re.compile(r"```html\s*([\s\S]*?)\s*```")
+
+    # Pattern to match image slide boundaries
+    IMAGE_SLIDE_PATTERN_RE = re.compile(
+        r"\U0001F5BC\uFE0F"  # 🖼️
+        r"IMAGE_SLIDE_START:(\d+)"
+        r"\U0001F5BC\uFE0F"  # 🖼️
+        r"([\s\S]*?)"
+        r"\U0001F5BC\uFE0F"  # 🖼️
+        r"IMAGE_SLIDE_END:\1"
+        r"\U0001F5BC\uFE0F"  # 🖼️
+    )
 
     def __init__(self):
         """Initialize the slide detector."""
@@ -95,10 +109,42 @@ class SlideDetector:
                 self._detected_slides[slide_index] = slide
                 new_slides.append(slide)
 
+        # Find image slide matches
+        image_matches = list(self.IMAGE_SLIDE_PATTERN_RE.finditer(self._buffer))
+
+        for match in image_matches:
+            slide_index = int(match.group(1))
+            slide_content = match.group(2).strip()
+
+            # Skip if already detected
+            if slide_index in self._detected_slides:
+                continue
+
+            # Parse JSON content
+            try:
+                data = json.loads(slide_content)
+                image_url = data.get("image_url", "")
+                if image_url:
+                    slide = DetectedSlide(
+                        index=slide_index,
+                        html="",
+                        raw_content=slide_content,
+                        image_url=image_url,
+                        slide_type="image",
+                    )
+                    self._detected_slides[slide_index] = slide
+                    new_slides.append(slide)
+            except json.JSONDecodeError:
+                pass
+
         # Trim buffer to remove processed content
+        last_end = 0
         if matches:
-            last_match = matches[-1]
-            self._buffer = self._buffer[last_match.end() :]
+            last_end = max(last_end, matches[-1].end())
+        if image_matches:
+            last_end = max(last_end, image_matches[-1].end())
+        if last_end > 0:
+            self._buffer = self._buffer[last_end:]
 
         return new_slides
 

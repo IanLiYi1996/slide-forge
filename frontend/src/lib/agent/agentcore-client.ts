@@ -48,6 +48,8 @@ export interface AgentCoreEvent {
   tool_input?: Record<string, unknown>;
   slide_index?: number;
   html?: string;
+  image_url?: string;
+  slide_type?: string;
   timestamp?: number;
   cost_usd?: number;
   num_turns?: number;
