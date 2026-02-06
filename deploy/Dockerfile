@@ -36,6 +36,9 @@ RUN apt update && \
 # Copy backend application code (pyproject.toml is in backend/)
 COPY backend/ /app/backend/
 
+# Copy project-level skills (installed to ~/.claude/skills/ at startup)
+COPY .claude/skills/ /app/skills/
+
 # Copy serve script
 COPY deploy/serve /app/serve
 RUN chmod +x /app/serve

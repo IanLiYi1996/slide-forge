@@ -77,6 +77,7 @@ class AgentSession:
         user_id: Optional[str] = None,
         model: Optional[str] = None,
         cwd: Optional[str] = None,
+        mcp_server_ids: Optional[list[str]] = None,
     ):
         """
         Initialize an agent session.
@@ -86,6 +87,7 @@ class AgentSession:
             user_id: User ID for tracking
             model: Optional model name (defaults to ANTHROPIC_MODEL env var)
             cwd: Working directory for the session
+            mcp_server_ids: List of MCP server names to enable
         """
         self.session_id = session_id
         self.user_id = user_id
@@ -105,6 +107,9 @@ class AgentSession:
         self.cwd = cwd
         self.model = model or os.environ.get("ANTHROPIC_MODEL")
         self.current_model = self.model
+
+        # MCP servers configuration
+        self.mcp_server_ids = mcp_server_ids or []
 
         # Slide detection
         self.slide_detector = SlideDetector()
@@ -137,17 +142,26 @@ class AgentSession:
                 "preset": "claude_code",
             }
 
-        # Configure allowed tools for slide generation
-        allowed_tools = [
-            "Read",
-            "Write",
-            "Edit",
-            "Glob",
-            "Grep",
+        # Configure allowed tools from environment variable
+        default_tools = [
+            "Read", "Write", "Edit",
+            "Glob", "Grep",
             "Bash",
+            "NotebookEdit",
             "WebFetch",
-            "WebSearch",
+            "Task", "TodoWrite",
+            "BashOutput", "KillShell",
+            "AskUserQuestion",
+            "Skill", "SlashCommand",
+            "ExitPlanMode",
+            "ListMcpResourcesTool", "ReadMcpResourceTool",
         ]
+
+        allowed_tools_env = os.environ.get("ALLOWED_TOOLS", "").strip()
+        if allowed_tools_env:
+            allowed_tools = [tool.strip() for tool in allowed_tools_env.split(",") if tool.strip()]
+        else:
+            allowed_tools = default_tools
 
         options_dict = {
             "allowed_tools": allowed_tools,
@@ -155,6 +169,7 @@ class AgentSession:
             "max_turns": 0,
             "can_use_tool": self.permission_callback,
             "permission_mode": "default",
+            "setting_sources": ["user", "project"],
         }
 
         if resume_session_id:
@@ -165,6 +180,16 @@ class AgentSession:
 
         if self.cwd:
             options_dict["cwd"] = self.cwd
+
+        # Load MCP servers if specified
+        if self.mcp_server_ids:
+            print(f"[Session] Loading MCP servers: {self.mcp_server_ids}")
+            mcp_servers = await self._load_mcp_servers()
+            if mcp_servers:
+                options_dict["mcp_servers"] = mcp_servers
+                print(f"[Session] Loaded {len(mcp_servers)} MCP server(s)")
+            else:
+                print(f"[Session] No MCP servers loaded (config not found or invalid)")
 
         print(f"[Session] SDK options: {list(options_dict.keys())}")
 
@@ -197,6 +222,68 @@ class AgentSession:
             finally:
                 self.status = "disconnected"
 
+    async def _load_mcp_servers(self) -> dict[str, Any]:
+        """
+        Load MCP servers configuration from ~/.claude/mcp.json.
+
+        Returns:
+            Dictionary of MCP server configurations keyed by server name
+        """
+        import json
+
+        mcp_config_path = Path.home() / ".claude" / "mcp.json"
+
+        if not mcp_config_path.exists():
+            print(f"[Session] MCP config file not found: {mcp_config_path}")
+            return {}
+
+        try:
+            with open(mcp_config_path, "r") as f:
+                config_data = json.load(f)
+
+            all_servers = config_data.get("mcpServers", {})
+            mcp_servers = {}
+
+            for server_name in self.mcp_server_ids:
+                if server_name not in all_servers:
+                    print(f"[Session] Warning: MCP server '{server_name}' not found in config")
+                    continue
+
+                server_config = all_servers[server_name]
+                connection_type = server_config.get("type", "stdio")
+
+                if connection_type == "stdio":
+                    mcp_servers[server_name] = {
+                        "type": "stdio",
+                        "command": server_config.get("command"),
+                        "args": server_config.get("args", []),
+                        "env": server_config.get("env", {}),
+                    }
+                    print(f"[Session] Configured MCP server '{server_name}' (stdio)")
+                elif connection_type == "sse":
+                    mcp_servers[server_name] = {
+                        "type": "sse",
+                        "url": server_config.get("url"),
+                    }
+                    print(f"[Session] Configured MCP server '{server_name}' (sse)")
+                elif connection_type == "http":
+                    mcp_servers[server_name] = {
+                        "type": "http",
+                        "url": server_config.get("url"),
+                    }
+                    print(f"[Session] Configured MCP server '{server_name}' (http)")
+                else:
+                    print(f"[Session] Warning: Unknown MCP server type '{connection_type}' for '{server_name}'")
+
+            return mcp_servers
+
+        except json.JSONDecodeError as e:
+            print(f"[Session] Error: Invalid JSON in MCP config file: {str(e)}")
+            return {}
+        except Exception as e:
+            print(f"[Session] Error loading MCP servers: {str(e)}")
+            return {}
+
     async def permission_callback(
         self, tool_name: str, input_data: dict, context: ToolPermissionContext
     ) -> PermissionResultAllow | PermissionResultDeny:
@@ -215,19 +302,26 @@ class AgentSession:
         """
         print(f"[Permission] Tool: {tool_name}")
 
-        # Auto-allow common tools for slide generation
-        auto_allow_tools = [
-            "Read",
-            "Write",
-            "Edit",
-            "Glob",
-            "Grep",
-            "Bash",
-            "WebSearch",
-            "WebFetch",
-            "Task",
-            "TodoWrite",
-        ]
+        # Auto-allow all MCP tools (tools from MCP servers)
+        if tool_name.startswith("mcp__"):
+            print(f"[Permission] Auto-allow MCP tool: {tool_name}")
+            return PermissionResultAllow()
+
+        # Auto-allow tools based on environment variable
+        auto_allow_tools_env = os.environ.get("AUTO_ALLOW_TOOLS", "").strip()
+        if auto_allow_tools_env:
+            auto_allow_tools = [tool.strip() for tool in auto_allow_tools_env.split(",") if tool.strip()]
+        else:
+            auto_allow_tools = [
+                "Read", "Write", "Edit", "NotebookEdit",
+                "Glob", "Grep",
+                "Bash", "KillShell",
+                "WebSearch", "WebFetch",
+                "Task", "TaskOutput", "TodoWrite",
+                "AskUserQuestion",
+                "EnterPlanMode", "ExitPlanMode",
+                "Skill",
+            ]
 
         if tool_name in auto_allow_tools:
             print(f"[Permission] Auto-allow: {tool_name}")
@@ -519,6 +613,14 @@ class AgentSession:
             "slides_detected": len(self.slide_detector.get_all_slides()),
         }
         print(f"[Session] send_message_stream END")
+
+        # Backup to S3 after task completion (if S3 sync is enabled)
+        s3_sync_enabled = os.environ.get("ENABLE_S3_SYNC", "true").lower() in ["true", "1", "yes"]
+        if s3_sync_enabled:
+            from .claude_sync_manager import get_claude_sync_manager
+            sync_manager = get_claude_sync_manager()
+            if sync_manager:
+                asyncio.create_task(sync_manager.backup_user_claude_dir(self.user_id))
 
     async def interrupt(self):
         """

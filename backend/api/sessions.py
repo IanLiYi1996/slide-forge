@@ -46,6 +46,7 @@ async def create_session(request: CreateSessionRequest):
         resume_session_id=request.resume_session_id,
         model=request.model,
         cwd=request.cwd,
+        mcp_server_ids=request.mcp_server_ids,
     )
 
     return CreateSessionResponse(

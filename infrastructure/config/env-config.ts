@@ -31,6 +31,20 @@ export interface EnvConfig {
     anthropicApiKey?: string;
   };
 
+  // Bedrock 模型配置
+  bedrockModels: {
+    anthropicModel?: string;
+    smallFastModel?: string;
+    defaultHaikuModel?: string;
+    disablePromptCaching?: string;
+  };
+
+  // S3 同步配置（.claude 目录备份）
+  s3Sync: {
+    enableS3Sync: string;
+    backupIntervalMinutes?: string;
+  };
+
   // AWS 配置
   aws: {
     region: string;
@@ -63,6 +77,16 @@ export function getEnvConfig(): EnvConfig {
     claudeConfig: {
       useBedrock: process.env.CLAUDE_CODE_USE_BEDROCK === '1',
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+    },
+    bedrockModels: {
+      anthropicModel: process.env.ANTHROPIC_MODEL,
+      smallFastModel: process.env.ANTHROPIC_SMALL_FAST_MODEL,
+      defaultHaikuModel: process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL,
+      disablePromptCaching: process.env.DISABLE_PROMPT_CACHING,
+    },
+    s3Sync: {
+      enableS3Sync: process.env.ENABLE_S3_SYNC || 'true',
+      backupIntervalMinutes: process.env.CLAUDE_BACKUP_INTERVAL_MINUTES,
     },
     aws: {
       region: process.env.AWS_REGION || 'us-east-1',

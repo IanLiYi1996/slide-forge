@@ -110,7 +110,16 @@ async def send_message_stream(session_id: str, request: SendMessageRequest):
     print(f"[API] message: {request.message[:100] if isinstance(request.message, str) else request.message}")
 
     manager = get_session_manager()
-    session = await manager.get_session(session_id)
+
+    # Use get_or_ensure_session to handle model/MCP config changes
+    if request.model or request.mcp_server_ids is not None:
+        session = await manager.get_or_ensure_session(
+            session_id,
+            model=request.model,
+            mcp_server_ids=request.mcp_server_ids,
+        )
+    else:
+        session = await manager.get_session(session_id)
 
     async def event_generator():
         """Generate SSE events from the agent response."""
