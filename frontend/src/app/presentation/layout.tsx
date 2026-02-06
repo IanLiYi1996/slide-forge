@@ -11,7 +11,7 @@ export default function PresentationLayout({
       <PresentationGenerationManager />
       <div className="flex h-full w-full flex-col">
         <main className="relative flex flex-1 overflow-hidden">
-          <div className="sheet-container h-full flex-1 place-items-center overflow-y-auto overflow-x-hidden">
+          <div className="sheet-container h-full w-full flex-1 overflow-y-auto overflow-x-hidden">
             {children}
           </div>
         </main>
