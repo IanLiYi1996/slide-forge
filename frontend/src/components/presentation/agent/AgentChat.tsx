@@ -733,10 +733,10 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
 
       {/* 输入区域容器 */}
       <div className="flex-shrink-0 border-t bg-muted/30 w-full">
-        <div className="w-full max-w-4xl mx-auto px-4 py-4">
+        <div className="w-full max-w-6xl mx-auto px-4 py-4">
 
           {/* Web Search Toggle - 在输入框外上方 */}
-          <div className="mb-3 flex items-center gap-2">
+          <div className="max-w-4xl mx-auto mb-3 flex items-center gap-2">
             <AgentWebSearchToggle />
             <span className="text-sm text-muted-foreground">
               {enableWebSearch
@@ -747,6 +747,7 @@ export function AgentChat({ sessionId, initialMessages = [] }: AgentChatProps) {
 
           {/* 精美输入框容器 */}
           <div className={`
+            max-w-4xl mx-auto
             rounded-2xl border border-border bg-background
             shadow-[0_0_15px_rgba(0,0,0,0.08)]
             hover:shadow-[0_0_20px_rgba(0,0,0,0.12)]
