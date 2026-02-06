@@ -96,6 +96,14 @@ export class SlideForgeStack extends cdk.Stack {
       environmentVariables: {
         // AI Configuration
         CLAUDE_CODE_USE_BEDROCK: envConfig.claudeConfig.useBedrock ? '1' : '0',
+        // Bedrock model configuration
+        ...(envConfig.bedrockModels.anthropicModel && { ANTHROPIC_MODEL: envConfig.bedrockModels.anthropicModel }),
+        ...(envConfig.bedrockModels.smallFastModel && { ANTHROPIC_SMALL_FAST_MODEL: envConfig.bedrockModels.smallFastModel }),
+        ...(envConfig.bedrockModels.defaultHaikuModel && { ANTHROPIC_DEFAULT_HAIKU_MODEL: envConfig.bedrockModels.defaultHaikuModel }),
+        ...(envConfig.bedrockModels.disablePromptCaching && { DISABLE_PROMPT_CACHING: envConfig.bedrockModels.disablePromptCaching }),
+        // S3 sync configuration (.claude directory backup)
+        ENABLE_S3_SYNC: envConfig.s3Sync.enableS3Sync,
+        ...(envConfig.s3Sync.backupIntervalMinutes && { CLAUDE_BACKUP_INTERVAL_MINUTES: envConfig.s3Sync.backupIntervalMinutes }),
         // Optional third-party API keys (if configured)
         ...(envConfig.thirdParty.tavilyApiKey && { TAVILY_API_KEY: envConfig.thirdParty.tavilyApiKey }),
         ...(envConfig.thirdParty.unsplashAccessKey && { UNSPLASH_ACCESS_KEY: envConfig.thirdParty.unsplashAccessKey }),
