@@ -16,22 +16,54 @@ Request format:
 """
 
 import json
+import logging
 import re
 from typing import Any, Dict, Optional
 
+import jwt
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..core import SessionManager
+from ..core.claude_sync_manager import get_claude_sync_manager
 from ..models import (
     CreateSessionRequest,
     SendMessageRequest,
     SetPermissionModeRequest,
 )
 
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter()
+
+
+def extract_user_id_from_request(http_request: Request) -> Optional[str]:
+    """
+    Extract user_id from the JWT Authorization header.
+
+    Decodes the JWT without signature verification since AgentCore
+    already validates the token via the JWT authorizer.
+
+    Args:
+        http_request: The incoming FastAPI Request
+
+    Returns:
+        User ID (sub claim) if found, None otherwise
+    """
+    auth_header = http_request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+
+    token = auth_header[len("Bearer "):]
+    try:
+        # Decode without verification — AgentCore already validated the JWT
+        payload = jwt.decode(token, options={"verify_signature": False})
+        return payload.get("sub")
+    except Exception as e:
+        logger.debug(f"Failed to decode JWT: {e}")
+        return None
 
 
 class InvocationRequest(BaseModel):
@@ -91,7 +123,7 @@ def extract_session_id(path: str, path_params: Optional[Dict[str, str]] = None) 
 
 
 @router.post("/invocations")
-async def handle_invocation(request: InvocationRequest):
+async def handle_invocation(request: InvocationRequest, http_request: Request):
     """
     Unified invocations endpoint for AgentCore.
 
@@ -109,9 +141,17 @@ async def handle_invocation(request: InvocationRequest):
     - POST /sessions/{session_id}/permission_mode -> Set permission mode
     - POST /sessions/{session_id}/permissions/respond -> Respond to permission
     - DELETE /sessions/{session_id} -> Close session
+    - GET /env-vars -> List environment variables
+    - POST /env-vars -> Set environment variable
+    - PUT /env-vars -> Replace all environment variables
+    - DELETE /env-vars/{key} -> Delete environment variable
+    - GET /mcp-servers -> List MCP servers
+    - POST /mcp-servers -> Add MCP server
+    - DELETE /mcp-servers/{server_name} -> Delete MCP server
 
     Args:
         request: Invocation request with path, method, and payload
+        http_request: Raw FastAPI request for header access
 
     Returns:
         Response from the appropriate handler
@@ -123,6 +163,16 @@ async def handle_invocation(request: InvocationRequest):
     query_params = request.query_params or {}
 
     manager = get_session_manager()
+
+    # Trigger initial .claude directory sync from S3 if enabled
+    sync_manager = get_claude_sync_manager()
+    if sync_manager:
+        user_id = extract_user_id_from_request(http_request)
+        if user_id:
+            try:
+                await sync_manager.ensure_initial_sync(user_id)
+            except Exception as e:
+                logger.warning(f"Initial .claude sync failed for user {user_id}: {e}")
 
     print(f"[Invocations] Routing: {method} {path}")
     print(f"[Invocations] Payload: {json.dumps(payload)[:200]}...")
@@ -142,6 +192,7 @@ async def handle_invocation(request: InvocationRequest):
                 resume_session_id=session_request.resume_session_id,
                 model=session_request.model,
                 cwd=session_request.cwd,
+                mcp_server_ids=session_request.mcp_server_ids,
             )
             return {
                 "session_id": session_id,
@@ -199,8 +250,17 @@ async def handle_invocation(request: InvocationRequest):
                 raise HTTPException(status_code=400, detail="Session ID required")
 
             print(f"[Invocations] Streaming message to session {session_id}")
-            session = await manager.get_session(session_id)
             message_request = SendMessageRequest(**payload)
+
+            # Use get_or_ensure_session to handle model/MCP config changes
+            if message_request.model or message_request.mcp_server_ids is not None:
+                session = await manager.get_or_ensure_session(
+                    session_id,
+                    model=message_request.model,
+                    mcp_server_ids=message_request.mcp_server_ids,
+                )
+            else:
+                session = await manager.get_session(session_id)
 
             async def event_generator():
                 """Generate SSE events from the agent response."""
@@ -281,6 +341,50 @@ async def handle_invocation(request: InvocationRequest):
                 except Exception as e:
                     print(f"Failed to close session {session_info.session_id}: {e}")
             return {"status": "success", "closed_count": closed_count}
+
+        # ========================================
+        # Environment Variables Routes
+        # ========================================
+
+        if path == "/env-vars" and method == "GET":
+            from .env_vars import get_env_vars
+            return await get_env_vars()
+
+        if path == "/env-vars" and method == "POST":
+            from .env_vars import set_env_var
+            from ..models.schemas import SetEnvVarRequest
+            env_request = SetEnvVarRequest(**payload)
+            return await set_env_var(env_request)
+
+        if re.match(r"^/env-vars/[^/]+$", path) and method == "DELETE":
+            from .env_vars import delete_env_var
+            key = path.split("/env-vars/", 1)[1]
+            return await delete_env_var(key)
+
+        if path == "/env-vars" and method == "PUT":
+            from .env_vars import set_all_env_vars
+            from ..models.schemas import SetAllEnvVarsRequest
+            env_request = SetAllEnvVarsRequest(**payload)
+            return await set_all_env_vars(env_request)
+
+        # ========================================
+        # MCP Servers Routes
+        # ========================================
+
+        if path == "/mcp-servers" and method == "GET":
+            from .mcp_servers import list_mcp_servers
+            return await list_mcp_servers()
+
+        if path == "/mcp-servers" and method == "POST":
+            from .mcp_servers import add_mcp_server
+            from ..models.schemas import AddMCPServerRequest
+            mcp_request = AddMCPServerRequest(**payload)
+            return await add_mcp_server(mcp_request)
+
+        if re.match(r"^/mcp-servers/[^/]+$", path) and method == "DELETE":
+            from .mcp_servers import delete_mcp_server
+            server_name = path.split("/mcp-servers/", 1)[1]
+            return await delete_mcp_server(server_name)
 
         # ========================================
         # Route Not Found

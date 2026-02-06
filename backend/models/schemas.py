@@ -17,6 +17,7 @@ class CreateSessionRequest(BaseModel):
     resume_session_id: Optional[str] = None
     model: Optional[str] = None
     cwd: Optional[str] = None
+    mcp_server_ids: Optional[list[str]] = None
 
 
 class CreateSessionResponse(BaseModel):
@@ -33,6 +34,7 @@ class SendMessageRequest(BaseModel):
     message: str | dict[str, Any]
     model: Optional[str] = None
     enable_web_search: bool = True
+    mcp_server_ids: Optional[list[str]] = None
 
 
 class MessageBlock(BaseModel):
@@ -122,3 +124,103 @@ class SlideCompleteEvent(BaseModel):
     slide_index: int
     html: str
     timestamp: int
+
+
+# ============================================================================
+# MCP Server Schemas
+# ============================================================================
+
+
+class MCPServer(BaseModel):
+    """MCP server configuration."""
+
+    type: str  # "stdio", "sse", or "http"
+    command: Optional[str] = None
+    args: Optional[list[str]] = None
+    env: Optional[dict[str, str]] = None
+    url: Optional[str] = None
+
+
+class ListMCPServersResponse(BaseModel):
+    """Response containing list of MCP servers."""
+
+    servers: dict[str, MCPServer]
+    mcp_config_path: str
+    exists: bool
+
+
+class AddMCPServerRequest(BaseModel):
+    """Request to add a new MCP server."""
+
+    name: str
+    type: str
+    command: Optional[str] = None
+    args: Optional[list[str]] = None
+    env: Optional[dict[str, str]] = None
+    url: Optional[str] = None
+
+
+class AddMCPServerResponse(BaseModel):
+    """Response from adding MCP server."""
+
+    status: str
+    message: str
+    server_name: str
+
+
+class DeleteMCPServerResponse(BaseModel):
+    """Response from deleting MCP server."""
+
+    status: str
+    message: str
+    server_name: str
+
+
+# ============================================================================
+# Environment Variables Schemas
+# ============================================================================
+
+
+class GetEnvVarsResponse(BaseModel):
+    """Response containing environment variables from settings.json."""
+
+    env_vars: dict[str, str]
+    settings_path: str
+    exists: bool
+
+
+class SetEnvVarRequest(BaseModel):
+    """Request to set a single environment variable."""
+
+    key: str
+    value: str
+
+
+class SetEnvVarResponse(BaseModel):
+    """Response from setting an environment variable."""
+
+    status: str
+    message: str
+    key: str
+
+
+class DeleteEnvVarResponse(BaseModel):
+    """Response from deleting an environment variable."""
+
+    status: str
+    message: str
+    key: str
+
+
+class SetAllEnvVarsRequest(BaseModel):
+    """Request to set all environment variables at once."""
+
+    env_vars: dict[str, str]
+
+
+class SetAllEnvVarsResponse(BaseModel):
+    """Response from setting all environment variables."""
+
+    status: str
+    message: str
+    count: int
