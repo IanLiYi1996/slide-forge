@@ -169,7 +169,7 @@ class AgentSession:
             "max_turns": 0,
             "can_use_tool": self.permission_callback,
             "permission_mode": "default",
-            "setting_sources": ["user"],
+            "setting_sources": ["user", "project"],
         }
 
         if resume_session_id:
