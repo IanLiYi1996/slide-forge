@@ -8,6 +8,7 @@ import {
 } from "@/services/s3/user-service";
 import NextAuth, { type DefaultSession, type Session } from "next-auth";
 import CognitoProvider from "next-auth/providers/cognito";
+import type { JWT } from "next-auth/jwt";
 
 declare module "next-auth" {
   interface Session extends DefaultSession {
@@ -18,11 +19,120 @@ declare module "next-auth" {
       role: string;
       isAdmin: boolean;
     } & DefaultSession["user"];
+    accessToken?: string;
+    idToken?: string;
+    error?: string;
   }
 
   interface User {
     hasAccess: boolean;
     role: string;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    accessToken?: string;
+    idToken?: string;
+    refreshToken?: string;
+    expiresAt?: number;
+    error?: "RefreshTokenError" | "TokenExpired";
+  }
+}
+
+// Cache for the token endpoint URL
+let cachedTokenEndpoint: string | null = null;
+
+/**
+ * Get the Cognito token endpoint by fetching the OIDC discovery document
+ */
+async function getTokenEndpoint(): Promise<string | null> {
+  if (cachedTokenEndpoint) {
+    return cachedTokenEndpoint;
+  }
+
+  try {
+    const discoveryUrl = `${env.COGNITO_ISSUER}/.well-known/openid-configuration`;
+    console.log("[Auth] Fetching OIDC discovery from:", discoveryUrl);
+
+    const response = await fetch(discoveryUrl);
+    if (!response.ok) {
+      console.error("[Auth] Failed to fetch OIDC discovery:", response.status);
+      return null;
+    }
+
+    const config = await response.json() as { token_endpoint?: string };
+    cachedTokenEndpoint = config.token_endpoint ?? null;
+
+    console.log("[Auth] Token endpoint discovered:", cachedTokenEndpoint);
+    return cachedTokenEndpoint;
+  } catch (error) {
+    console.error("[Auth] Error fetching OIDC discovery:", error);
+    return null;
+  }
+}
+
+/**
+ * Refresh Cognito tokens using the refresh_token grant
+ *
+ * Uses the OIDC discovery document to find the token endpoint,
+ * which handles different Cognito configurations (hosted domain, custom domain, etc.)
+ *
+ * @param refreshToken - The Cognito refresh token
+ * @returns New token set or null if refresh failed
+ */
+async function refreshCognitoTokens(refreshToken: string): Promise<{
+  access_token: string;
+  id_token: string;
+  expires_at: number;
+} | null> {
+  try {
+    const tokenEndpoint = await getTokenEndpoint();
+
+    if (!tokenEndpoint) {
+      console.error("[Auth] Could not determine token endpoint");
+      return null;
+    }
+
+    console.log("[Auth] Refreshing Cognito tokens...");
+
+    const response = await fetch(tokenEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: env.COGNITO_CLIENT_ID,
+        client_secret: env.COGNITO_CLIENT_SECRET,
+        refresh_token: refreshToken,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[Auth] Token refresh failed:", response.status, errorText);
+      return null;
+    }
+
+    const tokens = await response.json() as {
+      access_token: string;
+      id_token: string;
+      expires_in: number;
+      token_type: string;
+    };
+
+    console.log("[Auth] Token refresh successful");
+
+    return {
+      access_token: tokens.access_token,
+      id_token: tokens.id_token,
+      // expires_in is in seconds, convert to Unix timestamp
+      expires_at: Math.floor(Date.now() / 1000) + tokens.expires_in,
+    };
+  } catch (error) {
+    console.error("[Auth] Token refresh error:", error);
+    return null;
   }
 }
 
@@ -47,8 +157,14 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         token.isAdmin = user.role === "ADMIN";
       }
 
-      // OAuth login: get latest user info from S3
+      // OAuth login: store tokens and get latest user info from S3
       if (account && token.id) {
+        // Store Cognito tokens for AgentCore
+        token.accessToken = account.access_token;
+        token.idToken = account.id_token;
+        token.refreshToken = account.refresh_token;
+        token.expiresAt = account.expires_at;
+
         const profile = await getUserProfile(token.id as string);
         if (profile) {
           token.hasAccess = profile.hasAccess;
@@ -77,6 +193,34 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         }
       }
 
+      // Check if token needs refresh (refresh 60 seconds before expiry for safety)
+      const tokenExpiresAt = token.expiresAt as number | undefined;
+      const bufferSeconds = 60;
+      const shouldRefresh = tokenExpiresAt && Date.now() >= (tokenExpiresAt - bufferSeconds) * 1000;
+
+      if (shouldRefresh && token.refreshToken) {
+        console.log("[Auth] Access token expired or expiring soon, attempting refresh...");
+
+        const refreshedTokens = await refreshCognitoTokens(token.refreshToken as string);
+
+        if (refreshedTokens) {
+          // Update token with new values
+          token.accessToken = refreshedTokens.access_token;
+          token.idToken = refreshedTokens.id_token;
+          token.expiresAt = refreshedTokens.expires_at;
+          token.error = undefined; // Clear any previous error
+          console.log("[Auth] Token refreshed successfully, new expiry:", new Date(refreshedTokens.expires_at * 1000).toISOString());
+        } else {
+          // Refresh failed - user needs to re-authenticate
+          console.error("[Auth] Token refresh failed, user must re-authenticate");
+          token.error = "RefreshTokenError";
+        }
+      } else if (shouldRefresh && !token.refreshToken) {
+        // No refresh token available
+        console.error("[Auth] Token expired but no refresh token available");
+        token.error = "TokenExpired";
+      }
+
       return token;
     },
 
@@ -86,6 +230,13 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       session.user.location = token.location as string;
       session.user.role = (token.role as string) ?? "USER";
       session.user.isAdmin = token.role === "ADMIN";
+
+      // Expose tokens for AgentCore API calls
+      // Use idToken for AgentCore JWT auth (contains user claims)
+      session.accessToken = token.accessToken as string | undefined;
+      session.idToken = token.idToken as string | undefined;
+      session.error = token.error as string | undefined;
+
       return session;
     },
 

@@ -4,11 +4,11 @@ import { Construct } from 'constructs';
 import { VpcConstruct } from './network/vpc';
 import { S3BucketsConstruct } from './storage/s3-buckets';
 import { StaticAssetsDeployment } from './storage/static-assets-deployment';
-import { EcsNextjsServiceConstruct } from './compute/ecs-nextjs-service';
+import { AgentCoreConstruct } from './compute/agentcore-construct';
+import { FargateNextjsServiceConstruct } from './compute/fargate-nextjs-service';
 import { CloudFrontConstruct } from './cdn/cloudfront';
 import { CognitoConstruct } from './auth/cognito';
 import { AdminUserCreator } from './auth/admin-user-creator';
-import { AgentSdkRole } from './auth/agent-sdk-role';
 import { getEnvConfig, validateEnvConfig, printEnvStatus } from '../config/env-config';
 
 export interface SlideForgeStackProps extends cdk.StackProps {
@@ -49,16 +49,10 @@ export class SlideForgeStack extends cdk.Stack {
       stackName,
     });
 
-    // 3. Create Cognito User Pool (在 ECS 之前，不需要 CloudFront URL)
+    // 3. Create Cognito User Pool (before compute resources)
     const cognitoConstruct = new CognitoConstruct(this, 'Auth', {
       stackName,
       adminEmail: envConfig.cognito.adminEmail,
-    });
-
-    // 5. Create Claude Agent SDK IAM Role (在 ECS 之前)
-    const agentSdkRole = new AgentSdkRole(this, 'AgentSdkRole', {
-      stackName,
-      uploadsBucket: s3Construct.uploadsBucket,
     });
 
     // 6. Create Application Load Balancer (before CloudFront)
@@ -85,11 +79,34 @@ export class SlideForgeStack extends cdk.Stack {
       stackName,
     });
 
-    // 4. Create ECS Service (after CloudFront, with distribution domain)
-    // Note: Data storage uses S3 instead of database (PostgreSQL removed)
-    const ecsConstruct = new EcsNextjsServiceConstruct(this, 'Compute', {
+    // 4. Create AgentCore Backend (for AI agent processing)
+    // AgentCore runs the Strands-based agent in Bedrock AgentCore Runtime
+    // Note: Runtime name must match pattern [a-zA-Z][a-zA-Z0-9_]{0,47}
+    // Set SKIP_AGENTCORE_RUNTIME=true to deploy infrastructure first without runtime
+    const skipRuntimeCreation = process.env.SKIP_AGENTCORE_RUNTIME === 'true';
+    const runtimeName = stackName.replace(/-/g, '_').slice(0, 40) + '_agent';
+    const agentCoreConstruct = new AgentCoreConstruct(this, 'AgentCore', {
+      stackName,
+      runtimeName,
+      skipRuntimeCreation,
+      workspaceBucket: s3Construct.uploadsBucket,
+      cognitoUserPoolId: cognitoConstruct.userPool.userPoolId,
+      cognitoClientId: cognitoConstruct.oidc.clientId,
+      networkMode: 'PUBLIC',
+      environmentVariables: {
+        // AI Configuration
+        CLAUDE_CODE_USE_BEDROCK: envConfig.claudeConfig.useBedrock ? '1' : '0',
+        // Optional third-party API keys (if configured)
+        ...(envConfig.thirdParty.tavilyApiKey && { TAVILY_API_KEY: envConfig.thirdParty.tavilyApiKey }),
+        ...(envConfig.thirdParty.unsplashAccessKey && { UNSPLASH_ACCESS_KEY: envConfig.thirdParty.unsplashAccessKey }),
+      },
+    });
+
+    // 5. Create Fargate Frontend Service (stateless Next.js frontend)
+    // The frontend calls AgentCore for agent operations via AGENTCORE_RUNTIME_URL
+    const fargateConstruct = new FargateNextjsServiceConstruct(this, 'Compute', {
       vpc: vpcConstruct.vpc,
-      alb: alb, // Pass existing ALB
+      alb: alb,
       albSecurityGroup: vpcConstruct.albSecurityGroup,
       ecsSecurityGroup: vpcConstruct.ecsSecurityGroup,
       uploadsBucket: s3Construct.uploadsBucket,
@@ -97,7 +114,9 @@ export class SlideForgeStack extends cdk.Stack {
       kmsKey: s3Construct.kmsKey,
       stackName,
       distributionDomain: cloudfrontConstruct.distribution.distributionDomainName,
-      // 传递环境变量配置
+      // Pass AgentCore Runtime URL for backend API calls
+      agentCoreRuntimeUrl: agentCoreConstruct.runtimeUrl,
+      // Environment configuration for frontend
       envConfig: {
         claudeUseBedrock: envConfig.claudeConfig.useBedrock,
         anthropicApiKey: envConfig.claudeConfig.anthropicApiKey,
@@ -108,25 +127,13 @@ export class SlideForgeStack extends cdk.Stack {
         uploadthingToken: envConfig.thirdParty.uploadthingToken,
         unsplashAccessKey: envConfig.thirdParty.unsplashAccessKey,
       },
-      // 传递 Cognito 配置
+      // Cognito authentication configuration
       cognitoConfig: {
         clientId: cognitoConstruct.oidc.clientId,
         clientSecret: cognitoConstruct.oidc.clientSecret,
         issuer: cognitoConstruct.oidc.issuer,
       },
-      // 传递 Agent SDK Role ARN
-      agentSdkRoleArn: agentSdkRole.role.roleArn,
     });
-
-    // 授权 ECS Task Role 可以代入 Agent SDK Role
-    ecsConstruct.taskRole.addToPolicy(
-      new cdk.aws_iam.PolicyStatement({
-        sid: 'AssumeAgentSdkRole',
-        effect: cdk.aws_iam.Effect.ALLOW,
-        actions: ['sts:AssumeRole'],
-        resources: [agentSdkRole.role.roleArn],
-      })
-    );
 
     // 9. 动态更新 Cognito Callback URLs（使用 CloudFront URL）
     const applicationUrl = `https://${cloudfrontConstruct.distribution.distributionDomainName}`;
@@ -197,8 +204,16 @@ export class SlideForgeStack extends cdk.Stack {
       exportName: `${stackName}-cognito-issuer`,
     });
 
-    // Agent SDK Role Outputs are already defined in AgentSdkRole construct
-    // Removed duplicate outputs to avoid CloudFormation export name conflicts
+    // AgentCore Outputs (main outputs are in the construct, add summary here)
+    new cdk.CfnOutput(this, 'AgentCoreRuntimeUrl', {
+      value: agentCoreConstruct.runtimeUrl,
+      description: 'AgentCore Runtime URL for backend API',
+    });
+
+    new cdk.CfnOutput(this, 'AgentCoreECRRepository', {
+      value: agentCoreConstruct.ecrRepository.repositoryUri,
+      description: 'ECR Repository for AgentCore container images',
+    });
 
     new cdk.CfnOutput(this, 'DeploymentInstructions', {
       value: [
@@ -207,24 +222,32 @@ export class SlideForgeStack extends cdk.Stack {
         'Slide-Forge Deployment Successful!',
         '========================================',
         '',
-        '📋 Next Steps:',
+        'Next Steps:',
         '',
-        '1. Create optional secrets in AWS Secrets Manager (if not already configured):',
+        '1. Build and push the AgentCore container:',
+        `   cd agentcore && docker build -t ${agentCoreConstruct.ecrRepository.repositoryUri}:latest .`,
+        `   aws ecr get-login-password | docker login --username AWS --password-stdin ${agentCoreConstruct.ecrRepository.repositoryUri}`,
+        `   docker push ${agentCoreConstruct.ecrRepository.repositoryUri}:latest`,
+        '',
+        '2. Create optional secrets in AWS Secrets Manager (if not already configured):',
         `   aws secretsmanager create-secret --name ${stackName}/tavily-api-key --secret-string "tvly-..."`,
         `   aws secretsmanager create-secret --name ${stackName}/uploadthing-token --secret-string "sk_live_..."`,
         '',
-        '2. Build and upload static assets:',
-        '   pnpm build',
+        '3. Build and upload static assets:',
+        '   cd frontend && pnpm build',
         `   aws s3 sync .next/static s3://${s3Construct.staticBucket.bucketName}/_next/static`,
         `   aws s3 sync public s3://${s3Construct.staticBucket.bucketName}/public`,
         '',
-        '3. Invalidate CloudFront cache:',
+        '4. Invalidate CloudFront cache:',
         `   aws cloudfront create-invalidation --distribution-id ${cloudfrontConstruct.distribution.distributionId} --paths "/*"`,
         '',
-        '4. Access your application:',
+        '5. Access your application:',
         `   https://${cloudfrontConstruct.distribution.distributionDomainName}`,
         '',
-        'Note: This deployment uses S3 for data storage (no database required).',
+        'Architecture:',
+        '- Frontend: Fargate (stateless Next.js)',
+        '- Backend: Bedrock AgentCore Runtime (Strands-based agent)',
+        '- Storage: S3 (no database required)',
         '',
         '========================================',
       ].join('\n'),

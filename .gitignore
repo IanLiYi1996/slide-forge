@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.js
 .yarn/install-state.gz
@@ -10,7 +10,7 @@
 /coverage
 
 # next.js
-/.next/
+.next/
 /out/
 
 # production
@@ -26,15 +26,45 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
-.env.local
 .env
+.env.local
+.env.*.local
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# CDK
+cdk.out/
+cdk.context.json
+
+# Deploy scripts temp files
+deploy/.build_output/
+deploy/.agentcore_output/
+deploy/config.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Reference resources (not part of main project)
 resource/
+
+# Generated worker files
 /public/pdf.worker.min.mjs
-frontend/node_modules
-frontend/.next/
+/public/gif.worker.js

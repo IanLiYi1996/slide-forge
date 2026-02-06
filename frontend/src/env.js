@@ -36,6 +36,9 @@ export const env = createEnv({
     COGNITO_CLIENT_SECRET: z.string(),
     COGNITO_ISSUER: z.string(),
 
+    // AgentCore Runtime
+    AGENTCORE_RUNTIME_URL: z.string().optional(),
+
     // Optional Services
     TAVILY_API_KEY: z.string().optional(),
     UNSPLASH_ACCESS_KEY: z.string().optional(),
@@ -70,6 +73,7 @@ export const env = createEnv({
     COGNITO_CLIENT_ID: process.env.COGNITO_CLIENT_ID,
     COGNITO_CLIENT_SECRET: process.env.COGNITO_CLIENT_SECRET,
     COGNITO_ISSUER: process.env.COGNITO_ISSUER,
+    AGENTCORE_RUNTIME_URL: process.env.AGENTCORE_RUNTIME_URL,
     TAVILY_API_KEY: process.env.TAVILY_API_KEY,
     UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
