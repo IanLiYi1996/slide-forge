@@ -128,10 +128,26 @@ async function handleAgentCoreChat(
         // Get or create AgentCore session
         // Use the database session's sdkSessionId if available for resume
         const sdkSessionId = dbSession.sdkSessionId;
-        const agentCoreSession = await agentCoreClient.createSession({
-          user_id: userId,
-          resume_session_id: sdkSessionId || undefined,
-        });
+        let agentCoreSession;
+        try {
+          agentCoreSession = await agentCoreClient.createSession({
+            user_id: userId,
+            resume_session_id: sdkSessionId || undefined,
+          });
+        } catch (resumeError) {
+          // If resume fails (e.g., session expired/cold start), create a fresh session
+          if (sdkSessionId) {
+            console.warn(
+              `[Agent Chat] Resume failed for SDK session ${sdkSessionId}, creating fresh session:`,
+              resumeError instanceof Error ? resumeError.message : resumeError
+            );
+            agentCoreSession = await agentCoreClient.createSession({
+              user_id: userId,
+            });
+          } else {
+            throw resumeError;
+          }
+        }
 
         console.log(
           `[Agent Chat] Using AgentCore session: ${agentCoreSession.session_id} for db session: ${sessionId}`
