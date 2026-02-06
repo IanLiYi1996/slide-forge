@@ -176,8 +176,16 @@ class SessionManager:
         """
         session_id = resume_session_id or str(uuid.uuid4())
 
+        # If session already exists in memory, reuse it instead of failing
         if session_id in self.sessions:
-            raise HTTPException(status_code=400, detail="Session already active")
+            existing = self.sessions[session_id]
+            if existing.status == "connected":
+                print(f"[SessionManager] Reusing active session: {session_id}")
+                return session_id
+            else:
+                # Session exists but disconnected - clean up and recreate
+                print(f"[SessionManager] Replacing disconnected session: {session_id}")
+                del self.sessions[session_id]
 
         session = AgentSession(
             session_id,
