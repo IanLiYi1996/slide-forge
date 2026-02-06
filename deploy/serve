@@ -14,6 +14,14 @@ cd /app/
 # Create logs directory if it doesn't exist
 mkdir -p logs
 
+# Install bundled skills to user-level ~/.claude/skills/
+# This makes them available to all sessions via setting_sources: ["user"]
+if [ -d /app/skills ]; then
+    mkdir -p /root/.claude/skills
+    cp -rn /app/skills/* /root/.claude/skills/ 2>/dev/null || true
+    echo "Installed bundled skills: $(ls /root/.claude/skills/)"
+fi
+
 # Add backend to Python path and activate virtual environment
 export PYTHONPATH="/app:$PYTHONPATH"
 source /app/backend/.venv/bin/activate
