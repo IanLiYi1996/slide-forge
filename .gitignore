@@ -68,3 +68,6 @@ resource/
 # Generated worker files
 /public/pdf.worker.min.mjs
 /public/gif.worker.js
+
+# Notebook output images
+notebooks/output/
