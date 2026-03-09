@@ -165,19 +165,28 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
 
-        const profile = await getUserProfile(token.id as string);
-        if (profile) {
-          token.hasAccess = profile.hasAccess;
-          token.role = profile.role;
-          token.isAdmin = profile.role === "ADMIN";
-          if (profile.name) token.name = profile.name;
-          if (profile.image) token.image = profile.image;
+        try {
+          const profile = await getUserProfile(token.id as string);
+          if (profile) {
+            token.hasAccess = profile.hasAccess;
+            token.role = profile.role;
+            token.isAdmin = profile.role === "ADMIN";
+            if (profile.name) token.name = profile.name;
+            if (profile.image) token.image = profile.image;
+          }
+        } catch (error) {
+          console.error("[Auth] Failed to fetch user profile in jwt callback:", error);
         }
       }
 
       // Handle session updates
       if (trigger === "update" && (session as Session)?.user) {
-        const profile = await getUserProfile(token.id as string);
+        let profile: UserProfile | null = null;
+        try {
+          profile = await getUserProfile(token.id as string);
+        } catch (error) {
+          console.error("[Auth] Failed to fetch user profile during session update:", error);
+        }
         if (session) {
           token.name = (session as Session).user.name;
           token.image = (session as Session).user.image;
