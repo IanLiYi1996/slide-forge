@@ -182,7 +182,7 @@ export const usePresentationState = create<PresentationState>((set) => ({
   numSlides: 5,
   language: "en-US",
   showTemplates: false,
-  selectedTemplate: "corporate", // Default template
+  selectedTemplate: "hand-drawn", // Default template
   customThemePrompt: "", // Custom theme style
   presentationInput: "",
   outline: [],
@@ -192,7 +192,7 @@ export const usePresentationState = create<PresentationState>((set) => ({
   customThemeData: null,
   imageModel: {
     aspectRatio: "16:9",
-    imageSize: "1K",
+    imageSize: "2K",
     provider: "yunwu",
     promptExtend: true, // 🆕 默认启用智能提示词改写
   },

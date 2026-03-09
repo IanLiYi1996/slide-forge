@@ -208,7 +208,9 @@ Apply this style consistently across all visual elements, colors, typography, an
 ${customThemePrompt}
 
 **SLIDE CONTENT:**
-${structuredContent}`;
+${structuredContent}
+
+**IMPORTANT:** NEVER include any copyright text, page numbers, slide numbers, dates, logos, watermarks, company names, or footer/header text in the image. Only render the visual content.`;
     } else {
       finalPrompt = `${finalSystemPrompt}
 
@@ -220,7 +222,9 @@ ${structuredContent}
 **TECHNICAL REQUIREMENTS:**
 - Aspect ratio: ${config.aspectRatio}
 - Image size: ${config.imageSize}
-- Strictly follow the style and structure guidelines above`;
+- Strictly follow the style and structure guidelines above
+- NEVER include any copyright text, page numbers, slide numbers, dates, logos, watermarks, company names, or footer/header text in the image
+- The image should contain ONLY the visual content described above, with no metadata or decorative text overlays`;
     }
 
     // 调用统一的服务接口

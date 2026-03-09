@@ -260,9 +260,13 @@ export function PresentationGenerationManager() {
 
       // Check if it's the new structured format (Slide N: ...)
       if (cleanContent.includes("Slide ") && cleanContent.includes("// NARRATIVE GOAL")) {
-        // New structured format: split by "Slide N:"
-        // Use lookahead to keep "Slide N:" in each section
-        sections = cleanContent.split(/(?=^Slide \d+:)/gm).filter(Boolean);
+        // New structured format: split by "Slide N:" or "**Slide N:" (with optional markdown bold)
+        // Also handle --- separators between slides
+        sections = cleanContent.split(/(?=^(?:\*\*)?Slide \d+:)/gm).filter((s) => {
+          const trimmed = s.trim();
+          // Filter out empty sections and separator-only sections (e.g. "---" or "# ---")
+          return trimmed.length > 0 && !/^#?\s*-{3,}\s*$/.test(trimmed);
+        });
       } else {
         // Old format: split by "# "
         sections = cleanContent.split(/^# /gm).filter(Boolean);
@@ -271,11 +275,12 @@ export function PresentationGenerationManager() {
       const outlineItems: string[] =
         sections.length > 0
           ? sections.map((section) => {
+              const trimmed = section.trim();
               // For new format, use as-is; for old format, add "# " prefix
-              if (section.trim().startsWith("Slide ")) {
-                return section.trim();
+              if (trimmed.startsWith("Slide ") || trimmed.startsWith("**Slide ")) {
+                return trimmed;
               } else {
-                return `# ${section}`.trim();
+                return `# ${trimmed}`;
               }
             })
           : [];

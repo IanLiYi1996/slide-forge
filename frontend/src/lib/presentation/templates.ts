@@ -58,7 +58,12 @@ Color Palette:
 - Primary Text Color: Warm charcoal gray, #3E3C38 (simulating pencil or ink)
 - Primary Accent Color: Soft coral red #FF7F7F and sage green #8FA87A for highlights and visual emphasis
 
-Visual Elements: All charts, arrows, and borders should look hand-drawn with pencil or marker. Use simple stick figures, lightbulbs, stars, and wavy connectors. Shadows should use rough hatching rather than gradients.`,
+Visual Elements: All charts, arrows, and borders should look hand-drawn with pencil or marker. Use simple stick figures, lightbulbs, stars, and wavy connectors. Shadows should use rough hatching rather than gradients.
+
+**STRICT PROHIBITIONS:**
+- NEVER add copyright text, page numbers, slide numbers, dates, logos, watermarks, or company names
+- NEVER add footer/header text or any metadata overlays
+- Only render the visual content described in the slide`,
   slideStructure: `**SLIDE STRUCTURE:**
 
 Each slide must include:
